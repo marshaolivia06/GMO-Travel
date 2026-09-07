@@ -27,28 +27,32 @@ const request = async (url, options = {}) => {
     data = JSON.parse(text)
   } catch (error) {
     console.error('Response bukan JSON valid:', error)
+
     throw new Error(
       `Server mengembalikan response yang bukan JSON. Status: ${response.status}`
     )
   }
 
   if (!response.ok) {
-    throw new Error(data.message || 'Terjadi kesalahan.')
+    throw new Error(
+      data.message ||
+      data.error ||
+      'Terjadi kesalahan.'
+    )
   }
 
   return data
 }
 
-
 export const getPermissions = () => {
   return request('/permissions')
 }
 
-export const getPermission = (id) => {
+export const getPermission = id => {
   return request(`/permissions/${id}`)
 }
 
-export const createPermission = (permission) => {
+export const createPermission = permission => {
   return request('/permissions', {
     method: 'POST',
     body: JSON.stringify(permission),
@@ -70,7 +74,7 @@ export const updatePermissionsByModule = (
   })
 }
 
-export const deletePermission = (id) => {
+export const deletePermission = id => {
   return request(`/permissions/${id}`, {
     method: 'DELETE',
   })

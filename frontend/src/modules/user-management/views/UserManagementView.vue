@@ -1196,7 +1196,13 @@ const showEditPermission = ref(false)
 const selectedPermission = ref(null)
 
 const openEditPermission = permission => {
-  selectedPermission.value = permission
+  selectedPermission.value = {
+    module: permission.module,
+    actions: [...(permission.actions || [])],
+    ids: [...(permission.ids || [])],
+    items: [...(permission.items || [])],
+  }
+
   showEditPermission.value = true
 }
 

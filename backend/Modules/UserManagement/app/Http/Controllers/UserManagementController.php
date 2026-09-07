@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Modules\UserManagement\Models\Permission;
 use Modules\UserManagement\Models\Role;
 use Modules\UserManagement\Models\User;
@@ -15,14 +16,20 @@ class UserManagementController extends Controller
     public function usersIndex()
     {
         return response()->json(
-            User::with('roles.permissions')->latest()->get()
+            User::with('roles.permissions')
+                ->latest()
+                ->get()
         );
     }
 
     public function usersStore(Request $request)
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+            ],
             'email' => [
                 'required',
                 'string',
@@ -30,21 +37,37 @@ class UserManagementController extends Controller
                 'max:255',
                 'unique:users,email',
             ],
-            'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'string', 'exists:roles,name'],
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+            ],
+            'role' => [
+                'required',
+                'string',
+                'exists:roles,name',
+            ],
         ]);
+
+        $role = Role::where('name', $validated['role'])
+            ->where('guard_name', 'web')
+            ->firstOrFail();
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'password' => Hash::make(
+                $validated['password']
+            ),
         ]);
 
-        $user->assignRole($validated['role']);
+        $user->assignRole($role);
 
         return response()->json([
             'message' => 'User created successfully.',
-            'data' => $user->load('roles'),
+            'data' => $user
+                ->fresh()
+                ->load('roles.permissions'),
         ], 201);
     }
 
@@ -55,10 +78,17 @@ class UserManagementController extends Controller
         );
     }
 
-    public function usersUpdate(Request $request, User $user)
-    {
+    public function usersUpdate(
+        Request $request,
+        User $user
+    ) {
         $validated = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'name' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:255',
+            ],
             'email' => [
                 'sometimes',
                 'required',
@@ -93,7 +123,9 @@ class UserManagementController extends Controller
         }
 
         if (!empty($validated['password'])) {
-            $userData['password'] = Hash::make($validated['password']);
+            $userData['password'] = Hash::make(
+                $validated['password']
+            );
         }
 
         if (!empty($userData)) {
@@ -101,17 +133,28 @@ class UserManagementController extends Controller
         }
 
         if (isset($validated['role'])) {
-            $user->syncRoles($validated['role']);
+            $role = Role::where(
+                'name',
+                $validated['role']
+            )
+                ->where('guard_name', 'web')
+                ->firstOrFail();
+
+            $user->syncRoles([$role]);
         }
 
         return response()->json([
             'message' => 'User updated successfully.',
-            'data' => $user->fresh()->load('roles.permissions'),
+            'data' => $user
+                ->fresh()
+                ->load('roles.permissions'),
         ]);
     }
 
     public function usersDestroy(User $user)
     {
+        $user->roles()->detach();
+
         $user->delete();
 
         return response()->json([
@@ -122,7 +165,10 @@ class UserManagementController extends Controller
     public function rolesIndex()
     {
         return response()->json(
-            Role::with('permissions')->latest()->get()
+            Role::where('guard_name', 'web')
+                ->with('permissions')
+                ->latest()
+                ->get()
         );
     }
 
@@ -151,7 +197,14 @@ class UserManagementController extends Controller
         ]);
 
         if (isset($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
+            $permissions = Permission::whereIn(
+                'id',
+                $validated['permissions']
+            )
+                ->where('guard_name', 'web')
+                ->get();
+
+            $role->syncPermissions($permissions);
         }
 
         return response()->json([
@@ -167,14 +220,20 @@ class UserManagementController extends Controller
         );
     }
 
-    public function rolesUpdate(Request $request, Role $role)
-    {
+    public function rolesUpdate(
+        Request $request,
+        Role $role
+    ) {
         $validated = $request->validate([
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                'unique:roles,name,' . $role->id,
+                Rule::unique('roles', 'name')
+                    ->where(function ($query) {
+                        return $query->where('guard_name', 'web');
+                    })
+                    ->ignore($role->id),
             ],
             'permissions' => [
                 'sometimes',
@@ -185,23 +244,37 @@ class UserManagementController extends Controller
                 'exists:permissions,id',
             ],
         ]);
-
+    
         $role->update([
-            'name' => $validated['name'],
+            'name' => trim($validated['name']),
+            'guard_name' => 'web',
         ]);
-
-        if (isset($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
+    
+        if (array_key_exists('permissions', $validated)) {
+            $permissions = Permission::whereIn(
+                'id',
+                $validated['permissions']
+            )
+                ->where('guard_name', 'web')
+                ->get();
+    
+            $role->syncPermissions($permissions);
         }
-
+    
         return response()->json([
             'message' => 'Role updated successfully.',
-            'data' => $role->fresh()->load('permissions'),
+            'data' => $role
+                ->fresh()
+                ->load('permissions'),
         ]);
-    }
+    }    
 
     public function rolesDestroy(Role $role)
     {
+        $role->users()->detach();
+
+        $role->permissions()->detach();
+
         $role->delete();
 
         return response()->json([
@@ -212,7 +285,9 @@ class UserManagementController extends Controller
     public function permissionsIndex()
     {
         return response()->json(
-            Permission::latest()->get()
+            Permission::where('guard_name', 'web')
+                ->latest()
+                ->get()
         );
     }
 
@@ -244,14 +319,20 @@ class UserManagementController extends Controller
         ], 201);
     }
 
-    public function permissionsShow(Permission $permission)
-    {
+    public function permissionsShow(
+        Permission $permission
+    ) {
         return response()->json($permission);
     }
 
     public function permissionsSync(Request $request)
     {
         $validated = $request->validate([
+            'old_module' => [
+                'required',
+                'string',
+                'max:255',
+            ],
             'module' => [
                 'required',
                 'string',
@@ -269,62 +350,75 @@ class UserManagementController extends Controller
             ],
         ]);
     
-        $module = trim($validated['module']);
-        $actions = array_values(array_unique($validated['actions']));
+        $oldModule = trim($validated['old_module']);
+        $newModule = trim($validated['module']);
     
-        return DB::transaction(function () use ($module, $actions) {
+        $actions = array_values(
+            array_unique($validated['actions'])
+        );
+    
+        return DB::transaction(function () use (
+            $oldModule,
+            $newModule,
+            $actions
+        ) {
             $moduleName = strtolower(
-                preg_replace('/\s+/', '-', $module)
+                preg_replace('/\s+/', '-', $newModule)
             );
     
-            $existingPermissions = Permission::where(
-                'module',
-                $module
-            )->get();
+            $permissions = Permission::where('module', $oldModule)
+                ->where('guard_name', 'web')
+                ->get();
     
-            $existingActions = [];
+            if ($permissions->isEmpty()) {
+                return response()->json([
+                    'message' => 'Permission tidak ditemukan.',
+                ], 404);
+            }
     
-            foreach ($existingPermissions as $permission) {
-                $parts = explode('.', $permission->name);
-                $action = end($parts);
+            $existingByAction = [];
     
-                if (in_array(
-                    $action,
-                    ['view', 'create', 'update', 'delete']
-                )) {
-                    $existingActions[] = $action;
-                }
+            foreach ($permissions as $permission) {
+                $action = strtolower(
+                    last(explode('.', $permission->name))
+                );
+    
+                $existingByAction[$action] = $permission;
             }
     
             foreach ($actions as $action) {
-                if (!in_array($action, $existingActions)) {
+                if (isset($existingByAction[$action])) {
+                    $permission = $existingByAction[$action];
+    
+                    $permission->update([
+                        'name' => "{$moduleName}.{$action}",
+                        'module' => $newModule,
+                        'guard_name' => 'web',
+                    ]);
+                } else {
                     Permission::create([
                         'name' => "{$moduleName}.{$action}",
-                        'module' => $module,
+                        'module' => $newModule,
                         'guard_name' => 'web',
                     ]);
                 }
             }
     
-            foreach ($existingPermissions as $permission) {
-                $parts = explode('.', $permission->name);
-                $action = end($parts);
-    
+            foreach ($existingByAction as $action => $permission) {
                 if (!in_array($action, $actions)) {
+                    $permission->roles()->detach();
                     $permission->delete();
                 }
             }
     
             return response()->json([
                 'message' => 'Permission updated successfully.',
-                'data' => Permission::where(
-                    'module',
-                    $module
-                )->get(),
+                'data' => Permission::where('module', $newModule)
+                    ->where('guard_name', 'web')
+                    ->get(),
             ]);
         });
-    }
-    
+    }    
 
     public function permissionsUpdate(
         Request $request,
@@ -335,7 +429,8 @@ class UserManagementController extends Controller
                 'required',
                 'string',
                 'max:255',
-                'unique:permissions,name,' . $permission->id,
+                'unique:permissions,name,' .
+                    $permission->id,
             ],
             'module' => [
                 'required',
@@ -347,20 +442,28 @@ class UserManagementController extends Controller
         $permission->update([
             'name' => $validated['name'],
             'module' => $validated['module'],
+            'guard_name' => 'web',
         ]);
 
         return response()->json([
-            'message' => 'Permission updated successfully.',
+            'message' =>
+                'Permission updated successfully.',
             'data' => $permission->fresh(),
         ]);
     }
 
-    public function permissionsDestroy(Permission $permission)
-    {
+    public function permissionsDestroy(
+        Permission $permission
+    ) {
+        $permission
+            ->roles()
+            ->detach();
+
         $permission->delete();
 
         return response()->json([
-            'message' => 'Permission deleted successfully.',
+            'message' =>
+                'Permission deleted successfully.',
         ]);
     }
 }

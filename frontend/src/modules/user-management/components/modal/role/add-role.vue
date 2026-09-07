@@ -418,7 +418,11 @@ const permissionGroups = computed(() => {
   const groups = {}
 
   permissions.value.forEach(permission => {
-    const module = permission.module || 'Other'
+    const module = permission.module
+
+    if (!module) {
+      return
+    }
 
     if (!groups[module]) {
       groups[module] = []
@@ -432,6 +436,7 @@ const permissionGroups = computed(() => {
     permissions: groups[module],
   }))
 })
+
 
 const getPermissionByAction = (group, action) => {
   return group.permissions.find(

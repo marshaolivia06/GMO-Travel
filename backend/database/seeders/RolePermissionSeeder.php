@@ -10,12 +10,6 @@ class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Roles
-        |--------------------------------------------------------------------------
-        */
-
         $admin = Role::firstOrCreate([
             'name' => 'admin',
             'guard_name' => 'web',
@@ -31,44 +25,50 @@ class RolePermissionSeeder extends Seeder
             'guard_name' => 'web',
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Permissions
-        |--------------------------------------------------------------------------
-        */
-
-        $permissions = [
-            'users.view',
-            'users.create',
-            'users.edit',
-            'users.delete',
+        $modules = [
+            'user-management',
+            'travel-order',
+            'annual-leave',
         ];
 
-        foreach ($permissions as $permissionName) {
-            Permission::firstOrCreate([
-                'name' => $permissionName,
-                'guard_name' => 'web',
-            ]);
+        $actions = [
+            'view',
+            'create',
+            'update',
+            'delete',
+        ];
+
+        foreach ($modules as $module) {
+            foreach ($actions as $action) {
+                Permission::firstOrCreate([
+                    'name' => "{$module}.{$action}",
+                    'guard_name' => 'web',
+                ]);
+            }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Assign Permissions to Roles
-        |--------------------------------------------------------------------------
-        */
-
         $admin->syncPermissions(
-            Permission::all()
+            Permission::where('guard_name', 'web')->get()
         );
 
         $staff->syncPermissions([
-            'users.view',
-            'users.create',
-            'users.edit',
+            'user-management.view',
+            'user-management.create',
+            'user-management.update',
+            'travel-order.view',
+            'travel-order.create',
+            'travel-order.update',
+            'annual-leave.view',
+            'annual-leave.create',
+            'annual-leave.update',
         ]);
 
         $user->syncPermissions([
-            'users.view',
+            'user-management.view',
+            'travel-order.view',
+            'travel-order.create',
+            'annual-leave.view',
+            'annual-leave.create',
         ]);
     }
 }
