@@ -1,0 +1,7 @@
+{
+    "User": true,
+    "Users": false,
+    "Roles": false,
+    "Permissions": false,
+    "UserManagement": true
+}
