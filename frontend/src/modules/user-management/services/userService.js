@@ -18,7 +18,13 @@ const request = async (url, options = {}) => {
   const data = await response.json()
 
   if (!response.ok) {
-    throw new Error(data.message || 'Terjadi kesalahan.')
+    const error = new Error(
+      data.message || 'Terjadi kesalahan.'
+    )
+
+    error.status = response.status
+
+    throw error
   }
 
   return data
@@ -38,15 +44,16 @@ export const createUser = (user) => {
 export const getRoles = () => {
   return request('/roles')
 }
+
 export const updateUser = (id, user) => {
   return request(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(user),
   })
 }
+
 export const deleteUser = (id) => {
   return request(`/users/${id}`, {
     method: 'DELETE',
   })
-}
-
+} 
