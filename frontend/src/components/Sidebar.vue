@@ -109,7 +109,8 @@ import {
   LayoutDashboard,
   CalendarDays,
   Plane,
-  FileText
+  FileText,
+  FolderCog
 } from 'lucide-vue-next'
 
 import logoFull from '../assets/logo_ecogreen.png'
@@ -135,6 +136,11 @@ const menuItems = [
     label: 'User Management',
     icon: Users
   },
+  {
+  to: '/master-management',
+  label: 'Master Management',
+  icon: FolderCog
+},
   {
     to: '/dashboard',
     label: 'Dashboard',
