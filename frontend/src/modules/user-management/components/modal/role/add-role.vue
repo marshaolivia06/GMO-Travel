@@ -12,6 +12,7 @@
           <p class="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#1E4F8A]">
             Role Management
           </p>
+
           <h2 class="text-xl font-semibold text-[#172033]">
             Add Role
           </h2>
@@ -27,9 +28,15 @@
         </button>
       </div>
 
-      <form class="p-6 max-[500px]:px-[18px]" @submit.prevent="openConfirmation">
+      <form
+        class="p-6 max-[500px]:px-[18px]"
+        @submit.prevent="openConfirmation"
+      >
         <div class="mb-6">
-          <label for="role-name" class="mb-2 block text-[13px] font-semibold text-slate-700">
+          <label
+            for="role-name"
+            class="mb-2 block text-[13px] font-semibold text-slate-700"
+          >
             Role Name
           </label>
 
@@ -37,7 +44,7 @@
             id="role-name"
             v-model="form.name"
             type="text"
-            placeholder="Contoh: Admin"
+            placeholder="Example: Admin"
             required
             class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-[13px] outline-none focus:border-[#1E4F8A] focus:ring-4 focus:ring-[#1E4F8A]/10"
           />
@@ -49,8 +56,9 @@
               <label class="block text-[13px] font-semibold text-slate-700">
                 Assign Permissions
               </label>
+
               <p class="mt-1 text-[11px] text-slate-400">
-                Pilih permission untuk role ini.
+                Select permissions for this role.
               </p>
             </div>
 
@@ -79,81 +87,81 @@
           </div>
 
           <div
-  v-else-if="permissionGroups.length"
-  class="overflow-hidden rounded-lg border border-slate-200"
+            v-else-if="permissionGroups.length"
+            class="overflow-hidden rounded-lg border border-slate-200"
+          >
+          <div
+  class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 bg-slate-100"
 >
-  <div
-    class="grid grid-cols-[1fr_repeat(4,60px)] border-b border-slate-200 bg-slate-100"
-  >
-    <div
-      class="flex items-center px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400"
-    >
-      Module
-    </div>
+              <div
+                class="flex items-center px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400"
+              >
+                Module
+              </div>
 
-    <label
-      v-for="action in headerActions"
-      :key="action"
-      class="flex cursor-pointer flex-col items-center justify-center gap-1 border-l border-slate-200 py-2.5 transition hover:bg-slate-200"
-    >
-      <input
-        type="checkbox"
-        :checked="isActionSelected(action)"
-        :disabled="!getActionPermissions(action).length"
-        class="h-3.5 w-3.5 accent-[#1E4F8A]"
-        @change="toggleAction(action)"
-      />
+              <label
+                v-for="action in headerActions"
+                :key="action"
+                class="flex cursor-pointer flex-col items-center justify-center gap-1 border-l border-slate-200 py-2.5 transition hover:bg-slate-200"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isActionSelected(action)"
+                  :disabled="!getActionPermissions(action).length"
+                  class="h-3.5 w-3.5 accent-[#1E4F8A]"
+                  @change="toggleAction(action)"
+                />
 
-      <span
-        class="text-[9px] font-bold uppercase text-[#1E4F8A]"
-      >
-        {{ action }}
-      </span>
-    </label>
-  </div>
+                <span
+                  class="text-[9px] font-bold uppercase text-[#1E4F8A]"
+                >
+                  {{ action }}
+                </span>
+              </label>
+            </div>
 
-  <div class="max-h-[300px] overflow-y-auto">
-    <div
-      v-for="group in permissionGroups"
-      :key="group.module"
-      class="grid grid-cols-[1fr_repeat(4,60px)] border-b border-slate-200 last:border-b-0"
-    >
-      <div class="flex items-center px-4 py-3">
-        <span class="text-[12px] font-semibold text-slate-700">
-          {{ group.module }}
-        </span>
-      </div>
+            <div class="max-h-[300px] overflow-y-auto">
+              <div
+  v-for="group in permissionGroups"
+  :key="group.module"
+  class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 last:border-b-0"
+>
+                <div class="flex items-center px-4 py-3">
+                  <span class="text-[12px] font-semibold text-slate-700">
+                    {{ group.module }}
+                  </span>
+                </div>
 
-      <div
-        v-for="action in headerActions"
-        :key="`${group.module}-${action}`"
-        class="flex items-center justify-center border-l border-slate-200"
-      >
-        <template v-if="getPermissionByAction(group, action)">
-          <input
-            v-model="form.permissions"
-            type="checkbox"
-            :value="getPermissionByAction(group, action).id"
-            class="h-4 w-4 accent-[#1E4F8A]"
-          />
-        </template>
+                <div
+                  v-for="action in headerActions"
+                  :key="`${group.module}-${action}`"
+                  class="flex items-center justify-center border-l border-slate-200"
+                >
+                  <template v-if="getPermissionByAction(group, action)">
+                    <input
+                      v-model="form.permissions"
+                      type="checkbox"
+                      :value="getPermissionByAction(group, action).id"
+                      class="h-4 w-4 accent-[#1E4F8A]"
+                    />
+                  </template>
 
-        <span
-          v-else
-          class="text-[11px] text-slate-200"
-        >
-          —
-        </span>
-      </div>
-    </div>
-  </div>
+                  <span
+                    v-else
+                    class="text-[11px] text-slate-200"
+                  >
+                    —
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div
             v-else
             class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs text-slate-500"
           >
-            Belum ada permission yang terdaftar.
+            No permissions have been registered yet.
           </div>
         </div>
 
@@ -164,11 +172,11 @@
           {{ error }}
         </div>
 
-        <div class="flex justify-end gap-2.5 max-[500px]:flex-col-reverse">
+        <div class="flex justify-end gap-2.5 pt-1 max-[500px]:flex-col-reverse">
           <button
             type="button"
             :disabled="saving"
-            class="rounded-lg bg-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50 max-[500px]:w-full"
+            class="rounded-lg bg-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 max-[500px]:w-full"
             @click="handleClose"
           >
             Cancel
@@ -177,208 +185,56 @@
           <button
             type="submit"
             :disabled="saving"
-            class="rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 max-[500px]:w-full"
+            class="rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[500px]:w-full"
           >
-            Save Role
+            Add
           </button>
         </div>
       </form>
     </div>
 
     <div
-  v-else
-  class="w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_90px_rgba(15,23,42,0.25)]"
->
-  <div class="h-1.5 bg-[#1E4F8A]" />
-
-  <div class="px-6 pb-6 pt-6">
-    <div class="flex items-start justify-between">
-      <div>
-        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-[#1E4F8A]">
-          Role Management
-        </p>
-
-        <h2 class="mt-1 text-xl font-semibold text-[#172033]">
-          Confirm New Role
-        </h2>
-      </div>
-
-      <div
-        class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF2F9] text-[#1E4F8A]"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="1.8"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M9 12l2 2 4-4"
-          />
-
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M12 3l7 3v5c0 4.5-2.9 8.5-7 10-4.1-1.5-7-5.5-7-10V6l7-3z"
-          />
-        </svg>
-      </div>
-    </div>
-
-    <p class="mt-2 text-xs leading-5 text-slate-500">
-      Review the role information and assigned permissions before saving.
-    </p>
-
-    <div
-      class="mt-5 overflow-hidden rounded-xl border border-slate-200"
+      v-else
+      class="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_28px_80px_rgba(15,23,42,0.25)]"
     >
-      <div class="bg-gradient-to-r from-[#F5F8FB] to-white px-4 py-4">
-        <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">
-          Role Name
-        </p>
-
-        <div class="mt-2 flex items-center gap-3">
+      <div class="px-6 pb-6 pt-7">
+        <div class="flex justify-center">
           <div
-            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1E4F8A] text-xs font-bold text-white"
+            class="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-[#EAF2F9] text-[#1E4F8A]"
           >
-            {{ form.name.trim().charAt(0).toUpperCase() }}
+            <span class="text-3xl font-bold">
+              ?
+            </span>
           </div>
+        </div>
 
-          <p class="text-base font-semibold text-[#172033]">
-            {{ form.name.trim() }}
+        <div class="mt-5 text-center">
+          <p class="mx-auto max-w-[330px] text-[15px] font-medium leading-6 text-[#172033]">
+            Are you sure you want to add this role?
           </p>
         </div>
-      </div>
 
-      <div class="border-t border-slate-200 bg-slate-50 px-4 py-4">
-        <div class="mb-3 flex items-center justify-between">
-          <div>
-            <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">
-              Assigned Permissions
-            </p>
-
-            <p class="mt-1 text-[11px] text-slate-500">
-              Permissions that will be assigned to this role.
-            </p>
-          </div>
-
-          <span
-            class="rounded-full bg-[#1E4F8A]/10 px-2.5 py-1 text-[10px] font-bold text-[#1E4F8A]"
+        <div class="mt-6 flex items-center justify-center gap-2.5">
+          <button
+            type="button"
+            class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="loading"
+            @click="cancelConfirmation"
           >
-            {{ form.permissions.length }}
-          </span>
-        </div>
+            Cancel
+          </button>
 
-        <div
-          v-if="selectedPermissionGroups.length"
-          class="max-h-[220px] space-y-2 overflow-y-auto pr-1"
-        >
-          <div
-            v-for="group in selectedPermissionGroups"
-            :key="group.module"
-            class="rounded-lg border border-slate-200 bg-white p-3"
+          <button
+            type="button"
+            :disabled="saving"
+            class="min-w-[100px] rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+            @click="submitRole"
           >
-            <div class="mb-2 flex items-center gap-2">
-              <span
-                class="h-1.5 w-1.5 rounded-full bg-[#1E4F8A]"
-              />
-
-              <span class="text-[11px] font-semibold text-[#172033]">
-                {{ group.module }}
-              </span>
-
-              <span class="text-[9px] text-slate-400">
-                {{ group.permissions.length }}
-              </span>
-            </div>
-
-            <div class="flex flex-wrap gap-1.5">
-              <span
-                v-for="permission in group.permissions"
-                :key="permission.id"
-                class="rounded-md bg-[#EAF2F9] px-2 py-1 text-[9px] font-semibold capitalize text-[#1E4F8A]"
-              >
-                {{ getAction(permission) }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-else
-          class="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-[11px] text-slate-400"
-        >
-          No permissions selected.
+            {{ saving ? 'Saving...' : 'Yes' }}
+          </button>
         </div>
       </div>
     </div>
-
-    <div class="mt-5 flex gap-2.5 max-[500px]:flex-col-reverse">
-  <button
-    type="button"
-    :disabled="saving"
-    class="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-    @click="cancelConfirmation"
-  >
-    Go Back
-  </button>
-
-  <button
-    type="button"
-    :disabled="saving"
-    class="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-    @click="submitRole"
-  >
-    <span class="inline-flex items-center justify-center gap-2">
-      <svg
-        v-if="!saving"
-        xmlns="http://www.w3.org/2000/svg"
-        class="h-4 w-4"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M5 12l4 4L19 6"
-        />
-      </svg>
-
-      <svg
-        v-else
-        xmlns="http://www.w3.org/2000/svg"
-        class="h-4 w-4 animate-spin"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <circle
-          cx="12"
-          cy="12"
-          r="9"
-          class="opacity-25"
-        />
-
-        <path
-          d="M21 12a9 9 0 00-9-9"
-          class="opacity-75"
-        />
-      </svg>
-
-      {{ saving ? 'Menyimpan...' : 'Confirm & Add Role' }}
-    </span>
-  </button>
-</div>
-
-  </div>
-</div>
   </div>
 </template>
 
@@ -405,7 +261,7 @@ const saving = ref(false)
 const error = ref('')
 const showConfirmation = ref(false)
 
-const headerActions = ['view', 'create', 'update', 'delete']
+const headerActions = ['view', 'create', 'update', 'delete', 'approve',]
 
 const getAction = (permission) => {
   if (!permission?.name) return ''
@@ -436,7 +292,6 @@ const permissionGroups = computed(() => {
     permissions: groups[module],
   }))
 })
-
 
 const getPermissionByAction = (group, action) => {
   return group.permissions.find(
@@ -505,11 +360,11 @@ const openConfirmation = () => {
   error.value = ''
 
   if (!form.value.name.trim()) {
-    error.value = 'Role name wajib diisi.'
+    error.value = 'Role name is required.'
 
     toast.warning(
       'Invalid Role',
-      'Role name wajib diisi.'
+      'Role name is required.'
     )
 
     return
@@ -539,7 +394,7 @@ const fetchPermissions = async () => {
     permissions.value = response.data || response
   } catch (err) {
     permissionError.value =
-      err.message || 'Gagal mengambil permissions.'
+      err.message || 'Failed to load permissions.'
   } finally {
     loadingPermissions.value = false
   }
@@ -549,7 +404,6 @@ const submitRole = async () => {
   if (saving.value) return
 
   saving.value = true
-  error.value = ''
 
   try {
     await createRole({
@@ -559,18 +413,15 @@ const submitRole = async () => {
 
     toast.success(
       'Role Added',
-      'Role berhasil ditambahkan.'
+      'Role has been added successfully.'
     )
 
     emit('created')
     emit('close')
   } catch (err) {
-    error.value =
-      err.message || 'Gagal membuat role.'
-
     toast.error(
       'Action Failed',
-      error.value
+      err.message || 'Role already exists or failed to create role.'
     )
 
     showConfirmation.value = false
