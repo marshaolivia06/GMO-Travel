@@ -3,5 +3,6 @@
     "Users": false,
     "Roles": false,
     "Permissions": false,
-    "UserManagement": true
+    "UserManagement": true,
+    "MasterManagement": true
 }
