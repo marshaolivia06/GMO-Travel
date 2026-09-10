@@ -206,14 +206,14 @@
       <div
         class="mt-[25px] flex items-center justify-center gap-2.5 max-[600px]:flex-col-reverse"
       >
-        <button
-          type="button"
-          class="min-w-[90px] rounded-[7px] border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-          :disabled="loading"
-          @click="cancelConfirmation"
-        >
-          Cancel
-        </button>
+      <button
+  type="button"
+  class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+  :disabled="saving"
+  @click="cancelConfirmation"
+>
+  Cancel
+</button>
 
         <button
           type="button"
@@ -221,7 +221,7 @@
           :disabled="loading"
           @click="handleSubmit"
         >
-          {{ loading ? 'Menyimpan...' : 'Yes' }}
+        {{ loading ? 'Saving...' : 'Yes' }}
         </button>
       </div>
     </div>
@@ -267,7 +267,7 @@ const fetchRoles = async () => {
   } catch (err) {
     error.value =
       err.message ||
-      'Gagal mengambil role.'
+      'Failed to fetch roles.'
 
     toast.error(
       'Action Failed',
@@ -284,12 +284,12 @@ const openConfirmation = () => {
     form.value.confirmPassword
   ) {
     error.value =
-      'Password dan konfirmasi password tidak sama.'
+  'Password and confirmation password do not match.'
 
-    toast.warning(
-      'Password Mismatch',
-      'Password dan konfirmasi password tidak sama.'
-    )
+toast.warning(
+  'Password Mismatch',
+  'Password and confirmation password do not match.'
+)
 
     return
   }
@@ -324,24 +324,20 @@ const handleSubmit = async () => {
     })
 
     toast.success(
-      'User Added',
-      `User ${form.value.name} berhasil ditambahkan.`
-    )
+  'User Added',
+  `User ${form.value.name} has been added successfully.`
+)
 
     emit('created')
     emit('close')
   } catch (err) {
-    error.value =
-      err.message ||
-      'Gagal membuat user.'
+  toast.error(
+    'Action Failed',
+    err.message || 'Failed to create user.'
+  )
 
-    toast.error(
-      'Action Failed',
-      error.value
-    )
-
-    showConfirmation.value = false
-  } finally {
+  showConfirmation.value = false
+} finally {
     loading.value = false
   }
 }
