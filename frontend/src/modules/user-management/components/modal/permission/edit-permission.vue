@@ -50,7 +50,7 @@
             id="edit-permission-module"
             v-model="form.module"
             type="text"
-            placeholder="Contoh: User Management"
+            placeholder="Example: User Management"
             required
             class="box-border w-full rounded-lg border border-slate-300 px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
           />
@@ -122,164 +122,55 @@
     </div>
 
     <div
-      v-else
-      class="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_28px_80px_rgba(15,23,42,0.25)]"
-    >
+  v-else
+  class="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_28px_80px_rgba(15,23,42,0.25)]"
+>
+  <div
+    class="h-1.5 w-full bg-gradient-to-r from-[#1E4F8A] via-[#2E6FB4] to-[#1E4F8A]"
+  />
+
+  <div class="px-6 pb-6 pt-7">
+    <div class="flex justify-center">
       <div
-        class="h-1.5 w-full bg-gradient-to-r from-[#1E4F8A] via-[#2E6FB4] to-[#1E4F8A]"
-      />
-
-      <div class="px-6 pb-6 pt-7">
-        <div class="flex justify-center">
-          <div
-            class="flex h-[68px] w-[68px] items-center justify-center rounded-2xl bg-[#EAF2F9] text-[#1E4F8A] shadow-sm"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-8 w-8"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 3l7 3v5c0 4.5-2.9 8.5-7 10-4.1-1.5-7-5.5-7-10V6l7-3z"
-              />
-
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 12l2 2 4-4"
-              />
-            </svg>
-          </div>
-        </div>
-
-        <div class="mt-5 text-center">
-          <h2
-            class="m-0 text-lg font-semibold text-[#172033]"
-          >
-            Confirm Permission Update
-          </h2>
-
-          <p
-            class="mx-auto mt-2 max-w-[330px] text-[13px] leading-5 text-slate-500"
-          >
-            Please review the permission details below before updating it.
-          </p>
-        </div>
-
-        <div
-          class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
-        >
-          <div class="border-b border-slate-200 px-4 py-3.5">
-            <p
-              class="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400"
-            >
-              Module
-            </p>
-
-            <p
-              class="m-0 break-words text-[15px] font-semibold text-[#172033]"
-            >
-              {{ form.module.trim() }}
-            </p>
-          </div>
-
-          <div class="px-4 py-3.5">
-            <div class="mb-2.5 flex items-center justify-between">
-              <p
-                class="m-0 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400"
-              >
-                Actions
-              </p>
-
-              <span
-                class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 shadow-sm"
-              >
-                {{ form.actions.length }} selected
-              </span>
-            </div>
-
-            <div class="flex flex-wrap gap-2">
-              <span
-                v-for="action in form.actions"
-                :key="action"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-[#1E4F8A]/10 bg-white px-2.5 py-1.5 text-[11px] font-semibold capitalize text-[#1E4F8A] shadow-sm"
-              >
-                <span
-                  class="h-1.5 w-1.5 rounded-full bg-[#1E4F8A]"
-                />
-
-                {{ action }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="mt-6 flex items-center justify-end gap-2.5 max-[600px]:flex-col-reverse"
-        >
-          <button
-            type="button"
-            class="min-w-[100px] rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-            :disabled="loading"
-            @click="cancelConfirmation"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            class="inline-flex min-w-[140px] items-center justify-center gap-2 rounded-lg border-0 bg-green-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-            :disabled="loading"
-            @click="handleSubmit"
-          >
-            <svg
-              v-if="!loading"
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M5 12l4 4L19 6"
-              />
-            </svg>
-
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 animate-spin"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="9"
-                class="opacity-25"
-              />
-
-              <path
-                d="M21 12a9 9 0 00-9-9"
-                class="opacity-75"
-              />
-            </svg>
-
-            {{ loading ? 'Menyimpan...' : 'Yes, Update Permission' }}
-          </button>
-        </div>
+        class="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-[#EAF2F9] text-[#1E4F8A]"
+      >
+        <span class="text-3xl font-bold">
+          ?
+        </span>
       </div>
     </div>
+
+    <div class="mt-5 text-center">
+      <p
+        class="mx-auto max-w-[330px] text-[15px] font-medium leading-6 text-[#172033]"
+      >
+        Are you sure you want to update this permission?
+      </p>
+    </div>
+
+    <div
+      class="mt-6 flex items-center justify-center gap-2.5 max-[600px]:flex-col-reverse"
+    >
+      <button
+        type="button"
+        class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+        :disabled="loading"
+        @click="cancelConfirmation"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        class="min-w-[100px] rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
+        :disabled="loading"
+        @click="handleSubmit"
+      >
+        {{ loading ? 'Updating...' : 'Yes' }}
+      </button>
+    </div>
+  </div>
+</div>
   </div>
 </template>
 
@@ -322,6 +213,10 @@ const ACTIONS = [
   {
     label: 'Delete',
     value: 'delete',
+  },
+  {
+    label: 'Approve',
+    value: 'approve',
   },
 ]
 
@@ -385,12 +280,12 @@ const openConfirmation = () => {
     form.value.module.trim()
 
   if (!form.value.module) {
-    error.value = 'Module wajib diisi.'
+    error.value = 'Module is required.'
     return
   }
 
   if (form.value.actions.length === 0) {
-    error.value = 'Pilih minimal satu action.'
+    error.value = 'Please select at least one action.'
     return
   }
 
@@ -443,7 +338,7 @@ const handleSubmit = async () => {
 
     toast.success(
       'Permission Updated',
-      'Permission berhasil diperbarui.'
+      'Permission has been updated successfully.'
     )
 
     emit('updated')
@@ -451,7 +346,7 @@ const handleSubmit = async () => {
   } catch (err) {
     error.value =
       err.message ||
-      'Gagal mengubah permission.'
+      'Failed to update permission.'
 
     toast.error(
       'Action Failed',
