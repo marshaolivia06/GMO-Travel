@@ -18,8 +18,17 @@ const request = async (url, options = {}) => {
   const data = await response.json()
 
   if (!response.ok) {
-    throw new Error(data.message || 'Terjadi kesalahan.')
-  }
+    const error = new Error(
+      data.message || 'Terjadi kesalahan.'
+    )
+  
+    error.response = {
+      status: response.status,
+      data,
+    }
+  
+    throw error
+  }  
 
   return data
 }
