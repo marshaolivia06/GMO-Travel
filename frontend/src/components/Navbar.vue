@@ -20,30 +20,31 @@
 
       <!-- LOGOUT MENU -->
       <div
-        v-if="showProfileMenu"
-        class="absolute right-0 top-[calc(100%+10px)] z-[1000] min-w-[130px] rounded-lg border border-slate-200 bg-white p-1.5 shadow-[0_10px_25px_rgba(15,23,42,0.12)]"
-      >
-        <button
-          type="button"
-          class="w-full rounded-md bg-transparent px-3 py-[9px] text-left text-[13px] font-semibold text-red-600 hover:bg-red-50"
-          @click="openLogoutConfirmation"
-        >
-          Logout
-        </button>
-      </div>
+  v-if="showProfileMenu"
+  class="absolute right-0 top-[calc(100%+10px)] z-[1000] w-[140px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
+>
+  <button
+    type="button"
+    class="w-full rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold text-slate-600 transition duration-200 hover:bg-red-50 hover:text-red-600"
+    @click="openLogoutConfirmation"
+  >
+    Logout
+  </button>
+</div>
+
 
     </div>
   </header>
 
   <!-- LOGOUT CONFIRMATION -->
   <div
-    v-if="showLogoutModal"
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/45 p-5 backdrop-blur-[2px]"
-    @click.self="cancelLogout"
-  >
-    <div
-      class="w-[400px] max-w-full rounded-xl bg-white p-[30px_25px] text-center shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
-    >
+  v-if="showLogoutModal"
+  class="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/45 p-5"
+  @click.self="cancelLogout"
+>
+<div
+  class="w-[400px] max-w-full rounded-xl bg-white p-[30px_25px] text-center shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
+>
       <div
         class="mx-auto mb-[18px] flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#eaf2f9] text-[27px] font-bold text-[#1E4F8A]"
       >
@@ -57,22 +58,22 @@
       <div class="mt-[25px] flex items-center justify-center gap-2.5">
 
         <button
-          type="button"
-          class="min-w-[100px] rounded-[7px] border border-slate-300 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-600 transition duration-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="loggingOut"
-          @click="cancelLogout"
-        >
-          Cancel
-        </button>
+  type="button"
+  class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+  :disabled="loggingOut"
+  @click="cancelLogout"
+>
+  Cancel
+</button>
 
-        <button
-          type="button"
-          class="min-w-[100px] rounded-[7px] bg-red-600 px-4 py-2.5 text-[13px] font-semibold text-white transition duration-200 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="loggingOut"
-          @click="confirmLogout"
-        >
-          {{ loggingOut ? 'Logging out...' : 'Yes i want to logout' }}
-        </button>
+<button
+  type="button"
+  class="min-w-[90px] rounded-lg bg-red-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+  :disabled="loggingOut"
+  @click="confirmLogout"
+>
+  {{ loggingOut ? 'Logging out...' : 'Yes, Log Out' }}
+</button>
 
       </div>
     </div>
@@ -147,7 +148,7 @@ const confirmLogout = async () => {
     await router.push('/login')
   } catch (error) {
     console.error('Gagal logout:', error)
-    toast.error('Gagal logout.')
+    toast.error('Logout failed.')
   } finally {
     loggingOut.value = false
   }
