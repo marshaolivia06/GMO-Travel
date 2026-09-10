@@ -344,10 +344,10 @@ class UserManagementController extends Controller
                 'min:1',
             ],
             'actions.*' => [
-                'required',
-                'string',
-                'in:view,create,update,delete',
-            ],
+    'required',
+    'string',
+    'in:view,create,update,delete,approve',
+],
         ]);
     
         $oldModule = trim($validated['old_module']);
