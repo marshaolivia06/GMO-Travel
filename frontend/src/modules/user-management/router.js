@@ -7,6 +7,8 @@ const userManagementRoutes = [
     component: UserManagementView,
     meta: {
       title: 'User Management',
+      requiresAuth: true,
+      permission: 'user-management.view',
     },
   },
 ]
