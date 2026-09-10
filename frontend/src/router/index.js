@@ -3,10 +3,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 
+import { useAuthStore } from '../stores/auth'
+
 import dashboardRoutes from '../modules/dashboard/router'
 import annualLeaveRoutes from '../modules/annual-leave/router'
 import travelOrderRoutes from '../modules/travel-order/router'
 import userManagementRoutes from '../modules/user-management/router'
+import masterManagementRoutes from '../modules/master-management/router'
 
 const routes = [
   {
@@ -31,7 +34,8 @@ const routes = [
       ...annualLeaveRoutes,
       ...travelOrderRoutes,
       ...userManagementRoutes,
-    ],
+      ...masterManagementRoutes,
+    ],    
   },
 
   {
@@ -92,6 +96,38 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+router.beforeEach((to) => {
+  const authStore = useAuthStore()
+
+  const token = localStorage.getItem('token')
+  const user = localStorage.getItem('user')
+
+  // Belum login → 401
+  if (to.meta.requiresAuth && (!token || !user)) {
+    return {
+      path: '/error/401',
+      replace: true,
+    }
+  }
+
+  // Sudah login → cek permission
+  if (to.meta.permission) {
+    const userPermissions =
+      authStore.user?.permissions || []
+
+    const hasPermission =
+      userPermissions.includes(to.meta.permission)
+
+    if (!hasPermission) {
+      return {
+        path: '/error/403',
+      }
+    }
+  }
+
+  return true
 })
 
 router.afterEach((to) => {
