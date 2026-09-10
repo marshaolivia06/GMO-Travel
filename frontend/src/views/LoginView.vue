@@ -1,7 +1,7 @@
 <template>
   <div
-    class="min-h-screen bg-white p-[30px] flex items-center justify-center max-[800px]:p-5"
-  >
+  class="min-h-screen bg-white p-[30px] flex items-center justify-center font-['Inter'] max-[800px]:p-5"
+>
 
     <div
       class="w-full max-w-[900px] min-h-[540px] grid grid-cols-1 md:grid-cols-2 overflow-hidden border border-slate-200 rounded-[20px] bg-white shadow-[0_15px_45px_rgba(37,99,168,0.12)]"
