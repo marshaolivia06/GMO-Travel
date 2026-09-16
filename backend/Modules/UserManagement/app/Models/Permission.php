@@ -13,5 +13,10 @@ class Permission extends SpatiePermission
         'name',
         'module',
         'guard_name',
+        'status',
+    ];
+
+    protected $casts = [
+        'status' => 'boolean',
     ];
 }
