@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\MasterManagement\Http\Controllers\CategoryController;
 use Modules\MasterManagement\Http\Controllers\DepartmentController;
+use Modules\MasterManagement\Http\Controllers\SectionController;
 
 Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 
@@ -62,5 +63,37 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         DepartmentController::class,
         'destroy',
     ]);
+
+   // SECTIONS
+Route::get('master-management/sections/options', [
+    SectionController::class,
+    'options',
+]);
+
+Route::get('master-management/sections', [
+    SectionController::class,
+    'index',
+]);
+
+Route::post('master-management/sections', [
+    SectionController::class,
+    'store',
+]);
+
+Route::get('master-management/sections/{id}', [
+    SectionController::class,
+    'show',
+]);
+
+Route::put('master-management/sections/{id}', [
+    SectionController::class,
+    'update',
+]);
+
+Route::delete('master-management/sections/{id}', [
+    SectionController::class,
+    'destroy',
+]);
+
 
 });

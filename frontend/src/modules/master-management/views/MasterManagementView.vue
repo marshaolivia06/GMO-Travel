@@ -448,12 +448,197 @@
     </div>
 
     <!-- Sections -->
+    <!-- Sections -->
+<div v-else-if="activeTab === 'sections'" class="w-full">
+  <section class="mt-[22px] w-full">
     <div
-      v-else-if="activeTab === 'sections'"
-      class="mt-[22px] rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400"
+      class="mb-3 flex shrink-0 items-end justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start"
     >
-      Cooming soon - depends on the author.
+      <div class="w-full">
+        <p class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]">
+          Sections
+        </p>
+
+        <h2 class="text-[22px] font-semibold">
+          Section List
+        </h2>
+
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium text-slate-400">
+            Show:
+          </span>
+
+          <select
+            v-model.number="sectionPerPage"
+            class="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10"
+            @change="sectionPage = 1"
+          >
+            <option
+              v-for="size in PAGE_SIZE_OPTIONS"
+              :key="size"
+              :value="size"
+            >
+              {{ size }}
+            </option>
+          </select>
+
+          <div class="relative ml-2 max-[600px]:ml-0">
+            <input
+              v-model="sectionSearch"
+              type="text"
+              placeholder="Search sections..."
+              class="w-[220px] rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-8 text-xs text-slate-600 outline-none placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10 max-[600px]:w-full"
+              @input="sectionPage = 1"
+            />
+
+            <Search
+              class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="inline-flex shrink-0 items-center justify-center gap-2 rounded-[7px] bg-green-600 px-[15px] py-2.5 text-[13px] font-semibold text-white transition hover:bg-green-700 max-[600px]:w-full"
+        @click="addSection"
+      >
+        <Plus class="h-4 w-4" />
+        Add Section
+      </button>
     </div>
+
+    <div
+      v-if="sectionLoading"
+      class="flex flex-1 items-center justify-center p-8 text-center text-[13px] text-slate-500"
+    >
+      Loading sections...
+    </div>
+
+    <div
+      v-else-if="sectionError"
+      class="flex flex-1 items-center justify-center rounded-lg bg-red-50 p-8 text-center text-[13px] text-red-700"
+    >
+      {{ sectionError }}
+    </div>
+
+    <div
+      v-else
+      class="overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full table-fixed border-collapse max-[900px]:min-w-[1000px]">
+          <thead>
+            <tr>
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                Actions
+              </th>
+
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                ID
+              </th>
+
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                Name
+              </th>
+
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                Sect Head
+              </th>
+
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                Department
+              </th>
+
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                Created
+              </th>
+
+              <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
+                Updated
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr
+              v-for="(section, index) in paginatedSections"
+              :key="section.id"
+              class="transition hover:bg-[#EAF3FA]"
+              :class="index % 2 === 0 ? 'bg-white' : 'bg-[#EEF2F6]'"
+            >
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]">
+                <div class="flex flex-wrap items-center gap-[7px]">
+                  <button
+                    type="button"
+                    title="Edit Section"
+                    aria-label="Edit Section"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-green-600 text-white transition hover:bg-green-700"
+                    @click="openEditSection(section)"
+                  >
+                    <Edit class="h-4 w-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    title="Delete Section"
+                    aria-label="Delete Section"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white transition hover:bg-red-700"
+                    @click="deleteSelectedSection(section)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                </div>
+              </td>
+
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600">
+                {{ section.id }}
+              </td>
+
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700">
+                {{ section.name }}
+              </td>
+
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700">
+                {{ section.section_head?.name || section.sectionHead?.name || '-' }}
+              </td>
+
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700">
+                {{ section.department?.name || '-' }}
+              </td>
+
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[12px] text-slate-600">
+                {{ formatDate(section.created_at) }}
+              </td>
+
+              <td class="border-b border-slate-200 px-[18px] py-[13px] text-[12px] text-slate-600">
+                {{ formatDate(section.updated_at) }}
+              </td>
+            </tr>
+
+            <tr v-if="filteredSections.length === 0">
+              <td
+                colspan="7"
+                class="bg-white p-[30px] text-center text-[13px] text-slate-400"
+              >
+                No sections found.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <AppPagination
+        v-if="filteredSections.length > 0"
+        :current-page="sectionPage"
+        :last-page="sectionTotalPages"
+        :total="filteredSections.length"
+        :per-page="sectionPerPage"
+        @change="sectionPage = $event"
+      />
+    </div>
+  </section>
+</div>
 
     <AddCategory
       v-if="showCategoryModal"
@@ -469,19 +654,32 @@
     />
 
     <AddDepartment
-      v-if="showDepartmentModal"
-      :options="departmentOptions"
-      @close="showDepartmentModal = false"
-      @success="handleDepartmentCreated"
-    />
+  v-if="showDepartmentModal"
+  :options="departmentOptions"
+  @close="showDepartmentModal = false"
+  @success="handleDepartmentCreated"
+/>
 
-    <EditDepartment
-      v-if="showEditDepartmentModal && selectedDepartment"
-      :department="selectedDepartment"
-      :options="departmentOptions"
-      @close="closeEditDepartment"
-      @success="handleDepartmentUpdated"
-    /> 
+<EditDepartment
+  v-if="showEditDepartmentModal && selectedDepartment"
+  :department="selectedDepartment"
+  :options="departmentOptions"
+  @close="closeEditDepartment"
+  @success="handleDepartmentUpdated"
+/>
+
+<AddSection
+  v-if="showSectionModal"
+  @close="showSectionModal = false"
+  @success="handleSectionCreated"
+/>
+
+<EditSection
+  v-if="showEditSectionModal && selectedSection"
+  :section="selectedSection"
+  @close="closeEditSection"
+  @success="handleSectionUpdated"
+/> 
 
   </div>
 </template>
@@ -493,13 +691,18 @@ import { Edit,  Search, Plus, Trash2 } from 'lucide-vue-next'
 import { getCategories, deleteCategory } from '../services/categoryService'
 
 import { getDepartments, getDepartmentOptions, deleteDepartment } from '../services/departmentService'
-
+import { getSections, deleteSection } from '../services/sectionService'
+  
 import AddCategory from '../components/modal/category/add-category.vue'
 import AddDepartment from '../components/modal/department/add-department.vue'
 import EditCategory from '../components/modal/category/edit-category.vue'
 import EditDepartment from '../components/modal/department/edit-department.vue'
+import AddSection from '../components/modal/section/add-section.vue'
+import EditSection from '../components/modal/section/edit-section.vue'
+
 import AppPagination from '../../../components/AppPagination.vue'
 import swal from '../../../plugins/swal'
+
 
 const route = useRoute()
 const router = useRouter()
@@ -816,7 +1019,148 @@ const paginatedDepartments = computed(() => {
   )
 })
 
+// Sections
+const sections = ref([])
+const sectionLoading = ref(false)
+const sectionError = ref('')
+
+const showSectionModal = ref(false)
+const showEditSectionModal = ref(false)
+const sectionDeleteLoading = ref(false)
+const selectedSection = ref(null)
+
+const sectionSearch = ref('')
+const sectionPerPage = ref(5)
+const sectionPage = ref(1)
+
+const fetchSections = async () => {
+  sectionLoading.value = true
+  sectionError.value = ''
+
+  try {
+    const response = await getSections()
+
+    sections.value = response.data ?? response
+
+    if (sectionPage.value > sectionTotalPages.value) {
+      sectionPage.value = sectionTotalPages.value
+    }
+  } catch (err) {
+    sectionError.value =
+      err.message || 'Failed to load sections.'
+  } finally {
+    sectionLoading.value = false
+  }
+}
+
+const filteredSections = computed(() => {
+  const keyword = sectionSearch.value
+    .trim()
+    .toLowerCase()
+
+  if (!keyword) {
+    return sections.value
+  }
+
+  return sections.value.filter(section => {
+    const name =
+      section.name?.toLowerCase() || ''
+
+    const sectionHead =
+      section.section_head?.name?.toLowerCase() ||
+      section.sectionHead?.name?.toLowerCase() ||
+      ''
+
+    const department =
+      section.department?.name?.toLowerCase() || ''
+
+    return (
+      name.includes(keyword) ||
+      sectionHead.includes(keyword) ||
+      department.includes(keyword)
+    )
+  })
+})
+
+const sectionTotalPages = computed(() => {
+  return Math.max(
+    1,
+    Math.ceil(
+      filteredSections.value.length /
+        sectionPerPage.value
+    )
+  )
+})
+
+const paginatedSections = computed(() => {
+  const start =
+    (sectionPage.value - 1) *
+    sectionPerPage.value
+
+  return filteredSections.value.slice(
+    start,
+    start + sectionPerPage.value
+  )
+})
+
+const addSection = () => {
+  showSectionModal.value = true
+}
+
+const handleSectionCreated = async () => {
+  showSectionModal.value = false
+  await fetchSections()
+}
+
+const openEditSection = section => {
+  selectedSection.value = section
+  showEditSectionModal.value = true
+}
+
+const closeEditSection = () => {
+  showEditSectionModal.value = false
+  selectedSection.value = null
+}
+
+const handleSectionUpdated = async () => {
+  showEditSectionModal.value = false
+  selectedSection.value = null
+  await fetchSections()
+}
+
+const deleteSelectedSection = async section => {
+  const result = await swal.confirm(
+    'Are you sure you want to delete this section?',
+    'delete'
+  )
+
+  if (!result.isConfirmed) {
+    return
+  }
+
+  sectionDeleteLoading.value = true
+
+  try {
+    await deleteSection(section.id)
+
+    await swal.success(
+      'Section Deleted',
+      'Section has been deleted successfully.'
+    )
+
+    await fetchSections()
+  } catch (err) {
+    await swal.error(
+      'Action Failed',
+      err.message || 'Failed to delete section.'
+    )
+  } finally {
+    sectionDeleteLoading.value = false
+  }
+}
+
 // Utilities
+
 const formatDate = date => {
   if (!date) {
     return '-'
@@ -834,6 +1178,7 @@ onMounted(() => {
   fetchCategories()
   fetchDepartments()
   fetchDepartmentOptions()
+  fetchSections()
 })
 
 </script>
