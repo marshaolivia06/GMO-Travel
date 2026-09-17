@@ -6,10 +6,7 @@
       {{ pageTitle }}
     </div>
 
-    <!-- PROFILE -->
     <div class="relative flex items-center justify-center">
-
-      <!-- AVATAR -->
       <button
         type="button"
         class="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-gradient-to-br from-[#1E4F8A] to-[#2D659C] text-[13px] font-bold text-white shadow-[0_3px_10px_rgba(30,79,138,0.18)] transition duration-200 hover:-translate-y-px hover:shadow-[0_5px_14px_rgba(30,79,138,0.25)]"
@@ -18,100 +15,43 @@
         {{ userInitial }}
       </button>
 
-      <!-- LOGOUT MENU -->
       <div
-  v-if="showProfileMenu"
-  class="absolute right-0 top-[calc(100%+10px)] z-[1000] w-[140px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
->
-  <button
-    type="button"
-    class="w-full rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold text-slate-600 transition duration-200 hover:bg-red-50 hover:text-red-600"
-    @click="openLogoutConfirmation"
-  >
-    Logout
-  </button>
-</div>
-
-
+        v-if="showProfileMenu"
+        class="absolute right-0 top-[calc(100%+10px)] z-[1000] w-[140px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
+      >
+        <button
+          type="button"
+          class="w-full rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold text-slate-600 transition duration-200 hover:bg-red-50 hover:text-red-600"
+          @click="openLogoutConfirmation"
+        >
+          Logout
+        </button>
+      </div>
     </div>
   </header>
-
-  <!-- LOGOUT CONFIRMATION -->
-  <div
-  v-if="showLogoutModal"
-  class="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/45 p-5"
-  @click.self="cancelLogout"
->
-<div
-  class="w-[400px] max-w-full rounded-xl bg-white p-[30px_25px] text-center shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
->
-      <div
-        class="mx-auto mb-[18px] flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#eaf2f9] text-[27px] font-bold text-[#1E4F8A]"
-      >
-        ?
-      </div>
-
-      <p class="m-0 text-base font-medium leading-[1.6] text-[#172033]">
-        Are you sure you want to logout?
-      </p>
-
-      <div class="mt-[25px] flex items-center justify-center gap-2.5">
-
-        <button
-  type="button"
-  class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-  :disabled="loggingOut"
-  @click="cancelLogout"
->
-  Cancel
-</button>
-
-<button
-  type="button"
-  class="min-w-[90px] rounded-lg bg-red-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-  :disabled="loggingOut"
-  @click="confirmLogout"
->
-  {{ loggingOut ? 'Logging out...' : 'Yes, Log Out' }}
-</button>
-
-      </div>
-    </div>
-  </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useToastStore } from '../stores/toast'
+import swal from '../plugins/swal'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToastStore()
 
-const pageTitle = computed(() => {
-  return route.meta.title || 'Dashboard'
-})
+const pageTitle = computed(() => route.meta.title || 'Dashboard')
 
 const currentUser = computed(() => {
   try {
-    const storedUser = localStorage.getItem('user')
-
-    if (!storedUser) return null
-
-    return JSON.parse(storedUser)
-  } catch (error) {
-    console.error('Gagal membaca data user:', error)
+    const user = localStorage.getItem('user')
+    return user ? JSON.parse(user) : null
+  } catch {
     return null
   }
 })
 
 const userInitial = computed(() => {
-  const name = currentUser.value?.name
-
-  if (!name) return 'U'
-
-  return name.charAt(0).toUpperCase()
+  return currentUser.value?.name?.charAt(0).toUpperCase() || 'U'
 })
 
 const showProfileMenu = ref(false)
@@ -120,37 +60,19 @@ const toggleProfileMenu = () => {
   showProfileMenu.value = !showProfileMenu.value
 }
 
-const showLogoutModal = ref(false)
-const loggingOut = ref(false)
-
-const openLogoutConfirmation = () => {
+const openLogoutConfirmation = async () => {
   showProfileMenu.value = false
-  showLogoutModal.value = true
-}
 
-const cancelLogout = () => {
-  if (loggingOut.value) return
+  const result = await swal.confirm(
+    'Are you sure you want to logout?',
+    'delete'
+  )
 
-  showLogoutModal.value = false
-}
+  if (!result.isConfirmed) return
 
-const confirmLogout = async () => {
-  if (loggingOut.value) return
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
 
-  loggingOut.value = true
-
-  try {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-
-    showLogoutModal.value = false
-
-    await router.push('/login')
-  } catch (error) {
-    console.error('Gagal logout:', error)
-    toast.error('Logout failed.')
-  } finally {
-    loggingOut.value = false
-  }
+  await router.push('/login')
 }
 </script>
