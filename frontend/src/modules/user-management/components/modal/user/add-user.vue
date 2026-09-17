@@ -1,18 +1,17 @@
 <template>
   <div
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/45 p-5"
+    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/50 p-5 backdrop-blur-[2px]"
     @click.self="handleClose"
   >
     <div
-      v-if="!showConfirmation"
-      class="w-full max-w-[480px] overflow-hidden rounded-xl bg-white shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
+      class="w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(15,23,42,0.20)]"
     >
       <div
         class="flex items-start justify-between gap-5 border-b border-slate-200 px-6 py-[22px]"
       >
         <div>
           <p
-            class="mb-[5px] text-[10px] font-bold uppercase tracking-[0.14em] text-[#1E4F8A]"
+            class="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#1E4F8A]"
           >
             User
           </p>
@@ -24,7 +23,8 @@
 
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-md border-0 bg-slate-100 text-[22px] leading-none text-slate-500 transition hover:bg-slate-200 hover:text-[#172033] disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Close"
+          class="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-slate-100 text-[22px] leading-none text-slate-500 transition hover:bg-slate-200 hover:text-[#172033] disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="loading"
           @click="handleClose"
         >
@@ -34,7 +34,7 @@
 
       <form
         class="p-6"
-        @submit.prevent="openConfirmation"
+        @submit.prevent="handleSubmit"
       >
         <div class="mb-5 flex flex-col gap-2">
           <label
@@ -51,7 +51,7 @@
             placeholder="Enter name"
             autocomplete="off"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            class="box-border w-full rounded-lg border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
           />
         </div>
 
@@ -70,7 +70,7 @@
             placeholder="Enter email"
             autocomplete="off"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            class="box-border w-full rounded-lg border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
           />
         </div>
 
@@ -90,7 +90,7 @@
             autocomplete="new-password"
             minlength="8"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            class="box-border w-full rounded-lg border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
           />
         </div>
 
@@ -110,7 +110,7 @@
             autocomplete="new-password"
             minlength="8"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            class="box-border w-full rounded-lg border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
           />
 
           <p
@@ -136,7 +136,7 @@
             id="user-role"
             v-model="form.role"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            class="box-border w-full rounded-lg border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
           >
             <option
               value=""
@@ -157,15 +157,17 @@
 
         <div
           v-if="error"
-          class="mb-[18px] rounded-[7px] bg-red-50 px-3 py-2.5 text-xs text-[#b42318]"
+          class="mb-[18px] rounded-lg bg-red-50 px-3 py-2.5 text-xs text-[#b42318]"
         >
           {{ error }}
         </div>
 
-        <div class="flex justify-end gap-2.5 pt-1 max-[600px]:flex-col-reverse">
+        <div
+          class="flex justify-end gap-2.5 pt-1 max-[600px]:flex-col-reverse"
+        >
           <button
             type="button"
-            class="rounded-[7px] border-0 bg-slate-100 px-4 py-[9px] text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
+            class="rounded-lg border-0 bg-slate-100 px-4 py-[9px] text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
             :disabled="loading"
             @click="handleClose"
           >
@@ -174,7 +176,7 @@
 
           <button
             type="submit"
-            class="rounded-[7px] border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
+            class="rounded-lg border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
             :disabled="
               loading ||
               !form.confirmPassword ||
@@ -185,45 +187,6 @@
           </button>
         </div>
       </form>
-    </div>
-
-    <div
-      v-else
-      class="box-border w-full max-w-[420px] rounded-xl bg-white px-[25px] py-[30px] text-center shadow-[0_20px_50px_rgba(15,23,42,0.20)] max-[600px]:max-w-[calc(100%-30px)]"
-    >
-      <div
-        class="mx-auto mb-[18px] flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#eaf2f9] text-[27px] font-bold text-[#1E4F8A]"
-      >
-        ?
-      </div>
-
-      <div>
-        <h2 class="m-0 text-[15px] font-semibold leading-[1.5] text-[#172033]">
-          Are you sure you want to add this data?
-        </h2>
-      </div>
-
-      <div
-        class="mt-[25px] flex items-center justify-center gap-2.5 max-[600px]:flex-col-reverse"
-      >
-      <button
-  type="button"
-  class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-  :disabled="saving"
-  @click="cancelConfirmation"
->
-  Cancel
-</button>
-
-        <button
-          type="button"
-          class="min-w-[90px] rounded-[7px] border-0 bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-          :disabled="loading"
-          @click="handleSubmit"
-        >
-        {{ loading ? 'Saving...' : 'Yes' }}
-        </button>
-      </div>
     </div>
   </div>
 </template>
@@ -236,14 +199,12 @@ import {
   getRoles,
 } from '../../../services/userService'
 
-import { useToastStore } from '../../../../../stores/toast'
+import swal from '../../../../../plugins/swal'
 
 const emit = defineEmits([
   'close',
   'created',
 ])
-
-const toast = useToastStore()
 
 const form = ref({
   name: '',
@@ -256,10 +217,7 @@ const form = ref({
 const roles = ref([])
 
 const loading = ref(false)
-
 const error = ref('')
-
-const showConfirmation = ref(false)
 
 const fetchRoles = async () => {
   try {
@@ -269,80 +227,84 @@ const fetchRoles = async () => {
       err.message ||
       'Failed to fetch roles.'
 
-    toast.error(
+    await swal.error(
       'Action Failed',
       error.value
     )
   }
 }
 
-const openConfirmation = () => {
-  error.value = ''
-
-  if (
-    form.value.password !==
-    form.value.confirmPassword
-  ) {
-    error.value =
-  'Password and confirmation password do not match.'
-
-toast.warning(
-  'Password Mismatch',
-  'Password and confirmation password do not match.'
-)
-
+const handleClose = () => {
+  if (loading.value) {
     return
   }
-
-  showConfirmation.value = true
-}
-
-const cancelConfirmation = () => {
-  if (loading.value) return
-
-  showConfirmation.value = false
-}
-
-const handleClose = () => {
-  if (loading.value) return
 
   emit('close')
 }
 
 const handleSubmit = async () => {
-  if (loading.value) return
+  if (loading.value) {
+    return
+  }
+
+  error.value = ''
+
+  if (form.value.password !== form.value.confirmPassword) {
+    error.value =
+      'Password and confirmation password do not match.'
+
+    return
+  }
+
+  if (form.value.password.length < 8) {
+    error.value =
+      'Password must be at least 8 characters.'
+
+    return
+  }
+
+  if (!form.value.role) {
+    error.value =
+      'Please select a role.'
+
+    return
+  }
+
+  const result = await swal.confirm(
+    'Are you sure you want to add this user?'
+  )
+
+  if (!result.isConfirmed) {
+    return
+  }
 
   loading.value = true
-  error.value = ''
 
   try {
     await createUser({
-      name: form.value.name,
-      email: form.value.email,
+      name: form.value.name.trim(),
+      email: form.value.email.trim(),
       password: form.value.password,
       role: form.value.role,
     })
 
-    toast.success(
-  'User Added',
-  `User ${form.value.name} has been added successfully.`
-)
-
     emit('created')
     emit('close')
-  } catch (err) {
-  toast.error(
-    'Action Failed',
-    err.message || 'Failed to create user.'
-  )
 
-  showConfirmation.value = false
-} finally {
+    await swal.success(
+      'User Added',
+      `User ${form.value.name} has been added successfully.`
+    )
+  } catch (err) {
+    await swal.error(
+      'Action Failed',
+      err.message ||
+        'Failed to create user.'
+    )
+  } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  fetchRoles()
-})
+onMounted(fetchRoles)
 </script>
