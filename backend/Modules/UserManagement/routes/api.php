@@ -1,108 +1,108 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\UserManagement\Http\Controllers\UserManagementController;
+use Modules\UserManagement\Http\Controllers\UserController;
+use Modules\UserManagement\Http\Controllers\RoleController;
+use Modules\UserManagement\Http\Controllers\PermissionController;
 
 Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 
     // USERS
     Route::get(
         'users',
-        [UserManagementController::class, 'usersIndex']
-    )->middleware('permission:user-management.view');
+        [UserController::class, 'index']
+    )->middleware('permission:user-management.view');    
 
     Route::post(
         'users',
-        [UserManagementController::class, 'usersStore']
-    )->middleware('permission:user-management.create');
+        [UserController::class, 'store']
+    )->middleware('permission:user-management.create');    
 
     Route::get(
-        'users/{user}',
-        [UserManagementController::class, 'usersShow']
-    )->middleware('permission:user-management.view');
+        'users/{id}',
+        [UserController::class, 'show']
+    )->middleware('permission:user-management.view');    
 
     Route::put(
-        'users/{user}',
-        [UserManagementController::class, 'usersUpdate']
+        'users/{id}',
+        [UserController::class, 'update']
     )->middleware('permission:user-management.update');
-
+    
     Route::patch(
-        'users/{user}',
-        [UserManagementController::class, 'usersUpdate']
-    )->middleware('permission:user-management.update');
+        'users/{id}',
+        [UserController::class, 'update']
+    )->middleware('permission:user-management.update');    
 
     Route::delete(
-        'users/{user}',
-        [UserManagementController::class, 'usersDestroy']
-    )->middleware('permission:user-management.delete');
-
+        'users/{id}',
+        [UserController::class, 'destroy']
+    )->middleware('permission:user-management.delete');    
 
     // ROLES
     Route::get(
         'roles',
-        [UserManagementController::class, 'rolesIndex']
+        [RoleController::class, 'index']
     )->middleware('permission:user-management.view');
 
     Route::post(
         'roles',
-        [UserManagementController::class, 'rolesStore']
+        [RoleController::class, 'store']
     )->middleware('permission:user-management.create');
 
     Route::get(
-        'roles/{role}',
-        [UserManagementController::class, 'rolesShow']
+        'roles/{id}',
+        [RoleController::class, 'show']
     )->middleware('permission:user-management.view');
 
     Route::put(
-        'roles/{role}',
-        [UserManagementController::class, 'rolesUpdate']
+     'roles/{id}',
+        [RoleController::class, 'update']
     )->middleware('permission:user-management.update');
 
     Route::patch(
-        'roles/{role}',
-        [UserManagementController::class, 'rolesUpdate']
+       'roles/{id}',
+     [RoleController::class, 'update']
     )->middleware('permission:user-management.update');
 
     Route::delete(
-        'roles/{role}',
-        [UserManagementController::class, 'rolesDestroy']
+        'roles/{id}',
+        [RoleController::class, 'destroy']
     )->middleware('permission:user-management.delete');
-
 
     // PERMISSIONS
-    Route::get(
-        'permissions',
-        [UserManagementController::class, 'permissionsIndex']
-    )->middleware('permission:user-management.view');
+Route::get(
+    'permissions',
+    [PermissionController::class, 'index']
+)->middleware('permission:user-management.view');
 
-    Route::post(
-        'permissions',
-        [UserManagementController::class, 'permissionsStore']
-    )->middleware('permission:user-management.create');
+Route::post(
+    'permissions',
+    [PermissionController::class, 'store']
+)->middleware('permission:user-management.create');
 
-    Route::put(
-        'permissions/sync',
-        [UserManagementController::class, 'permissionsSync']
-    )->middleware('permission:user-management.update');
+Route::put(
+    'permissions/sync',
+    [PermissionController::class, 'sync']
+)->middleware('permission:user-management.update');
 
-    Route::get(
-        'permissions/{permission}',
-        [UserManagementController::class, 'permissionsShow']
-    )->middleware('permission:user-management.view');
+Route::get(
+    'permissions/{id}',
+    [PermissionController::class, 'show']
+)->middleware('permission:user-management.view');
 
-    Route::put(
-        'permissions/{permission}',
-        [UserManagementController::class, 'permissionsUpdate']
-    )->middleware('permission:user-management.update');
+Route::put(
+    'permissions/{id}',
+    [PermissionController::class, 'update']
+)->middleware('permission:user-management.update');
 
-    Route::patch(
-        'permissions/{permission}',
-        [UserManagementController::class, 'permissionsUpdate']
-    )->middleware('permission:user-management.update');
+Route::patch(
+    'permissions/{id}',
+    [PermissionController::class, 'update']
+)->middleware('permission:user-management.update');
 
-    Route::delete(
-        'permissions/{permission}',
-        [UserManagementController::class, 'permissionsDestroy']
-    )->middleware('permission:user-management.delete');
+Route::delete(
+    'permissions/{id}',
+    [PermissionController::class, 'destroy']
+)->middleware('permission:user-management.delete');
 
 });
