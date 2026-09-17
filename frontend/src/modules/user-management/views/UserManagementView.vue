@@ -2,29 +2,27 @@
   <div
     class="w-full px-0 py-2 text-[#172033] max-[900px]:px-4 max-[600px]:pb-4"
   >
-  <section
-    class="rounded-xl bg-gradient-to-br from-[#1E4F8A] via-[#2D659C] to-[#DCEBF7] px-[34px] py-[30px] text-white shadow-[0_10px_30px_rgba(30,79,138,0.14)] max-[600px]:px-6 max-[600px]:py-6"
-    aria-labelledby="user-management-title"
-  >
-    <p
-      class="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#DCEBF7]"
+    <section
+      class="rounded-xl bg-gradient-to-br from-[#1E4F8A] via-[#2D659C] to-[#DCEBF7] px-[34px] py-[30px] text-white shadow-[0_10px_30px_rgba(30,79,138,0.14)] max-[600px]:px-6 max-[600px]:py-6"
+      aria-labelledby="user-management-title"
     >
-      GMO TRAVEL · ADMINISTRASI
-    </p>
+      <p
+        class="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#DCEBF7]"
+      >
+        GMO TRAVEL · ADMINISTRASI
+      </p>
 
-    <h1
-      id="user-management-title"
-      class="mb-2 text-[clamp(25px,3vw,34px)] font-bold tracking-[-0.02em]"
-    >
-      User Management
-    </h1>
+      <h1
+        id="user-management-title"
+        class="mb-2 text-[clamp(25px,3vw,34px)] font-bold tracking-[-0.02em]"
+      >
+        User Management
+      </h1>
 
-    <p
-      class="mb-0 max-w-[590px] text-sm leading-[1.6] text-[#e5f2ff]"
-    >
-      Manage users, roles, and permissions in one panel.
-    </p>
-  </section>
+      <p class="mb-0 max-w-[590px] text-sm leading-[1.6] text-[#e5f2ff]">
+        Manage users, roles, and permissions in one panel.
+      </p>
+    </section>
 
     <div class="mt-[18px] flex flex-wrap items-center gap-2">
       <button
@@ -73,7 +71,9 @@
           class="mb-3 flex shrink-0 items-end justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start"
         >
           <div class="w-full">
-            <p class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]">
+            <p
+              class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]"
+            >
               Users
             </p>
 
@@ -109,20 +109,9 @@
                   @input="userPage = 1"
                 />
 
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-                  />
-                </svg>
+                <Search
+  class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+/>
               </div>
             </div>
           </div>
@@ -133,20 +122,7 @@
             :disabled="!hasPermission('user-management.create')"
             @click="addUser"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Plus :size="16" :stroke-width="2" />
             Add User
           </button>
         </div>
@@ -170,38 +146,27 @@
           class="overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
         >
           <div class="overflow-x-auto">
-            <table class="w-full table-fixed border-collapse max-[900px]:min-w-[1050px]">
-  <colgroup>
-    <col class="w-[13%]" />
-    <col class="w-[8%]" />
-    <col class="w-[19%]" />
-    <col class="w-[23%]" />
-    <col class="w-[14%]" />
-    <col class="w-[11.5%]" />
-    <col class="w-[11.5%]" />
-  </colgroup>
+            <table
+              class="w-full table-fixed border-collapse max-[900px]:min-w-[1050px]"
+            >
+              <colgroup>
+                <col class="w-[13%]" />
+                <col class="w-[8%]" />
+                <col class="w-[19%]" />
+                <col class="w-[23%]" />
+                <col class="w-[14%]" />
+                <col class="w-[11.5%]" /> 
+                <col class="w-[11.5%]" />
+              </colgroup>
+
               <thead>
                 <tr>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Actions
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    ID
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Name
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Email
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Role
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Created 
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Updated 
+                  <th
+                    v-for="header in ['Actions', 'ID', 'Name', 'Email', 'Role', 'Created', 'Updated']"
+                    :key="header"
+                    class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]"
+                  >
+                    {{ header }}
                   </th>
                 </tr>
               </thead>
@@ -213,71 +178,59 @@
                   class="transition hover:bg-[#EAF3FA]"
                   :class="index % 2 === 0 ? 'bg-white' : 'bg-[#EEF2F6]'"
                 >
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]"
+                  >
                     <div class="flex flex-wrap items-center gap-[7px]">
                       <button
                         type="button"
                         title="Edit User"
                         aria-label="Edit User"
-                        :disabled="!hasPermission('user-management.update')"
+                        :disabled="
+                          !hasPermission('user-management.update')
+                        "
                         class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-green-600 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600"
                         @click="openEditUser(user)"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.5-8.5a2.121 2.121 0 013 3L12 14l-4 1 1-4 8.5-8.5z"
-                          />
-                        </svg>
+                        <Edit :size="16" :stroke-width="2" />
                       </button>
 
                       <button
                         type="button"
                         title="Delete User"
                         aria-label="Delete User"
-                        :disabled="!hasPermission('user-management.delete')"
+                        :disabled="
+                          !hasPermission('user-management.delete')
+                        "
                         class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-red-600"
                         @click="deleteSelectedUser(user)"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-8 0h10"
-                          />
-                        </svg>
+                        <Trash2 :size="16" :stroke-width="2" />
                       </button>
                     </div>
                   </td>
 
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600"
+                  >
                     {{ user.id }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] leading-6 text-slate-700">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] leading-6 text-slate-700"
+                  >
                     {{ user.name }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] leading-6 text-slate-700">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] leading-6 text-slate-700"
+                  >
                     {{ user.email }}
                   </td>
 
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700"
+                  >
                     <div class="flex flex-wrap gap-1.5">
                       <span
                         v-for="role in user.roles || []"
@@ -293,14 +246,18 @@
                       >
                         -
                       </span>
-                    </div>
+                    </div> 
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600"
+                  >
                     {{ formatDate(user.created_at) }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600"
+                  >
                     {{ formatDate(user.updated_at) }}
                   </td>
                 </tr>
@@ -317,43 +274,14 @@
             </table>
           </div>
 
-          <div
+          <AppPagination
             v-if="filteredUsers.length > 0"
-            class="flex shrink-0 items-center justify-end gap-1.5 border-t border-slate-200 bg-white px-[18px] py-2.5 max-[600px]:flex-wrap"
-          >
-            <button
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
-              :disabled="userPage === 1"
-              @click="userPage--"
-            >
-              Previous
-            </button>
-
-            <button
-              v-for="page in userTotalPages"
-              :key="page"
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border px-2 text-xs font-semibold"
-              :class="
-                userPage === page
-                  ? 'border-[#1E4F8A] bg-[#1E4F8A] text-white'
-                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-              "
-              @click="userPage = page"
-            >
-              {{ page }}
-            </button>
-
-            <button
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
-              :disabled="userPage === userTotalPages"
-              @click="userPage++"
-            >
-              Next
-            </button>
-          </div>
+            :current-page="userPage"
+            :last-page="userTotalPages"
+            :total="filteredUsers.length"
+            :per-page="userPerPage"
+            @change="userPage = $event"
+          />
         </div>
       </section>
     </div>
@@ -364,7 +292,9 @@
           class="mb-3 flex shrink-0 items-end justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start"
         >
           <div class="w-full">
-            <p class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]">
+            <p
+              class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]"
+            >
               Roles
             </p>
 
@@ -400,20 +330,9 @@
                   @input="rolePage = 1"
                 />
 
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-                  />
-                </svg>
+                <Search
+  class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+/>
               </div>
             </div>
           </div>
@@ -424,20 +343,7 @@
             class="inline-flex shrink-0 items-center justify-center gap-2 rounded-[7px] bg-green-600 px-[15px] py-2.5 text-[13px] font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600 max-[600px]:w-full"
             @click="addRole"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Plus :size="16" :stroke-width="2" />
             Add Role
           </button>
         </div>
@@ -461,31 +367,25 @@
           class="overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
         >
           <div class="overflow-x-auto">
-            <table class="w-full table-fixed border-collapse max-[900px]:min-w-[950px]">
+            <table
+              class="w-full table-fixed border-collapse max-[900px]:min-w-[950px]"
+            >
               <colgroup>
-  <col class="w-[18%]" />
-  <col class="w-[8%]" />
-  <col class="w-[30%]" />
-  <col class="w-[22%]" />
-  <col class="w-[22%]" />
-</colgroup>
+                <col class="w-[18%]" />
+                <col class="w-[12%]" />
+                <col class="w-[28%]" />
+                <col class="w-[22%]" />
+                <col class="w-[22%]" />
+              </colgroup>
 
               <thead>
                 <tr>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Actions
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    ID
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Name
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Created 
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Updated 
+                  <th
+                    v-for="header in ['Actions', 'ID', 'Name', 'Created', 'Updated']"
+                    :key="header"
+                    class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]"
+                  >
+                    {{ header }}
                   </th>
                 </tr>
               </thead>
@@ -497,78 +397,66 @@
                   class="transition hover:bg-[#EAF3FA]"
                   :class="index % 2 === 0 ? 'bg-white' : 'bg-[#EEF2F6]'"
                 >
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]"
+                  >
                     <div class="flex flex-wrap items-center gap-[7px]">
                       <button
                         type="button"
                         title="Edit Role"
                         aria-label="Edit Role"
-                        :disabled="!hasPermission('user-management.update')"
+                        :disabled="
+                          !hasPermission('user-management.update')
+                        "
                         class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-green-600 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600"
                         @click="openEditRole(role)"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.5-8.5a2.121 2.121 0 013 3L12 14l-4 1 1-4 8.5-8.5z"
-                          />
-                        </svg>
+                        <Edit :size="16" :stroke-width="2" />
                       </button>
 
                       <button
                         type="button"
                         title="Delete Role"
                         aria-label="Delete Role"
-                        :disabled="!hasPermission('user-management.delete')"
+                        :disabled="
+                          !hasPermission('user-management.delete')
+                        "
                         class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-red-600"
                         @click="deleteSelectedRole(role)"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-8 0h10"
-                          />
-                        </svg>
+                        <Trash2 :size="16" :stroke-width="2" />
                       </button>
                     </div>
                   </td>
 
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600"
+                  >
                     {{ role.id }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700"
+                  >
                     {{ role.name }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600"
+                  >
                     {{ formatDate(role.created_at) }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600"
+                  >
                     {{ formatDate(role.updated_at) }}
                   </td>
                 </tr>
 
                 <tr v-if="filteredRoles.length === 0">
                   <td
-                    colspan="6"
+                    colspan="5"
                     class="bg-white p-[30px] text-center text-[13px] text-slate-400"
                   >
                     No roles found.
@@ -578,43 +466,14 @@
             </table>
           </div>
 
-          <div
+          <AppPagination
             v-if="filteredRoles.length > 0"
-            class="flex shrink-0 items-center justify-end gap-1.5 border-t border-slate-200 bg-white px-[18px] py-2.5 max-[600px]:flex-wrap"
-          >
-            <button
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
-              :disabled="rolePage === 1"
-              @click="rolePage--"
-            >
-              Previous
-            </button>
-
-            <button
-              v-for="page in roleTotalPages"
-              :key="page"
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border px-2 text-xs font-semibold"
-              :class="
-                rolePage === page
-                  ? 'border-[#1E4F8A] bg-[#1E4F8A] text-white'
-                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-              "
-              @click="rolePage = page"
-            >
-              {{ page }}
-            </button>
-
-            <button
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
-              :disabled="rolePage === roleTotalPages"
-              @click="rolePage++"
-            >
-              Next
-            </button>
-          </div>
+            :current-page="rolePage"
+            :last-page="roleTotalPages"
+            :total="filteredRoles.length"
+            :per-page="rolePerPage"
+            @change="rolePage = $event"
+          />
         </div>
       </section>
     </div>
@@ -625,7 +484,9 @@
           class="mb-3 flex shrink-0 items-end justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start"
         >
           <div class="w-full">
-            <p class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]">
+            <p
+              class="mb-1 text-xs font-bold uppercase tracking-[.14em] text-[#1E4F8A]"
+            >
               Permissions
             </p>
 
@@ -661,20 +522,9 @@
                   @input="permissionPage = 1"
                 />
 
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-                  />
-                </svg>
+                <Search
+  class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+/>
               </div>
             </div>
           </div>
@@ -685,20 +535,7 @@
             class="inline-flex shrink-0 items-center justify-center gap-2 rounded-[7px] bg-green-600 px-[15px] py-2.5 text-[13px] font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600 max-[600px]:w-full"
             @click="addPermission"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Plus :size="16" :stroke-width="2" />
             Add Permission
           </button>
         </div>
@@ -722,7 +559,9 @@
           class="overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
         >
           <div class="overflow-x-auto">
-            <table class="w-full table-fixed border-collapse max-[900px]:min-w-[1050px]">
+            <table
+              class="w-full table-fixed border-collapse max-[900px]:min-w-[1050px]"
+            >
               <colgroup>
                 <col class="w-[15%]" />
                 <col class="w-[10%]" />
@@ -734,23 +573,12 @@
 
               <thead>
                 <tr>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Actions
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    ID
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Module
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Permissions
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Created 
-                  </th>
-                  <th class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]">
-                    Updated 
+                  <th
+                    v-for="header in ['Actions', 'ID', 'Module', 'Permissions', 'Created', 'Updated']"
+                    :key="header"
+                    class="border-b border-[#B8D4EA] bg-[#DCEBF7] px-[18px] py-[13px] text-left text-[13px] font-bold text-[#1E4F8A]"
+                  >
+                    {{ header }}
                   </th>
                 </tr>
               </thead>
@@ -762,79 +590,70 @@
                   class="transition hover:bg-[#EAF3FA]"
                   :class="index % 2 === 0 ? 'bg-white' : 'bg-[#EEF2F6]'"
                 >
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]"
+                  >
                     <div class="flex flex-wrap items-center gap-[7px]">
                       <button
                         type="button"
                         title="Edit Permission"
                         aria-label="Edit Permission"
-                        :disabled="!hasPermission('user-management.update')"
+                        :disabled="
+                          !hasPermission('user-management.update')
+                        "
                         class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-green-600 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600"
                         @click="openEditPermission(permission)"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.5-8.5a2.121 2.121 0 013 3L12 14l-4 1 1-4 8.5-8.5z"
-                          />
-                        </svg>
+                        <Edit :size="16" :stroke-width="2" />
                       </button>
 
                       <button
                         type="button"
                         title="Delete Permission"
                         aria-label="Delete Permission"
-                        :disabled="!hasPermission('user-management.delete')"
+                        :disabled="
+                          !hasPermission('user-management.delete')
+                        "
                         class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-red-600"
                         @click="deleteSelectedPermission(permission)"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-8 0h10"
-                          />
-                        </svg>
+                        <Trash2 :size="16" :stroke-width="2" />
                       </button>
                     </div>
                   </td>
 
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px] font-semibold text-slate-600"
+                  >
                     {{ permission.items?.[0]?.id || '-' }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[13px] text-slate-700"
+                  >
                     {{ permission.module }}
                   </td>
 
-                  <td class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]">
+                  <td
+                    class="border-b border-slate-200 px-[18px] py-[13px] text-[13px]"
+                  >
                     <div class="flex flex-wrap gap-2">
                       <span
                         v-for="action in permission.actions"
                         :key="action"
                         class="inline-flex rounded-md px-2.5 py-1 text-[11px] font-semibold capitalize"
                         :class="{
-  'bg-[#E0EDFF] text-[#2563EB]': action?.toLowerCase() === 'view',
-  'bg-[#DCFCE7] text-[#16A34A]': action?.toLowerCase() === 'create',
-  'bg-[#FEF3C7] text-[#D97706]': action?.toLowerCase() === 'update',
-  'bg-[#FEE2E2] text-[#DC2626]': action?.toLowerCase() === 'delete',
-  'bg-[#F3E8FF] text-[#9333EA]': action?.toLowerCase() === 'approve',
-}"
+                          'bg-[#E0EDFF] text-[#2563EB]':
+                            action?.toLowerCase() === 'view',
+                          'bg-[#DCFCE7] text-[#16A34A]':
+                            action?.toLowerCase() === 'create',
+                          'bg-[#FEF3C7] text-[#D97706]':
+                            action?.toLowerCase() === 'update',
+                          'bg-[#FEE2E2] text-[#DC2626]':
+                            action?.toLowerCase() === 'delete',
+                          'bg-[#F3E8FF] text-[#9333EA]':
+                            action?.toLowerCase() === 'approve',
+                        }"
                       >
                         {{ action }}
                       </span>
@@ -848,11 +667,15 @@
                     </div>
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600"
+                  >
                     {{ formatDate(permission.items?.[0]?.created_at) }}
                   </td>
 
-                  <td class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600">
+                  <td
+                    class="break-words border-b border-slate-200 px-[18px] py-[13px] text-[12px] leading-5 text-slate-600"
+                  >
                     {{ formatDate(permission.items?.[0]?.updated_at) }}
                   </td>
                 </tr>
@@ -869,172 +692,90 @@
             </table>
           </div>
 
-          <div
+          <AppPagination
             v-if="filteredPermissions.length > 0"
-            class="flex shrink-0 items-center justify-end gap-1.5 border-t border-slate-200 bg-white px-[18px] py-2.5 max-[600px]:flex-wrap"
-          >
-            <button
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
-              :disabled="permissionPage === 1"
-              @click="permissionPage--"
-            >
-              Previous
-            </button>
-
-            <button
-              v-for="page in permissionTotalPages"
-              :key="page"
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border px-2 text-xs font-semibold"
-              :class="
-                permissionPage === page
-                  ? 'border-[#1E4F8A] bg-[#1E4F8A] text-white'
-                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-              "
-              @click="permissionPage = page"
-            >
-              {{ page }}
-            </button>
-
-            <button
-              type="button"
-              class="inline-flex h-8 min-w-[34px] items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
-              :disabled="permissionPage === permissionTotalPages"
-              @click="permissionPage++"
-            >
-              Next
-            </button>
-          </div>
+            :current-page="permissionPage"
+            :last-page="permissionTotalPages"
+            :total="filteredPermissions.length"
+            :per-page="permissionPerPage"
+            @change="permissionPage = $event"
+          />
         </div>
       </section>
     </div>
-  </div>
 
-  <AddUser
-    v-if="showAddUser"
-    @close="showAddUser = false"
-    @created="fetchUsers"
-  />
+    <AddUser
+      v-if="showAddUser"
+      @close="showAddUser = false"
+      @created="fetchUsers"
+    />
 
-  <EditUser
-    v-if="showEditUser && selectedUser"
-    :user="selectedUser"
-    @close="showEditUser = false"
-    @updated="fetchUsers"
-  />
+    <EditUser
+      v-if="showEditUser && selectedUser"
+      :user="selectedUser"
+      @close="showEditUser = false"
+      @updated="fetchUsers"
+    />
 
-  <AddRole
-    v-if="showAddRole"
-    @close="showAddRole = false"
-    @created="fetchRoles"
-  />
+    <AddRole
+      v-if="showAddRole"
+      @close="showAddRole = false"
+      @created="fetchRoles"
+    />
 
-  <EditRole
-    v-if="showEditRole && selectedRole"
-    :role="selectedRole"
-    @close="showEditRole = false"
-    @updated="fetchRoles"
-  />
+    <EditRole
+      v-if="showEditRole && selectedRole"
+      :role="selectedRole"
+      @close="showEditRole = false"
+      @updated="fetchRoles"
+    />
 
-  <AddPermission
-    v-if="showAddPermission"
-    @close="showAddPermission = false"
-    @created="fetchPermissions"
-  />
+    <AddPermission
+      v-if="showAddPermission"
+      @close="showAddPermission = false"
+      @created="fetchPermissions"
+    />
 
-  <EditPermission
-    v-if="showEditPermission && selectedPermission"
-    :permission="selectedPermission"
-    @close="showEditPermission = false"
-    @updated="fetchPermissions"
-  />
-
-  <div
-  v-if="showDeleteModal"
-  class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 p-5"
-  @click.self="cancelDelete"
->
-  <div
-    class="w-[380px] max-w-full rounded-xl bg-white px-6 py-7 text-center shadow-[0_15px_40px_rgba(15,23,42,0.18)]"
-  >
-    <!-- Question Icon -->
-    <div
-      class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF3FA] text-[#1E4F8A]"
-    >
-      <span class="text-2xl font-bold">
-        ?
-      </span>
-    </div>
-
-    <!-- Message -->
-    <p class="mt-5 text-[15px] font-medium leading-6 text-[#172033]">
-      Are you sure you want to delete this {{ deleteType }}?
-    </p>
-
-    <!-- Buttons -->
-    <div class="mt-6 flex justify-center gap-2.5">
-      <button
-  type="button"
-  class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-  :disabled="deleting"
-  @click="cancelDelete"
->
-  Cancel
-</button>
-
-      <button
-        type="button"
-        class="min-w-[90px] rounded-lg bg-red-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="deleting"
-        @click="confirmDelete"
-      >
-        {{ deleting ? 'Deleting...' : 'Yes' }}
-      </button>
-    </div>
-  </div>
+    <EditPermission
+      v-if="showEditPermission && selectedPermission"
+      :permission="selectedPermission"
+      @close="showEditPermission = false"
+      @updated="fetchPermissions"
+    />
   </div>
 </template>
 
 <script setup>
-import {
-  computed,
-  onMounted,
-  ref,
-} from 'vue'
-
+import { computed, onMounted, ref } from 'vue'
+import { Edit, Plus, Search, Trash2 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
+
+import AppPagination from '../../../components/AppPagination.vue'
 import { useAuthStore } from '../../../stores/auth'
 import { useUserStore } from '../stores/userStore'
-import { useToastStore } from '../../../stores/toast'
+import swal from '../../../plugins/swal'
 
 import AddUser from '../components/modal/user/add-user.vue'
 import EditUser from '../components/modal/user/edit-user.vue'
-
-import {
-  deleteUser,
-} from '../services/userService'
-
-import {
-  getRoles,
-  deleteRole,
-} from '../services/roleService'
-
 import AddRole from '../components/modal/role/add-role.vue'
 import EditRole from '../components/modal/role/edit-role.vue'
-
-import {
-  getPermissions,
-  deletePermission,
-} from '../services/permissionService'
-
 import AddPermission from '../components/modal/permission/add-permission.vue'
 import EditPermission from '../components/modal/permission/edit-permission.vue'
 
+import { deleteUser } from '../services/userService'
+import { getRoles, deleteRole } from '../services/roleService'
+import { getPermissions, deletePermission } from '../services/permissionService'
+
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+const { users, loading, error, fetchUsers } = useUserStore()
+
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100]
+const PERMISSION_ACTION_ORDER = ['view', 'create', 'update', 'delete', 'approve']
+
 const formatDate = date => {
-  if (!date) {
-    return '-'
-  }
+  if (!date) return '-'
 
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Jakarta',
@@ -1044,26 +785,8 @@ const formatDate = date => {
   }).format(new Date(date))
 }
 
-const toast = useToastStore()
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
-
-const addUser = () => {
-  showAddUser.value = true
-}
-
-const hasPermission = permission => {
-  return (authStore.user?.permissions || [])
-    .some(item => item === permission)
-}
-
-const {
-  users,
-  loading,
-  error,
-  fetchUsers,
-} = useUserStore()
+const hasPermission = permission =>
+  (authStore.user?.permissions || []).some(item => item === permission)
 
 const activeTab = ref(
   ['users', 'roles', 'permissions'].includes(route.query.tab)
@@ -1082,26 +805,14 @@ const changeTab = tab => {
   })
 }
 
-const PAGE_SIZE_OPTIONS = [
-  5,
-  10,
-  25,
-  50,
-  100,
-]
-
 const userSearch = ref('')
 const userPerPage = ref(5)
 const userPage = ref(1)
 
 const filteredUsers = computed(() => {
-  const keyword = userSearch.value
-    .trim()
-    .toLowerCase()
+  const keyword = userSearch.value.trim().toLowerCase()
 
-  if (!keyword) {
-    return users.value
-  }
+  if (!keyword) return users.value
 
   return users.value.filter(user => {
     const name = user.name?.toLowerCase() || ''
@@ -1118,20 +829,15 @@ const filteredUsers = computed(() => {
   })
 })
 
-const userTotalPages = computed(() => {
-  return Math.max(
+const userTotalPages = computed(() =>
+  Math.max(
     1,
-    Math.ceil(
-      filteredUsers.value.length /
-      userPerPage.value
-    )
+    Math.ceil(filteredUsers.value.length / userPerPage.value)
   )
-})
+)
 
 const paginatedUsers = computed(() => {
-  const start =
-    (userPage.value - 1) *
-    userPerPage.value
+  const start = (userPage.value - 1) * userPerPage.value
 
   return filteredUsers.value.slice(
     start,
@@ -1142,30 +848,20 @@ const paginatedUsers = computed(() => {
 const roleSearch = ref('')
 const rolePerPage = ref(5)
 const rolePage = ref(1)
-
 const roles = ref([])
 const roleLoading = ref(false)
 const roleError = ref('')
 
 const filteredRoles = computed(() => {
-  const keyword = roleSearch.value
-    .trim()
-    .toLowerCase()
+  const keyword = roleSearch.value.trim().toLowerCase()
 
-  if (!keyword) {
-    return roles.value
-  }
+  if (!keyword) return roles.value
 
   return roles.value.filter(role => {
-    const name =
-      role.name?.toLowerCase() || ''
-
-    const permissions =
-      (role.permissions || [])
-        .map(permission =>
-          permission.name?.toLowerCase() || ''
-        )
-        .join(' ')
+    const name = role.name?.toLowerCase() || ''
+    const permissions = (role.permissions || [])
+      .map(permission => permission.name?.toLowerCase() || '')
+      .join(' ')
 
     return (
       name.includes(keyword) ||
@@ -1174,20 +870,15 @@ const filteredRoles = computed(() => {
   })
 })
 
-const roleTotalPages = computed(() => {
-  return Math.max(
+const roleTotalPages = computed(() =>
+  Math.max(
     1,
-    Math.ceil(
-      filteredRoles.value.length /
-      rolePerPage.value
-    )
+    Math.ceil(filteredRoles.value.length / rolePerPage.value)
   )
-})
+)
 
 const paginatedRoles = computed(() => {
-  const start =
-    (rolePage.value - 1) *
-    rolePerPage.value
+  const start = (rolePage.value - 1) * rolePerPage.value
 
   return filteredRoles.value.slice(
     start,
@@ -1201,22 +892,14 @@ const fetchRoles = async () => {
 
   try {
     const response = await getRoles()
+    roles.value = response.data ?? response
 
-    roles.value =
-      response.data ??
-      response
-
-    if (
-      rolePage.value >
+    rolePage.value = Math.min(
+      rolePage.value,
       roleTotalPages.value
-    ) {
-      rolePage.value =
-        roleTotalPages.value
-    }
+    )
   } catch (err) {
-    roleError.value =
-      err.message ||
-      'Failed to load roles.'
+    roleError.value = err.message || 'Failed to load roles.'
   } finally {
     roleLoading.value = false
   }
@@ -1225,7 +908,6 @@ const fetchRoles = async () => {
 const permissionSearch = ref('')
 const permissionPerPage = ref(5)
 const permissionPage = ref(1)
-
 const permissions = ref([])
 const permissionLoading = ref(false)
 const permissionError = ref('')
@@ -1236,10 +918,7 @@ const groupedPermissions = computed(() => {
   permissions.value.forEach(permission => {
     const moduleName =
       permission.module ||
-      permission.name
-        ?.split('.')
-        .slice(0, -1)
-        .join('.') ||
+      permission.name?.split('.').slice(0, -1).join('.') ||
       'Unknown Module'
 
     if (!groups[moduleName]) {
@@ -1251,67 +930,39 @@ const groupedPermissions = computed(() => {
       }
     }
 
-    const action =
-      permission.name
-        ?.split('.')
-        .pop()
-        ?.toLowerCase()
+    const action = permission.name?.split('.').pop()?.toLowerCase()
 
-        if (
-  action &&
-  [
-    'view',
-    'create',
-    'update',
-    'delete',
-    'approve',
-  ].includes(action) &&
-  !groups[moduleName].actions.includes(action)
-)
-{ groups[moduleName].actions.push(action)
+    if (
+      action &&
+      PERMISSION_ACTION_ORDER.includes(action) &&
+      !groups[moduleName].actions.includes(action)
+    ) {
+      groups[moduleName].actions.push(action)
     }
 
     groups[moduleName].ids.push(permission.id)
     groups[moduleName].items.push(permission)
   })
 
-  const actionOrder = [
-  'view',
-  'create',
-  'update',
-  'delete',
-  'approve',
-]
+  return Object.values(groups).map(group => {
+    group.actions.sort(
+      (a, b) =>
+        PERMISSION_ACTION_ORDER.indexOf(a) -
+        PERMISSION_ACTION_ORDER.indexOf(b)
+    )
 
-  return Object.values(groups)
-    .map(group => {
-      group.actions.sort(
-        (a, b) =>
-          actionOrder.indexOf(a) -
-          actionOrder.indexOf(b)
-      )
-
-      return group
-    })
+    return group
+  })
 })
 
 const filteredPermissions = computed(() => {
-  const keyword = permissionSearch.value
-    .trim()
-    .toLowerCase()
+  const keyword = permissionSearch.value.trim().toLowerCase()
 
-  if (!keyword) {
-    return groupedPermissions.value
-  }
+  if (!keyword) return groupedPermissions.value
 
   return groupedPermissions.value.filter(permission => {
-    const moduleName =
-      permission.module?.toLowerCase() || ''
-
-    const actions =
-      (permission.actions || [])
-        .join(' ')
-        .toLowerCase()
+    const moduleName = permission.module?.toLowerCase() || ''
+    const actions = permission.actions?.join(' ').toLowerCase() || ''
 
     return (
       moduleName.includes(keyword) ||
@@ -1320,20 +971,18 @@ const filteredPermissions = computed(() => {
   })
 })
 
-const permissionTotalPages = computed(() => {
-  return Math.max(
+const permissionTotalPages = computed(() =>
+  Math.max(
     1,
     Math.ceil(
-      filteredPermissions.value.length /
-      permissionPerPage.value
+      filteredPermissions.value.length / permissionPerPage.value
     )
   )
-})
+)
 
 const paginatedPermissions = computed(() => {
   const start =
-    (permissionPage.value - 1) *
-    permissionPerPage.value
+    (permissionPage.value - 1) * permissionPerPage.value
 
   return filteredPermissions.value.slice(
     start,
@@ -1347,22 +996,15 @@ const fetchPermissions = async () => {
 
   try {
     const response = await getPermissions()
+    permissions.value = response.data ?? response
 
-    permissions.value =
-      response.data ??
-      response
-
-    if (
-      permissionPage.value >
+    permissionPage.value = Math.min(
+      permissionPage.value,
       permissionTotalPages.value
-    ) {
-      permissionPage.value =
-        permissionTotalPages.value
-    }
+    )
   } catch (err) {
     permissionError.value =
-      err.message ||
-      'Failed to load permissions.'
+      err.message || 'Failed to load permissions.'
   } finally {
     permissionLoading.value = false
   }
@@ -1371,6 +1013,10 @@ const fetchPermissions = async () => {
 const showAddUser = ref(false)
 const showEditUser = ref(false)
 const selectedUser = ref(null)
+
+const addUser = () => {
+  showAddUser.value = true
+}
 
 const openEditUser = user => {
   selectedUser.value = user
@@ -1394,6 +1040,10 @@ const showAddPermission = ref(false)
 const showEditPermission = ref(false)
 const selectedPermission = ref(null)
 
+const addPermission = () => {
+  showAddPermission.value = true
+}
+
 const openEditPermission = permission => {
   selectedPermission.value = {
     module: permission.module,
@@ -1405,147 +1055,108 @@ const openEditPermission = permission => {
   showEditPermission.value = true
 }
 
-const addPermission = () => {
-  showAddPermission.value = true
-}
+const deleteSelectedUser = async user => {
+  const result = await swal.confirm(
+    'Are you sure you want to delete this user?',
+    'delete'
+  )
 
-const showDeleteModal = ref(false)
-const deleteType = ref(null)
-const dataToDelete = ref(null)
-const deleting = ref(false)
-
-const deleteItemName = computed(() => {
-  if (!dataToDelete.value) {
-    return ''
-  }
-
-  if (deleteType.value === 'permission') {
-    return dataToDelete.value.module
-  }
-
-  return dataToDelete.value.name || '-'
-})
-
-const deleteSelectedUser = user => {
-  deleteType.value = 'user'
-  dataToDelete.value = user
-  showDeleteModal.value = true
-}
-
-const deleteSelectedRole = role => {
-  deleteType.value = 'role'
-  dataToDelete.value = role
-  showDeleteModal.value = true
-}
-
-const deleteSelectedPermission = permission => {
-  deleteType.value = 'permission'
-  dataToDelete.value = permission
-  showDeleteModal.value = true
-}
-
-const cancelDelete = () => {
-  if (deleting.value) {
-    return
-  }
-
-  showDeleteModal.value = false
-  deleteType.value = null
-  dataToDelete.value = null
-}
-
-const confirmDelete = async () => {
-  if (
-    !dataToDelete.value ||
-    deleting.value
-  ) {
-    return
-  }
-
-  deleting.value = true
-
-  const item = dataToDelete.value
-  const type = deleteType.value
+  if (!result.isConfirmed) return
 
   try {
-    if (type === 'user') {
-      await deleteUser(item.id)
-      await fetchUsers()
+    await deleteUser(user.id)
+    await fetchUsers()
 
-      if (
-        userPage.value >
-        userTotalPages.value
-      ) {
-        userPage.value =
-          userTotalPages.value
-      }
+    userPage.value = Math.min(
+      userPage.value,
+      userTotalPages.value
+    )
 
-      showDeleteModal.value = false
-
-      toast.success(
-        'User Deleted',
-        `"${item.name}" has been deleted successfully.`
-      )
-    } else if (type === 'role') {
-      await deleteRole(item.id)
-      await fetchRoles()
-
-      if (
-        rolePage.value >
-        roleTotalPages.value
-      ) {
-        rolePage.value =
-          roleTotalPages.value
-      }
-
-      showDeleteModal.value = false
-
-      toast.success(
-        'Role Deleted',
-        `"${item.name}" has been deleted successfully.`
-      )
-    } else if (type === 'permission') {
-      const ids = item.ids || []
-
-      await Promise.all(
-        ids.map(id =>
-          deletePermission(id)
-        )
-      )
-
-      await fetchPermissions()
-
-      if (
-        permissionPage.value >
-        permissionTotalPages.value
-      ) {
-        permissionPage.value =
-          permissionTotalPages.value
-      }
-
-      showDeleteModal.value = false
-
-      toast.success(
-        'Permission Deleted',
-        `"${item.module}" has been deleted successfully.`
-      )
-    }
-
-    deleteType.value = null
-    dataToDelete.value = null
+    await swal.success(
+      'User Deleted',
+      `"${user.name}" has been deleted successfully.`
+    )
   } catch (err) {
     if (err.status === 403) {
       router.push('/error/403')
       return
     }
 
-    toast.error(
+    await swal.error(
       'Delete Failed',
-      err.message ||
-        'Failed to delete data.'
+      err.message || 'Failed to delete user.'
     )
-  } finally {
-    deleting.value = false
+  }
+}
+
+const deleteSelectedRole = async role => {
+  const result = await swal.confirm(
+    'Are you sure you want to delete this role?',
+    'delete'
+  )
+
+  if (!result.isConfirmed) return
+
+  try {
+    await deleteRole(role.id)
+    await fetchRoles()
+
+    rolePage.value = Math.min(
+      rolePage.value,
+      roleTotalPages.value
+    )
+
+    await swal.success(
+      'Role Deleted',
+      `"${role.name}" has been deleted successfully.`
+    )
+  } catch (err) {
+    if (err.status === 403) {
+      router.push('/error/403')
+      return
+    }
+
+    await swal.error(
+      'Delete Failed',
+      err.message || 'Failed to delete role.'
+    )
+  }
+}
+
+const deleteSelectedPermission = async permission => {
+  const result = await swal.confirm(
+    'Are you sure you want to delete this permission?',
+    'delete'
+  )
+
+  if (!result.isConfirmed) return
+
+  try {
+    await Promise.all(
+      (permission.ids || []).map(id => deletePermission(id))
+    )
+
+    await fetchPermissions()
+
+    permissionPage.value = Math.min(
+      permissionPage.value,
+      permissionTotalPages.value
+    )
+
+    await swal.success(
+      'Permission Deleted',
+      `"${permission.module}" has been deleted successfully.`
+    )
+  } catch (err) {
+    if (err.status === 403) {
+      router.push('/error/403')
+      return
+    }
+
+    await swal.error(
+      'Delete Failed',
+      err.message || 'Failed to delete permission.'
+    )
   }
 }
 
@@ -1554,5 +1165,4 @@ onMounted(() => {
   fetchRoles()
   fetchPermissions()
 })
-
 </script>
