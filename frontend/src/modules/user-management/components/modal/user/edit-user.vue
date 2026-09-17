@@ -33,7 +33,7 @@
         </button>
       </div>
 
-      <!-- Scrollable Form -->
+      <!-- Form -->
       <form
         class="max-h-[calc(90vh-90px)] overflow-y-auto p-6"
         @submit.prevent="handleSubmit"
@@ -154,18 +154,11 @@
             :disabled="loading || rolesLoading"
             clearable
           />
-
-          <p
-            v-if="error && !form.role"
-            class="m-0 text-xs text-red-600"
-          >
-            {{ error }}
-          </p>
         </div>
 
         <!-- General Error -->
         <div
-          v-if="error && form.role"
+          v-if="error"
           class="mb-[18px] rounded-[7px] bg-red-50 px-3 py-[10px] text-xs text-[#b42318]"
         >
           {{ error }}
@@ -185,22 +178,11 @@
           </button>
 
           <button
-            type="submit"
-            :disabled="
-              loading ||
-              rolesLoading ||
-              !form.name.trim() ||
-              !form.email.trim() ||
-              !form.role ||
-              (
-                form.password &&
-                form.password !== form.confirmPassword
-              )
-            "
-            class="rounded-[7px] border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-          >
-            {{ loading ? 'Saving...' : 'Update' }}
-          </button>
+  type="submit"
+  class="rounded-[7px] border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700"
+>
+  {{ loading ? 'Saving...' : 'Update' }}
+</button>
         </div>
       </form>
     </div>
@@ -251,12 +233,10 @@ const fetchRoles = async () => {
   try {
     const response = await getRoles()
 
-    roles.value =
-      response?.data ??
-      response ??
-      []
+    roles.value = response ?? []
   } catch (err) {
     error.value =
+      err?.response?.data?.message ||
       err?.message ||
       'Failed to load roles.'
 
@@ -284,55 +264,46 @@ const handleSubmit = async () => {
 
   error.value = ''
 
+  // Name
   if (!form.value.name.trim()) {
     error.value = 'Name is required.'
     return
   }
 
+  // Email
   if (!form.value.email.trim()) {
     error.value = 'Email is required.'
     return
   }
 
-  if (!form.value.role) {
-    error.value = 'Please select a role.'
+  // Password hanya divalidasi jika diisi
+  if (form.value.password) {
+    if (form.value.password.length < 8) {
+      error.value =
+        'Password must be at least 8 characters.'
 
-    await swal.error(
-      'Invalid Role',
-      'Please select a role.'
-    )
+      await swal.error(
+        'Invalid Password',
+        'Password must be at least 8 characters.'
+      )
 
-    return
-  }
+      return
+    }
 
-  if (
-    form.value.password &&
-    form.value.password !== form.value.confirmPassword
-  ) {
-    error.value =
-      'Password and confirmation do not match.'
+    if (
+      form.value.password !==
+      form.value.confirmPassword
+    ) {
+      error.value =
+        'Password and confirmation do not match.'
 
-    await swal.error(
-      'Password Mismatch',
-      'Password and confirmation do not match.'
-    )
+      await swal.error(
+        'Password Mismatch',
+        'Password and confirmation do not match.'
+      )
 
-    return
-  }
-
-  if (
-    form.value.password &&
-    form.value.password.length < 8
-  ) {
-    error.value =
-      'Password must be at least 8 characters.'
-
-    await swal.error(
-      'Invalid Password',
-      'Password must be at least 8 characters.'
-    )
-
-    return
+      return
+    }
   }
 
   const result = await swal.confirm(
@@ -349,9 +320,14 @@ const handleSubmit = async () => {
     const data = {
       name: form.value.name.trim(),
       email: form.value.email.trim(),
-      role: form.value.role,
     }
 
+    // Role hanya dikirim kalau ada nilainya
+    if (form.value.role) {
+      data.role = form.value.role
+    }
+
+    // Password hanya dikirim kalau user mengisinya
     if (form.value.password) {
       data.password = form.value.password
       data.password_confirmation =
@@ -371,9 +347,24 @@ const handleSubmit = async () => {
       `User ${form.value.name} has been updated successfully.`
     )
   } catch (err) {
-    error.value =
-      err?.message ||
-      'Failed to update user.'
+    const validationErrors =
+      err?.response?.data?.errors
+
+    if (validationErrors) {
+      error.value =
+        validationErrors.name?.[0] ||
+        validationErrors.email?.[0] ||
+        validationErrors.password?.[0] ||
+        validationErrors.role?.[0] ||
+        ''
+    }
+
+    if (!error.value) {
+      error.value =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to update user.'
+    }
 
     await swal.error(
       'Action Failed',
