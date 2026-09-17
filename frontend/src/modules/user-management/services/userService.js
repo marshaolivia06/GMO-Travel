@@ -41,8 +41,28 @@ export const createUser = (user) => {
   })
 }
 
-export const getRoles = () => {
-  return request('/roles')
+export const getRoles = async () => {
+  const roles = await request('/roles')
+
+  const uniqueRoles = []
+  const seen = new Set()
+
+  roles.forEach(role => {
+    const key = role.name?.trim().toLowerCase()
+
+    if (!key || seen.has(key)) {
+      return
+    }
+
+    seen.add(key)
+
+    uniqueRoles.push({
+      ...role,
+      name: role.name.trim(),
+    })
+  })
+
+  return uniqueRoles
 }
 
 export const updateUser = (id, user) => {
