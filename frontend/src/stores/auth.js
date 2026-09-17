@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToastStore } from './toast'
+import swal from '../plugins/swal'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
-  const toast = useToastStore()
 
   const user = ref(
     JSON.parse(localStorage.getItem('user') || 'null')
@@ -27,57 +26,49 @@ export const useAuthStore = defineStore('auth', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            Accept: 'application/json',
           },
           body: JSON.stringify({
             email,
-            password
-          })
+            password,
+          }),
         }
       )
 
       const data = await response.json()
-      console.log('LOGIN RESPONSE:', data)
 
       if (!response.ok) {
         return {
           success: false,
-          message: data.message || 'Email atau password salah.'
+          message:
+            data.message || 'Invalid email or password.',
         }
       }
 
       token.value = data.token
       user.value = data.user
 
-      localStorage.setItem(
-        'token',
-        data.token
-      )
-
+      localStorage.setItem('token', data.token)
       localStorage.setItem(
         'user',
         JSON.stringify(data.user)
       )
 
-      const name = data.user.name
-
-      toast.success(
-        'Login Successfully',
-        `Welcome back ${name}!`
-      )
-
       await router.push('/dashboard')
 
-      return {
-        success: true
-      }
+      swal.success(
+        'Login Successful',
+        `Welcome back, ${data.user.name}!`
+      )
 
+      return {
+        success: true,
+      }
     } catch (error) {
       return {
         success: false,
-        message: 'Tidak dapat terhubung ke server.'
+        message: 'Unable to connect to the server.',
       }
-
     } finally {
       loading.value = false
     }
@@ -92,25 +83,18 @@ export const useAuthStore = defineStore('auth', () => {
         {
           method: 'POST',
           headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token.value}`
-          }
+            Accept: 'application/json',
+            Authorization: `Bearer ${token.value}`,
+          },
         }
       )
-
     } catch (error) {
-
     } finally {
       user.value = null
       token.value = null
 
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-
-      toast.success(
-        'Logout Successfully',
-        'You have been logged out successfully.'
-      )
 
       await router.push('/login')
 
@@ -128,6 +112,6 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     login,
     logout,
-    isAuthenticated
+    isAuthenticated,
   }
 })
