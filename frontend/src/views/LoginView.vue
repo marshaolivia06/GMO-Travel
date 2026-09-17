@@ -1,110 +1,79 @@
 <template>
   <div
-  class="min-h-screen bg-white p-[30px] flex items-center justify-center font-['Inter'] max-[800px]:p-5"
->
-
+    class="min-h-screen flex items-center justify-center p-5 font-['Inter'] bg-gradient-to-br from-[#1E4F8A] via-[#6B96BE] to-[#DCEBF7]"
+  >
+    <!-- LOGIN CARD -->
     <div
-      class="w-full max-w-[900px] min-h-[540px] grid grid-cols-1 md:grid-cols-2 overflow-hidden border border-slate-200 rounded-[20px] bg-white shadow-[0_15px_45px_rgba(37,99,168,0.12)]"
+      class="relative w-[430px] rounded-[22px] bg-[#F5F7FA] border border-white/80 shadow-[0_20px_55px_rgba(30,79,138,0.25)] overflow-hidden"
     >
-
+      <!-- TOP ACCENT -->
       <div
-        class="min-h-[280px] md:min-h-0 p-[30px] md:p-10 flex flex-col justify-between text-white bg-gradient-to-br from-[#1E4F8A] via-[#2D659C] to-[#DCEBF7]"
-      >
+        class="absolute top-0 left-0 right-0 h-[4px] bg-gradient-to-r from-[#1E4F8A] via-[#5F8FBD] to-[#DCEBF7]"
+      ></div>
 
-        <div>
+      <div class="px-9 py-8">
 
-          <div
-            class="flex items-center justify-center gap-3 translate-y-5"
+        <!-- BRANDING -->
+        <div class="flex flex-col items-center text-center mb-7">
+
+          <!-- LOGO -->
+          <img
+            :src="logo"
+            alt="GMO Travel"
+            class="w-[72px] h-[72px] object-contain mb-3"
+          />
+
+          <!-- BRAND NAME -->
+          <h1
+            class="m-0 text-[27px] font-bold tracking-[-0.5px] text-[#172033]"
           >
+            GMO Travel
+          </h1>
 
-            <img
-              :src="logo"
-              alt="GMO Travel"
-              class="w-[52px] h-[52px] object-contain"
-            />
-
-            <div class="flex flex-col gap-[3px]">
-
-              <span
-                class="text-[21px] font-bold text-white"
-              >
-                GMO Travel
-              </span>
-
-              <small
-                class="text-[#DCEBF7] text-[11px] font-normal tracking-[0.5px]"
-              >
-                General Management Office
-              </small>
-
-            </div>
-
-          </div>
-
-          <div
-            class="max-w-[380px] mt-[60px] md:mt-[90px]"
+          <!-- COMPANY NAME -->
+          <p
+            class="m-0 mt-1.5 text-[10px] font-medium tracking-[1.5px] uppercase text-[#6B8299]"
           >
-
-            <h1
-              class="m-0 mb-[15px] text-[28px] md:text-[34px] leading-[1.2] font-normal text-white"
-            >
-              Every journey begins with a single step.
-            </h1>
-
-            <p
-              class="m-0 text-[#e0efff] text-sm leading-[1.6]"
-            >
-              Manage bookings, itineraries, and customers
-              in one place with GMO Travel.
-            </p>
-
-          </div>
-
+            General Management Office
+          </p>
         </div>
 
-        <small class="text-[#d0e5fa]">
-          © 2026 GMO Travel
-        </small>
-
-      </div>
-
-      <div
-        class="p-[25px] px-5 md:p-[35px] flex items-center justify-center bg-slate-50"
-      >
-
+        <!-- LOGIN FORM -->
         <div
-          class="w-full max-w-[350px] p-8 border border-slate-200 rounded-[14px] bg-white shadow-[0_8px_25px_rgba(15,23,42,0.06)]"
+          class="bg-white rounded-[15px] border border-slate-200 p-6 shadow-[0_5px_18px_rgba(15,23,42,0.04)]"
         >
+          <!-- TITLE -->
+          <div class="mb-5">
+            <h2
+              class="m-0 text-[20px] font-semibold text-[#172033]"
+            >
+              Welcome back
+            </h2>
 
-          <h2
-            class="m-0 mb-[7px] text-[#1E4F8A] text-[26px] font-semibold"
-          >
-            Welcome back
-          </h2>
-
-          <p
-            class="m-0 mb-[25px] text-slate-500 text-sm"
-          >
-            Sign in to access your account
-          </p>
+            <p
+              class="m-0 mt-1 text-[12px] text-slate-500"
+            >
+              Sign in to continue to GMO Travel
+            </p>
+          </div>
 
           <form
             @submit.prevent="handleLogin"
             autocomplete="off"
           >
-
+            <!-- ERROR -->
             <p
               v-if="errorMessage"
-              class="m-0 mb-[15px] px-3 py-2.5 rounded-[7px] text-[#b42318] bg-[#fef3f2] text-[13px]"
+              class="mb-4 px-3 py-2 rounded-[7px] text-[#b42318] bg-[#fef3f2] border border-[#fecdca] text-[12px]"
             >
               {{ errorMessage }}
             </p>
 
+            <!-- USERNAME -->
             <div class="mb-4">
-
               <label
                 for="email"
-                class="block mb-1.5 text-[#1E4F8A] text-[13px] font-semibold"
+                class="block mb-1.5 text-[#294D70] text-[12px] font-semibold"
               >
                 Email
               </label>
@@ -113,19 +82,18 @@
                 id="email"
                 v-model="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="Enter your username"
                 autocomplete="off"
                 required
-                class="w-full h-[46px] px-[13px] border border-slate-300 rounded-[7px] outline-none bg-white text-[#172033] text-sm placeholder:text-[#94a3b8] transition focus:border-[#1E4F8A] focus:shadow-[0_0_0_3px_rgba(30,79,138,0.12)]"
+                class="w-full h-[44px] px-3.5 border border-slate-300 rounded-[8px] outline-none bg-[#F8FAFC] text-[#172033] text-[13px] placeholder:text-slate-400 transition focus:bg-white focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10"
               />
-
             </div>
 
-            <div class="mb-4">
-
+            <!-- PASSWORD -->
+            <div class="mb-3.5">
               <label
                 for="password"
-                class="block mb-1.5 text-[#1E4F8A] text-[13px] font-semibold"
+                class="block mb-1.5 text-[#294D70] text-[12px] font-semibold"
               >
                 Password
               </label>
@@ -137,112 +105,84 @@
                 placeholder="Enter your password"
                 autocomplete="current-password"
                 required
-                class="w-full h-[46px] px-[13px] border border-slate-300 rounded-[7px] outline-none bg-white text-[#172033] text-sm placeholder:text-[#94a3b8] transition focus:border-[#1E4F8A] focus:shadow-[0_0_0_3px_rgba(30,79,138,0.12)]"
+                class="w-full h-[44px] px-3.5 border border-slate-300 rounded-[8px] outline-none bg-[#F8FAFC] text-[#172033] text-[13px] placeholder:text-slate-400 transition focus:bg-white focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10"
               />
-
             </div>
 
+            <!-- REMEMBER -->
             <label
-              class="flex items-center gap-2 my-1 mb-5 text-slate-500 text-[13px] cursor-pointer"
+              class="flex items-center gap-2 mb-5 text-slate-500 text-[12px] cursor-pointer select-none"
             >
-
               <input
                 type="checkbox"
-                class="w-4 h-4 accent-[#1E4F8A]"
+                class="w-[15px] h-[15px] accent-[#1E4F8A]"
               />
 
-              <span>
-                Remember me
-              </span>
-
+              <span>Remember me</span>
             </label>
 
+            <!-- BUTTON -->
             <button
               type="submit"
               :disabled="loading"
-              class="w-full h-[46px] border-0 rounded-[7px] bg-[#1E4F8A] text-white text-sm font-semibold cursor-pointer transition hover:bg-[#173F70] disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-full h-[44px] border-0 rounded-[8px] bg-[#1E4F8A] text-white text-[13px] font-semibold cursor-pointer transition hover:bg-[#173F70] hover:shadow-[0_5px_15px_rgba(30,79,138,0.22)] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {{ loading ? 'Signing in...' : 'Sign in' }}
             </button>
-
           </form>
-
         </div>
 
+        <!-- FOOTER -->
+        <p
+          class="m-0 mt-5 text-center text-[10px] text-slate-400"
+        >
+          © 2026 GMO Travel
+        </p>
+
       </div>
-
     </div>
-
   </div>
 </template>
 
 <script setup>
-
 import { ref, onMounted } from 'vue'
-
 import { useAuthStore } from '../stores/auth'
-
 import logo from '../assets/logo.png'
 
 const auth = useAuthStore()
 
 const email = ref('')
-
 const password = ref('')
-
 const errorMessage = ref('')
-
 const loading = ref(false)
 
 onMounted(() => {
-
   email.value = ''
-
   password.value = ''
-
   errorMessage.value = ''
-
 })
 
 const handleLogin = async () => {
-
   if (loading.value) return
 
   errorMessage.value = ''
-
   loading.value = true
 
   try {
-
     const result = await auth.login(
       email.value,
       password.value
     )
 
     if (!result.success) {
-
       errorMessage.value =
-        result.message ||
-        'Email atau password salah.'
-
+        result.message || 'Invalid email or password.'
     }
-
   } catch (error) {
-
-    console.error(
-      'Login error:',
-      error
-    )
-
     errorMessage.value =
-      'Terjadi kesalahan saat login.'
-
+      'An error occurred while signing in.'
   } finally {
-
     loading.value = false
-
   }
-
 }
-
 </script>
