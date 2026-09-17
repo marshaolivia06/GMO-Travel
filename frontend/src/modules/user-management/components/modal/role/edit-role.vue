@@ -4,7 +4,6 @@
     @click.self="handleClose"
   >
     <div
-      v-if="!showConfirmation"
       class="w-full max-w-[560px] max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
     >
       <div
@@ -85,9 +84,9 @@
             v-else
             class="overflow-hidden rounded-lg border border-slate-200"
           >
-          <div
-  class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 bg-slate-100"
->
+            <div
+              class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 bg-slate-100"
+            >
               <div
                 class="flex items-center px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400"
               >
@@ -115,10 +114,10 @@
 
             <div class="max-h-[300px] overflow-y-auto">
               <div
-  v-for="group in permissionGroups"
-  :key="group.module"
-  class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 last:border-b-0"
->
+                v-for="group in permissionGroups"
+                :key="group.module"
+                class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 last:border-b-0"
+              >
                 <div class="flex items-center bg-white px-4 py-3">
                   <span class="text-[12px] font-semibold text-slate-700">
                     {{ group.module }}
@@ -158,7 +157,9 @@
           {{ error }}
         </div>
 
-        <div class="flex justify-end gap-2.5 pt-1 max-[500px]:flex-col-reverse">
+        <div
+          class="flex justify-end gap-2.5 pt-1 max-[500px]:flex-col-reverse"
+        >
           <button
             type="button"
             class="rounded-[7px] border-0 bg-slate-100 px-4 py-[9px] text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 max-[500px]:w-full"
@@ -173,59 +174,10 @@
             class="rounded-[7px] border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[500px]:w-full"
             :disabled="loading"
           >
-            Save Changes
+            Update
           </button>
         </div>
       </form>
-    </div>
-
-    <div
-      v-else
-      class="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_28px_80px_rgba(15,23,42,0.25)]"
-    >
-      <div class="h-1.5 w-full bg-gradient-to-r from-[#1E4F8A] via-[#2E6FB4] to-[#1E4F8A]" />
-
-      <div class="px-6 pb-6 pt-7">
-        <div class="flex justify-center">
-          <div
-            class="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-[#EAF2F9] text-[#1E4F8A]"
-          >
-            <span class="text-3xl font-bold">
-              ?
-            </span>
-          </div>
-        </div>
-
-        <div class="mt-5 text-center">
-          <p
-            class="mx-auto max-w-[330px] text-[15px] font-medium leading-6 text-[#172033]"
-          >
-            Are you sure you want to update this role?
-          </p>
-        </div>
-
-        <div
-          class="mt-6 flex items-center justify-center gap-2.5 max-[600px]:flex-col-reverse"
-        >
-          <button
-            type="button"
-            class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="loading"
-            @click="cancelConfirmation"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            class="min-w-[100px] rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-            :disabled="loading"
-            @click="handleSubmit"
-          >
-            {{ loading ? 'Saving...' : 'Yes' }}
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -235,9 +187,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import { updateRole } from '../../../services/roleService'
 import { getPermissions } from '../../../services/permissionService'
-import { useToastStore } from '../../../../../stores/toast'
-
-const toast = useToastStore()
+import swal from '../../../../../plugins/swal'
 
 const props = defineProps({
   role: {
@@ -253,9 +203,9 @@ const emit = defineEmits([
 
 const form = ref({
   name: props.role.name || '',
-  permissions: props.role.permissions?.map(
-    permission => permission.id
-  ) || [],
+  permissions: Array.isArray(props.role.permissions)
+    ? props.role.permissions.map(permission => permission.id)
+    : [],
 })
 
 const permissions = ref([])
@@ -263,7 +213,6 @@ const loadingPermissions = ref(false)
 const permissionError = ref('')
 const loading = ref(false)
 const error = ref('')
-const showConfirmation = ref(false)
 
 const headerActions = [
   'view',
@@ -273,8 +222,10 @@ const headerActions = [
   'approve',
 ]
 
-const getAction = (permission) => {
-  if (!permission?.name) return ''
+const getAction = permission => {
+  if (!permission?.name) {
+    return ''
+  }
 
   const parts = permission.name.split('.')
 
@@ -306,22 +257,24 @@ const getPermissionByAction = (group, action) => {
   )
 }
 
-const getActionPermissions = (action) => {
+const getActionPermissions = action => {
   return permissions.value.filter(
     permission => getAction(permission) === action
   )
 }
 
-const isActionSelected = (action) => {
+const isActionSelected = action => {
   const list = getActionPermissions(action)
 
-  return list.length > 0 &&
+  return (
+    list.length > 0 &&
     list.every(permission =>
       form.value.permissions.includes(permission.id)
     )
+  )
 }
 
-const toggleAction = (action) => {
+const toggleAction = action => {
   const list = getActionPermissions(action)
   const ids = list.map(permission => permission.id)
 
@@ -342,43 +295,31 @@ const toggleAction = (action) => {
   ]
 }
 
-const selectedPermissionGroups = computed(() => {
-  return permissionGroups.value
-    .map(group => ({
-      module: group.module,
-      permissions: group.permissions.filter(
-        permission =>
-          form.value.permissions.includes(permission.id)
-      ),
-    }))
-    .filter(group => group.permissions.length)
-})
-
-const openConfirmation = () => {
+const openConfirmation = async () => {
   error.value = ''
 
-  if (!form.value.name.trim()) {
+  form.value.name = form.value.name.trim()
+
+  if (!form.value.name) {
     error.value = 'Role name is required.'
-
-    toast.warning(
-      'Invalid Role',
-      'Role name is required.'
-    )
-
     return
   }
 
-  showConfirmation.value = true
-}
+  const result = await swal.confirm(
+    'Are you sure you want to update this role?'
+  )
 
-const cancelConfirmation = () => {
-  if (loading.value) return
+  if (!result.isConfirmed) {
+    return
+  }
 
-  showConfirmation.value = false
+  await handleSubmit()
 }
 
 const handleClose = () => {
-  if (loading.value) return
+  if (loading.value) {
+    return
+  }
 
   emit('close')
 }
@@ -401,7 +342,9 @@ const fetchPermissions = async () => {
 }
 
 const handleSubmit = async () => {
-  if (loading.value) return
+  if (loading.value) {
+    return
+  }
 
   loading.value = true
   error.value = ''
@@ -415,26 +358,28 @@ const handleSubmit = async () => {
       }
     )
 
-    toast.success(
+    emit('updated')
+    emit('close')
+
+    await swal.success(
       'Role Updated',
       'Role has been updated successfully.'
     )
-
-    emit('updated')
-    emit('close')
   } catch (err) {
-  console.log('ROLE UPDATE ERROR:', err)
-  console.log('ROLE UPDATE RESPONSE:', err.response?.data)
+    console.log('ROLE UPDATE ERROR:', err)
+    console.log(
+      'ROLE UPDATE RESPONSE:',
+      err.response?.data
+    )
+
     error.value =
       err.message ||
       'Failed to update role.'
 
-    toast.error(
+    await swal.error(
       'Action Failed',
       error.value
     )
-
-    showConfirmation.value = false
   } finally {
     loading.value = false
   }
