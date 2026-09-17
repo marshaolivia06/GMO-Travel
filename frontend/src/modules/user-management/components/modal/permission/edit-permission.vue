@@ -5,7 +5,6 @@
     @keydown.esc="handleClose"
   >
     <div
-      v-if="!showConfirmation"
       class="w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(15,23,42,0.20)]"
     >
       <div
@@ -115,62 +114,11 @@
             class="rounded-lg border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
             :disabled="loading"
           >
-            Update
+            {{ loading ? 'Updating...' : 'Update' }}
           </button>
         </div>
       </form>
     </div>
-
-    <div
-  v-else
-  class="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_28px_80px_rgba(15,23,42,0.25)]"
->
-  <div
-    class="h-1.5 w-full bg-gradient-to-r from-[#1E4F8A] via-[#2E6FB4] to-[#1E4F8A]"
-  />
-
-  <div class="px-6 pb-6 pt-7">
-    <div class="flex justify-center">
-      <div
-        class="flex h-[68px] w-[68px] items-center justify-center rounded-full bg-[#EAF2F9] text-[#1E4F8A]"
-      >
-        <span class="text-3xl font-bold">
-          ?
-        </span>
-      </div>
-    </div>
-
-    <div class="mt-5 text-center">
-      <p
-        class="mx-auto max-w-[330px] text-[15px] font-medium leading-6 text-[#172033]"
-      >
-        Are you sure you want to update this permission?
-      </p>
-    </div>
-
-    <div
-      class="mt-6 flex items-center justify-center gap-2.5 max-[600px]:flex-col-reverse"
-    >
-      <button
-        type="button"
-        class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="loading"
-        @click="cancelConfirmation"
-      >
-        Cancel
-      </button>
-
-      <button
-        type="button"
-        class="min-w-[100px] rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-        :disabled="loading"
-        @click="handleSubmit"
-      >
-        {{ loading ? 'Updating...' : 'Yes' }}
-      </button>
-    </div>
-  </div>
-</div>
   </div>
 </template>
 
@@ -181,7 +129,7 @@ import {
   updatePermissionsByModule,
 } from '../../../services/permissionService'
 
-import { useToastStore } from '../../../../../stores/toast'
+import swal from '../../../../../plugins/swal'
 
 const props = defineProps({
   permission: {
@@ -194,8 +142,6 @@ const emit = defineEmits([
   'close',
   'updated',
 ])
-
-const toast = useToastStore()
 
 const ACTIONS = [
   {
@@ -227,7 +173,6 @@ const form = ref({
 
 const loading = ref(false)
 const error = ref('')
-const showConfirmation = ref(false)
 
 const loadPermission = permission => {
   if (!permission) {
@@ -273,11 +218,10 @@ watch(
   }
 )
 
-const openConfirmation = () => {
+const openConfirmation = async () => {
   error.value = ''
 
-  form.value.module =
-    form.value.module.trim()
+  form.value.module = form.value.module.trim()
 
   if (!form.value.module) {
     error.value = 'Module is required.'
@@ -289,15 +233,13 @@ const openConfirmation = () => {
     return
   }
 
-  showConfirmation.value = true
-}
+  const result = await swal.confirm(
+    'Are you sure you want to update this permission?'
+  )
 
-const cancelConfirmation = () => {
-  if (loading.value) {
-    return
+  if (result.isConfirmed) {
+    await handleSubmit()
   }
-
-  showConfirmation.value = false
 }
 
 const handleClose = () => {
@@ -319,11 +261,8 @@ const handleSubmit = async () => {
   loading.value = true
   error.value = ''
 
-  const oldModule =
-    props.permission.module
-
-  const newModule =
-    form.value.module.trim()
+  const oldModule = props.permission.module
+  const newModule = form.value.module.trim()
 
   const actions = [
     ...new Set(form.value.actions),
@@ -336,24 +275,22 @@ const handleSubmit = async () => {
       actions
     )
 
-    toast.success(
+    emit('updated')
+    emit('close')
+
+    await swal.success(
       'Permission Updated',
       'Permission has been updated successfully.'
     )
-
-    emit('updated')
-    emit('close')
   } catch (err) {
     error.value =
       err.message ||
       'Failed to update permission.'
 
-    toast.error(
+    await swal.error(
       'Action Failed',
       error.value
     )
-
-    showConfirmation.value = false
   } finally {
     loading.value = false
   }
