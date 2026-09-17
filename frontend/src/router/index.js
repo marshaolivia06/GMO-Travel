@@ -131,7 +131,7 @@ router.beforeEach((to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title || 'JMO Travel'
+  document.title = to.meta.title || 'GMO Travel'
 })
 
 export default router
