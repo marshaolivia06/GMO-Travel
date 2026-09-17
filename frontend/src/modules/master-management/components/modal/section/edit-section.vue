@@ -18,6 +18,7 @@
   
         <form @submit.prevent="submitSection">
           <div class="space-y-4">
+            <!-- Section Name -->
             <div>
               <label
                 class="mb-1.5 block text-xs font-semibold text-slate-600"
@@ -41,6 +42,7 @@
               </p>
             </div>
   
+            <!-- Sect Head -->
             <div>
               <label
                 class="mb-1.5 block text-xs font-semibold text-slate-600"
@@ -48,29 +50,14 @@
                 Sect Head
               </label>
   
-              <select
+              <SelectTo
                 v-model="form.section_head_id"
-                :class="[
-                  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                  form.section_head_id
-                    ? 'text-slate-700'
-                    : 'text-slate-400'
-                ]"
+                :options="options.section_heads"
+                placeholder="Select Sect Head"
+                :loading="optionsLoading"
                 :disabled="loading || optionsLoading"
-              >
-                <option value="" disabled>
-                  Select Sect Head
-                </option>
-  
-                <option
-                  v-for="user in options.section_heads"
-                  :key="user.id"
-                  :value="user.id"
-                  class="text-slate-700"
-                >
-                  {{ user.name }}
-                </option>
-              </select>
+                clearable
+              />
   
               <p
                 v-if="errors.section_head_id"
@@ -80,6 +67,7 @@
               </p>
             </div>
   
+            <!-- Department -->
             <div>
               <label
                 class="mb-1.5 block text-xs font-semibold text-slate-600"
@@ -87,29 +75,14 @@
                 Department
               </label>
   
-              <select
+              <SelectTo
                 v-model="form.department_id"
-                :class="[
-                  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                  form.department_id
-                    ? 'text-slate-700'
-                    : 'text-slate-400'
-                ]"
+                :options="options.departments"
+                placeholder="Select department"
+                :loading="optionsLoading"
                 :disabled="loading || optionsLoading"
-              >
-                <option value="" disabled>
-                  Select department
-                </option>
-  
-                <option
-                  v-for="department in options.departments"
-                  :key="department.id"
-                  :value="department.id"
-                  class="text-slate-700"
-                >
-                  {{ department.name }}
-                </option>
-              </select>
+                clearable
+              />
   
               <p
                 v-if="errors.department_id"
@@ -119,6 +92,7 @@
               </p>
             </div>
   
+            <!-- General Error -->
             <p
               v-if="generalError"
               class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
@@ -127,6 +101,7 @@
             </p>
           </div>
   
+          <!-- Actions -->
           <div class="mt-6 flex justify-end gap-2.5">
             <button
               type="button"
@@ -152,11 +127,8 @@
   
   <script setup>
   import { onMounted, reactive, ref } from 'vue'
-  import {
-    getSection,
-    getSectionOptions,
-    updateSection,
-  } from '../../../services/sectionService'
+  import { getSection, getSectionOptions, updateSection } from '../../../services/sectionService'
+  import SelectTo from '../../../../../components/SelectTo.vue'
   import swal from '../../../../../plugins/swal'
   
   const props = defineProps({
@@ -166,10 +138,7 @@
     },
   })
   
-  const emit = defineEmits([
-    'close',
-    'success',
-  ])
+  const emit = defineEmits(['close', 'success'])
   
   const loading = ref(false)
   const optionsLoading = ref(false)
@@ -218,10 +187,7 @@
   
   const loadSection = async () => {
     try {
-      const response = await getSection(
-        props.section.id
-      )
-  
+      const response = await getSection(props.section.id)
       const section = response.data ?? response
   
       form.name = section.name ?? ''
@@ -269,14 +235,11 @@
     loading.value = true
   
     try {
-      await updateSection(
-        props.section.id,
-        {
-          name: form.name.trim(),
-          section_head_id: form.section_head_id,
-          department_id: form.department_id,
-        }
-      )
+      await updateSection(props.section.id, {
+        name: form.name.trim(),
+        section_head_id: form.section_head_id,
+        department_id: form.department_id,
+      })
   
       emit('success')
       emit('close')
@@ -291,10 +254,7 @@
         err?.message ||
         'Failed to update section.'
   
-      await swal.error(
-        'Action Failed',
-        message
-      )
+      await swal.error('Action Failed', message)
     } finally {
       loading.value = false
     }
@@ -309,6 +269,6 @@
   onMounted(async () => {
     await loadOptions()
     await loadSection()
-  })
+  })  
   </script>
   

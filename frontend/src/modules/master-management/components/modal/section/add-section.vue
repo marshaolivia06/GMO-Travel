@@ -3,9 +3,9 @@
       class="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/45 p-5"
       @click.self="close"
     >
-      <div
-        class="w-[500px] max-w-full rounded-xl bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
-      >
+    <div
+  class="w-[500px] max-w-full rounded-xl bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
+>
         <div class="mb-5">
           <h2 class="text-lg font-semibold text-[#172033]">
             Add Section
@@ -48,29 +48,14 @@
                 Sect Head
               </label>
   
-              <select
-                v-model="form.section_head_id"
-                :class="[
-                  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                  form.section_head_id
-                    ? 'text-slate-700'
-                    : 'text-slate-400'
-                ]"
-                :disabled="loading || optionsLoading"
-              >
-                <option value="" disabled>
-                  Select Sect Head
-                </option>
-  
-                <option
-                  v-for="user in options.section_heads"
-                  :key="user.id"
-                  :value="user.id"
-                  class="text-slate-700"
-                >
-                  {{ user.name }}
-                </option>
-              </select>
+              <SelectTo
+  v-model="form.section_head_id"
+  :options="options.section_heads"
+  label-key="name"
+  value-key="id"
+  placeholder="Select Sect Head"
+  :disabled="loading || optionsLoading"
+/>
   
               <p
                 v-if="errors.section_head_id"
@@ -87,29 +72,14 @@
                 Department
               </label>
   
-              <select
-                v-model="form.department_id"
-                :class="[
-                  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                  form.department_id
-                    ? 'text-slate-700'
-                    : 'text-slate-400'
-                ]"
-                :disabled="loading || optionsLoading"
-              >
-                <option value="" disabled>
-                  Select department
-                </option>
-  
-                <option
-                  v-for="department in options.departments"
-                  :key="department.id"
-                  :value="department.id"
-                  class="text-slate-700"
-                >
-                  {{ department.name }}
-                </option>
-              </select>
+              <SelectTo
+  v-model="form.department_id"
+  :options="options.departments"
+  label-key="name"
+  value-key="id"
+  placeholder="Select Department"
+  :disabled="loading || optionsLoading"
+/>
   
               <p
                 v-if="errors.department_id"
@@ -156,6 +126,7 @@
     createSection,
     getSectionOptions,
   } from '../../../services/sectionService'
+  import SelectTo from '../../../../../components/SelectTo.vue'
   import swal from '../../../../../plugins/swal'
   
   const emit = defineEmits(['close', 'success'])

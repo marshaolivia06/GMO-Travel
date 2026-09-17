@@ -4,8 +4,9 @@
     @click.self="handleClose"
   >
     <div
-      class="w-full max-w-[480px] overflow-hidden rounded-xl bg-white font-sans shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
+      class="w-full max-w-[480px] max-h-[90vh] overflow-hidden rounded-xl bg-white font-sans shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
     >
+      <!-- Header -->
       <div
         class="flex items-start justify-between gap-5 border-b border-slate-200 px-6 py-[22px]"
       >
@@ -23,18 +24,21 @@
 
         <button
           type="button"
+          aria-label="Close"
           :disabled="loading"
-          class="h-8 w-8 rounded-md border-0 bg-slate-100 text-[22px] leading-none text-slate-500 transition hover:bg-slate-200 hover:text-[#172033] disabled:cursor-not-allowed disabled:opacity-60"
+          class="flex h-8 w-8 items-center justify-center rounded-md border-0 bg-slate-100 text-[22px] leading-none text-slate-500 transition hover:bg-slate-200 hover:text-[#172033] disabled:cursor-not-allowed disabled:opacity-60"
           @click="handleClose"
         >
           ×
         </button>
       </div>
 
+      <!-- Scrollable Form -->
       <form
-        class="p-6"
+        class="max-h-[calc(90vh-90px)] overflow-y-auto p-6"
         @submit.prevent="handleSubmit"
       >
+        <!-- Name -->
         <div class="mb-5 flex flex-col gap-2">
           <label
             for="user-name"
@@ -47,12 +51,15 @@
             id="user-name"
             v-model="form.name"
             type="text"
+            placeholder="Enter name"
             autocomplete="off"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            :disabled="loading"
+            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
           />
         </div>
 
+        <!-- Email -->
         <div class="mb-5 flex flex-col gap-2">
           <label
             for="user-email"
@@ -65,12 +72,15 @@
             id="user-email"
             v-model="form.email"
             type="email"
+            placeholder="Enter email"
             autocomplete="off"
             required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            :disabled="loading"
+            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
           />
         </div>
 
+        <!-- New Password -->
         <div class="mb-5 flex flex-col gap-2">
           <label
             for="user-password"
@@ -83,13 +93,15 @@
             id="user-password"
             v-model="form.password"
             type="password"
-            autocomplete="new-password"
             placeholder="Leave blank to keep current password"
+            autocomplete="new-password"
             minlength="8"
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            :disabled="loading"
+            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
           />
         </div>
 
+        <!-- Confirm Password -->
         <div class="mb-5 flex flex-col gap-2">
           <label
             for="user-confirm-password"
@@ -102,11 +114,12 @@
             id="user-confirm-password"
             v-model="form.confirmPassword"
             type="password"
-            autocomplete="new-password"
             placeholder="Re-enter new password"
+            autocomplete="new-password"
             minlength="8"
             :required="!!form.password"
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
+            :disabled="loading"
+            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
           />
 
           <p
@@ -121,6 +134,7 @@
           </p>
         </div>
 
+        <!-- Role -->
         <div class="mb-5 flex flex-col gap-2">
           <label
             for="user-role"
@@ -129,36 +143,35 @@
             Role
           </label>
 
-          <select
+          <SelectTo
             id="user-role"
             v-model="form.role"
-            required
-            class="box-border w-full rounded-[7px] border border-slate-300 bg-white px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
-          >
-            <option
-              value=""
-              disabled
-            >
-              Select role
-            </option>
+            :options="roles"
+            label-key="name"
+            value-key="name"
+            placeholder="Select role"
+            :loading="rolesLoading"
+            :disabled="loading || rolesLoading"
+            clearable
+          />
 
-            <option
-              v-for="role in roles"
-              :key="role.id"
-              :value="role.name"
-            >
-              {{ role.name }}
-            </option>
-          </select>
+          <p
+            v-if="error && !form.role"
+            class="m-0 text-xs text-red-600"
+          >
+            {{ error }}
+          </p>
         </div>
 
+        <!-- General Error -->
         <div
-          v-if="error"
+          v-if="error && form.role"
           class="mb-[18px] rounded-[7px] bg-red-50 px-3 py-[10px] text-xs text-[#b42318]"
         >
           {{ error }}
         </div>
 
+        <!-- Actions -->
         <div
           class="flex justify-end gap-2 pt-1 max-[600px]:flex-col-reverse"
         >
@@ -173,7 +186,17 @@
 
           <button
             type="submit"
-            :disabled="loading"
+            :disabled="
+              loading ||
+              rolesLoading ||
+              !form.name.trim() ||
+              !form.email.trim() ||
+              !form.role ||
+              (
+                form.password &&
+                form.password !== form.confirmPassword
+              )
+            "
             class="rounded-[7px] border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
           >
             {{ loading ? 'Saving...' : 'Update' }}
@@ -192,6 +215,7 @@ import {
   getRoles,
 } from '../../../services/userService'
 
+import SelectTo from '../../../../../components/SelectTo.vue'
 import swal from '../../../../../plugins/swal'
 
 const props = defineProps({
@@ -207,33 +231,41 @@ const emit = defineEmits([
 ])
 
 const form = ref({
-  name: props.user.name || '',
-  email: props.user.email || '',
+  name: props.user?.name || '',
+  email: props.user?.email || '',
   password: '',
   confirmPassword: '',
-  role: props.user.roles?.[0]?.name || '',
+  role: props.user?.roles?.[0]?.name || '',
 })
 
 const roles = ref([])
+
 const loading = ref(false)
+const rolesLoading = ref(false)
 const error = ref('')
 
 const fetchRoles = async () => {
+  rolesLoading.value = true
+  error.value = ''
+
   try {
     const response = await getRoles()
 
     roles.value =
-      response.data ??
-      response
+      response?.data ??
+      response ??
+      []
   } catch (err) {
     error.value =
-      err.message ||
+      err?.message ||
       'Failed to load roles.'
 
     await swal.error(
       'Action Failed',
       error.value
     )
+  } finally {
+    rolesLoading.value = false
   }
 }
 
@@ -251,6 +283,27 @@ const handleSubmit = async () => {
   }
 
   error.value = ''
+
+  if (!form.value.name.trim()) {
+    error.value = 'Name is required.'
+    return
+  }
+
+  if (!form.value.email.trim()) {
+    error.value = 'Email is required.'
+    return
+  }
+
+  if (!form.value.role) {
+    error.value = 'Please select a role.'
+
+    await swal.error(
+      'Invalid Role',
+      'Please select a role.'
+    )
+
+    return
+  }
 
   if (
     form.value.password &&
@@ -277,17 +330,6 @@ const handleSubmit = async () => {
     await swal.error(
       'Invalid Password',
       'Password must be at least 8 characters.'
-    )
-
-    return
-  }
-
-  if (!form.value.role) {
-    error.value = 'Please select a role.'
-
-    await swal.error(
-      'Invalid Role',
-      'Please select a role.'
     )
 
     return
@@ -329,10 +371,13 @@ const handleSubmit = async () => {
       `User ${form.value.name} has been updated successfully.`
     )
   } catch (err) {
+    error.value =
+      err?.message ||
+      'Failed to update user.'
+
     await swal.error(
       'Action Failed',
-      err.message ||
-        'Failed to update user.'
+      error.value
     )
   } finally {
     loading.value = false

@@ -18,6 +18,7 @@
 
       <form @submit.prevent="submitDepartment">
         <div class="space-y-4">
+          <!-- Department Name -->
           <div>
             <label class="mb-1.5 block text-xs font-semibold text-slate-600">
               Department Name
@@ -39,32 +40,20 @@
             </p>
           </div>
 
+          <!-- Category -->
           <div>
             <label class="mb-1.5 block text-xs font-semibold text-slate-600">
               Category
             </label>
 
-            <select
+            <SelectTo
               v-model="form.category_id"
-              :class="[
-                'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                form.category_id ? 'text-slate-700' : 'text-slate-400'
-              ]"
+              :options="options.categories"
+              placeholder="Select category"
+              :loading="optionsLoading"
               :disabled="loading || optionsLoading"
-            >
-              <option value="" disabled>
-                Select category
-              </option>
-
-              <option
-                v-for="category in options.categories"
-                :key="category.id"
-                :value="category.id"
-                class="text-slate-700"
-              >
-                {{ category.name }}
-              </option>
-            </select>
+              clearable
+            />
 
             <p
               v-if="errors.category_id"
@@ -74,32 +63,20 @@
             </p>
           </div>
 
+          <!-- Department Head -->
           <div>
             <label class="mb-1.5 block text-xs font-semibold text-slate-600">
               Department Head
             </label>
 
-            <select
+            <SelectTo
               v-model="form.dept_head_id"
-              :class="[
-                'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                form.dept_head_id ? 'text-slate-700' : 'text-slate-400'
-              ]"
+              :options="options.dept_heads"
+              placeholder="Select department head"
+              :loading="optionsLoading"
               :disabled="loading || optionsLoading"
-            >
-              <option value="" disabled>
-                Select department head
-              </option>
-
-              <option
-                v-for="user in options.dept_heads"
-                :key="user.id"
-                :value="user.id"
-                class="text-slate-700"
-              >
-                {{ user.name }}
-              </option>
-            </select>
+              clearable
+            />
 
             <p
               v-if="errors.dept_head_id"
@@ -109,32 +86,20 @@
             </p>
           </div>
 
+          <!-- Department Admin -->
           <div>
             <label class="mb-1.5 block text-xs font-semibold text-slate-600">
               Department Admin
             </label>
 
-            <select
+            <SelectTo
               v-model="form.dept_admin_id"
-              :class="[
-                'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                form.dept_admin_id ? 'text-slate-700' : 'text-slate-400'
-              ]"
+              :options="options.dept_admins"
+              placeholder="Select department admin"
+              :loading="optionsLoading"
               :disabled="loading || optionsLoading"
-            >
-              <option value="" disabled>
-                Select department admin
-              </option>
-
-              <option
-                v-for="user in options.dept_admins"
-                :key="user.id"
-                :value="user.id"
-                class="text-slate-700"
-              >
-                {{ user.name }}
-              </option>
-            </select>
+              clearable
+            />
 
             <p
               v-if="errors.dept_admin_id"
@@ -144,32 +109,21 @@
             </p>
           </div>
 
+          <!-- Division Head -->
           <div>
             <label class="mb-1.5 block text-xs font-semibold text-slate-600">
               Division Head
             </label>
 
-            <select
+            <SelectTo
               v-model="form.division_head_id"
-              :class="[
-                'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10',
-                form.division_head_id ? 'text-slate-700' : 'text-slate-400'
-              ]"
+              :options="options.division_heads"
+              label-key="division_name"
+              placeholder="Select division head"
+              :loading="optionsLoading"
               :disabled="loading || optionsLoading"
-            >
-              <option value="" disabled>
-                Select division head
-              </option>
-
-              <option
-                v-for="division in options.division_heads"
-                :key="division.id"
-                :value="division.id"
-                class="text-slate-700"
-              >
-                {{ division.division_name }}
-              </option>
-            </select>
+              clearable
+            />
 
             <p
               v-if="errors.division_head_id"
@@ -179,6 +133,7 @@
             </p>
           </div>
 
+          <!-- General Error -->
           <p
             v-if="generalError"
             class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
@@ -187,6 +142,7 @@
           </p>
         </div>
 
+        <!-- Actions -->
         <div class="mt-6 flex justify-end gap-2.5">
           <button
             type="button"
@@ -212,10 +168,8 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import {
-  createDepartment,
-  getDepartmentOptions,
-} from '../../../services/departmentService'
+import { createDepartment, getDepartmentOptions } from '../../../services/departmentService'
+import SelectTo from '../../../../../components/SelectTo.vue'
 import swal from '../../../../../plugins/swal'
 
 const emit = defineEmits(['close', 'success'])
@@ -329,36 +283,33 @@ const submitDepartment = async () => {
   loading.value = true
 
   try {
-  await createDepartment({
-    name: form.name.trim(),
-    category_id: form.category_id,
-    dept_head_id: form.dept_head_id,
-    dept_admin_id: form.dept_admin_id,
-    division_head_id: form.division_head_id,
-  })
+    await createDepartment({
+      name: form.name.trim(),
+      category_id: form.category_id,
+      dept_head_id: form.dept_head_id,
+      dept_admin_id: form.dept_admin_id,
+      division_head_id: form.division_head_id,
+    })
 
-  emit('success')
-  emit('close')
+    emit('success')
+    emit('close')
 
-  await swal.success(
-    'Department Added',
-    'Department has been added successfully.'
-  )
-} catch (err) {
-  handleValidationError(err)
+    await swal.success(
+      'Department Added',
+      'Department has been added successfully.'
+    )
+  } catch (err) {
+    handleValidationError(err)
 
-  const message =
-    err?.response?.data?.message ||
-    err?.message ||
-    'Failed to create department.'
+    const message =
+      err?.response?.data?.message ||
+      err?.message ||
+      'Failed to create department.'
 
-  await swal.error(
-    'Action Failed',
-    message
-  )
-} finally {
-  loading.value = false
-}
+    await swal.error('Action Failed', message)
+  } finally {
+    loading.value = false
+  }
 }
 
 const close = () => {
@@ -368,4 +319,4 @@ const close = () => {
 }
 
 onMounted(loadOptions)
-</script> 
+</script>
