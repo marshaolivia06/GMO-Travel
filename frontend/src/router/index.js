@@ -98,7 +98,7 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   const token = localStorage.getItem('token')
@@ -109,6 +109,18 @@ router.beforeEach((to) => {
     return {
       path: '/error/401',
       replace: true,
+    }
+  }
+
+  // Sinkronkan user/permission dengan server (token bisa saja sudah revoked/expired)
+  if (to.meta.requiresAuth && authStore.isAuthenticated()) {
+    await authStore.fetchMe()
+
+    if (!authStore.isAuthenticated()) {
+      return {
+        path: '/error/401',
+        replace: true,
+      }
     }
   }
 

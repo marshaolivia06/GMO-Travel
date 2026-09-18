@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import swal from '../plugins/swal'
+import { http } from '../plugins/axios'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
@@ -20,30 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
 
     try {
-      const response = await fetch(
-        'http://127.0.0.1:8000/api/login',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return {
-          success: false,
-          message:
-            data.message || 'Invalid email or password.',
-        }
-      }
+      const { data } = await http.post('/login', { email, password })
 
       token.value = data.token
       user.value = data.user
@@ -67,10 +45,25 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       return {
         success: false,
-        message: 'Unable to connect to the server.',
+        message:
+          error.response?.data?.message ||
+          'Unable to connect to the server.',
       }
     } finally {
       loading.value = false
+    }
+  }
+
+  const fetchMe = async () => {
+    try {
+      const { data } = await http.get('/user')
+      user.value = data
+      localStorage.setItem('user', JSON.stringify(data))
+    } catch (error) {
+      user.value = null
+      token.value = null
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
     }
   }
 
@@ -78,16 +71,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
 
     try {
-      await fetch(
-        'http://127.0.0.1:8000/api/logout',
-        {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${token.value}`,
-          },
-        }
-      )
+      await http.post('/logout')
     } catch (error) {
     } finally {
       user.value = null
@@ -111,6 +95,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     loading,
     login,
+    fetchMe,
     logout,
     isAuthenticated,
   }
