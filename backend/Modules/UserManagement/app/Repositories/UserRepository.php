@@ -3,7 +3,9 @@
 namespace Modules\UserManagement\Repositories;
 
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Hash;
 use Modules\UserManagement\Models\User;
+use Spatie\Permission\Models\Role;
 
 class UserRepository
 {
@@ -22,15 +24,47 @@ class UserRepository
             ->findOrFail($id);
     }
 
-    public function create(array $data): User
+    public function createUser(array $data): User
     {
-        return User::create($data);
+        $role = Role::where('name', $data['role'])
+            ->where('guard_name', 'web')
+            ->firstOrFail();
+
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
+
+        $user->assignRole($role);
+
+        return $user->fresh()->load('roles.permissions');
     }
 
-    public function update(
-        User $user,
-        array $data
-    ): User {
+    public function updateUser(int $id, array $data): User
+    {
+        $user = $this->findById($id);
+
+        if (isset($data['password']) && $data['password'] !== '') {
+            $data['password'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']);
+        }
+
+        if (isset($data['role'])) {
+            $role = Role::where('name', $data['role'])
+                ->where('guard_name', 'web')
+                ->firstOrFail();
+
+            unset($data['role']);
+
+            $user->update($data);
+
+            $user->syncRoles([$role]);
+
+            return $user->fresh()->load('roles.permissions');
+        }
+
         $user->update($data);
 
         return $user->fresh()->load('roles.permissions');

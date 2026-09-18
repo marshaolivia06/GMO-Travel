@@ -6,13 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\UserManagement\Repositories\PermissionRepository;
-use Modules\UserManagement\Services\PermissionService;
 
 class PermissionController extends Controller
 {
     public function __construct(
-        private PermissionRepository $permissionRepository,
-        private PermissionService $permissionService
+        private PermissionRepository $permissionRepository
     ) {
     }
 
@@ -85,7 +83,7 @@ class PermissionController extends Controller
         ]);
 
         return response()->json(
-            $this->permissionService->syncPermissions($validated)
+            $this->permissionRepository->syncPermissions($validated)
         );
     }
 
@@ -107,10 +105,8 @@ class PermissionController extends Controller
             ],
         ]);
 
-        $permission = $this->permissionRepository->findById($id);
-
         $permission = $this->permissionRepository->update(
-            $permission,
+            $id,
             [
                 'name' => $validated['name'],
                 'module' => $validated['module'],
@@ -126,10 +122,8 @@ class PermissionController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $permission = $this->permissionRepository->findById($id);
-
-        $this->permissionRepository->detachRoles($permission);
-        $this->permissionRepository->delete($permission);
+        $this->permissionRepository->detachRoles($id);
+        $this->permissionRepository->delete($id);
 
         return response()->json([
             'message' => 'Permission deleted successfully.',
