@@ -2,42 +2,124 @@
 
 namespace Modules\UserManagement\Repositories;
 
-use Illuminate\Database\Eloquent\Collection;
-use Modules\UserManagement\Models\Role;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class RoleRepository
 {
     public function getAll(): Collection
     {
-        return Role::with('permissions')
+        $roles = DB::table('roles')
             ->where('status', 1)
-            ->latest()
+            ->orderByDesc('created_at')
             ->get();
+
+        return $this->loadPermissions($roles);
     }
 
-    public function findById(int $id): Role
+    public function findById(int $id)
     {
-        return Role::with('permissions')
+        $role = DB::table('roles')
             ->where('status', 1)
-            ->findOrFail($id);
+            ->where('id', $id)
+            ->first();
+
+        if (!$role) {
+            abort(404);
+        }
+
+        return $this->loadPermissions(
+            collect([$role])
+        )->first();
     }
 
-    public function create(array $data): Role
+    public function create(array $data)
     {
-        return Role::create($data);
+        $id = DB::table('roles')->insertGetId($data);
+
+        return $this->findById($id);
     }
 
-    public function update(Role $role, array $data): Role
+    public function update(int $id, array $data)
     {
-        $role->update($data);
+        DB::transaction(function () use ($id, $data) {
+            DB::table('roles')
+                ->where('id', $id)
+                ->where('status', 1)
+                ->update([
+                    'name' => $data['name'],
+                ]);
 
-        return $role->fresh()->load('permissions');
+            if (array_key_exists('permissions', $data)) {
+                DB::table('role_has_permissions')
+                    ->where('role_id', $id)
+                    ->delete();
+
+                if (!empty($data['permissions'])) {
+                    $permissions = DB::table('permissions')
+                        ->whereIn('id', $data['permissions'])
+                        ->pluck('id');
+
+                    $insertData = $permissions
+                        ->map(fn ($permissionId) => [
+                            'role_id' => $id,
+                            'permission_id' => $permissionId,
+                        ])
+                        ->toArray();
+
+                    if (!empty($insertData)) {
+                        DB::table('role_has_permissions')
+                            ->insert($insertData);
+                    }
+                }
+            }
+        });
+
+        return $this->findById($id);
     }
 
-    public function delete(Role $role): bool
+    public function delete(int $id): bool
     {
-        return $role->update([
-            'status' => 0,
-        ]);
+        return DB::table('roles')
+            ->where('id', $id)
+            ->where('status', 1)
+            ->update([
+                'status' => 0,
+            ]) > 0;
+    }
+
+    private function loadPermissions(Collection $roles): Collection
+    {
+        if ($roles->isEmpty()) {
+            return $roles;
+        }
+
+        $permissions = DB::table('role_has_permissions')
+            ->leftJoin(
+                'permissions',
+                'role_has_permissions.permission_id',
+                '=',
+                'permissions.id'
+            )
+            ->whereIn(
+                'role_has_permissions.role_id',
+                $roles->pluck('id')
+            )
+            ->select(
+                'role_has_permissions.role_id',
+                'permissions.id',
+                'permissions.name',
+                'permissions.guard_name'
+            )
+            ->get()
+            ->groupBy('role_id');
+
+        return $roles->map(function ($role) use ($permissions) {
+            $role->permissions = $permissions
+                ->get($role->id, collect())
+                ->values();
+
+            return $role;
+        });
     }
 }

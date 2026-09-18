@@ -6,13 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\UserManagement\Repositories\UserRepository;
-use Modules\UserManagement\Services\UserService;
 
 class UserController extends Controller
 {
     public function __construct(
-        private UserRepository $userRepository,
-        private UserService $userService
+        private UserRepository $userRepository
     ) {
     }
 
@@ -59,7 +57,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User created successfully.',
-            'data' => $this->userService->createUser($validated),
+            'data' => $this->userRepository->createUser($validated),
         ], 201);
     }
 
@@ -97,7 +95,7 @@ class UserController extends Controller
         ]);
 
         return response()->json(
-            $this->userService->updateUser($id, $validated)
+            $this->userRepository->updateUser($id, $validated)
         );
     }
 

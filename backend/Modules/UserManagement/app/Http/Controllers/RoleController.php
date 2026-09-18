@@ -6,13 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\UserManagement\Repositories\RoleRepository;
-use Modules\UserManagement\Services\RoleService;
 
 class RoleController extends Controller
 {
     public function __construct(
-        private RoleRepository $roleRepository,
-        private RoleService $roleService
+        private RoleRepository $roleRepository
     ) {
     }
 
@@ -37,6 +35,7 @@ class RoleController extends Controller
                 'required',
                 'string',
                 'max:255',
+                'unique:roles,name',
             ],
             'guard_name' => [
                 'nullable',
@@ -48,6 +47,7 @@ class RoleController extends Controller
         $role = $this->roleRepository->create([
             'name' => $data['name'],
             'guard_name' => $data['guard_name'] ?? 'web',
+            'status' => 1,
         ]);
 
         return response()->json($role, 201);
@@ -62,6 +62,7 @@ class RoleController extends Controller
                 'required',
                 'string',
                 'max:255',
+                'unique:roles,name,' . $id,
             ],
             'permissions' => [
                 'sometimes',
@@ -72,19 +73,14 @@ class RoleController extends Controller
             ],
         ]);
 
-        $role = $this->roleService->updateRole(
-            $id,
-            $data
-        );
+        $role = $this->roleRepository->update($id, $data);
 
         return response()->json($role);
     }
 
     public function destroy(int $id): JsonResponse
     {
-        $role = $this->roleRepository->findById($id);
-
-        $this->roleRepository->delete($role);
+        $this->roleRepository->delete($id);
 
         return response()->json([
             'message' => 'Role deleted successfully.',
