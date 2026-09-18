@@ -1,34 +1,33 @@
 <template>
   <div
-    class="min-h-screen flex items-center justify-center p-5 font-['Inter'] bg-gradient-to-br from-[#1E4F8A] via-[#6B96BE] to-[#DCEBF7]"
+    class="min-h-screen flex items-center justify-center p-5 font-['Inter'] bg-[#F1F4F8]"
   >
     <!-- LOGIN CARD -->
     <div
-      class="relative w-[430px] rounded-[22px] bg-[#F5F7FA] border border-white/80 shadow-[0_20px_55px_rgba(30,79,138,0.25)] overflow-hidden"
-    >
+  class="relative w-[350px] rounded-[20px] bg-[#F8FAFC] border border-white shadow-[0_12px_35px_rgba(15,23,42,0.08)] overflow-hidden"
+>
       <!-- TOP ACCENT -->
       <div
-        class="absolute top-0 left-0 right-0 h-[4px] bg-gradient-to-r from-[#1E4F8A] via-[#5F8FBD] to-[#DCEBF7]"
+        class="absolute top-0 left-0 right-0 h-[4px] bg-[#1E4F8A]"
       ></div>
 
-      <div class="px-9 py-8">
+      <div class="px-6 py-6">
 
         <!-- BRANDING -->
         <div class="flex flex-col items-center text-center mb-7">
 
           <!-- LOGO -->
           <img
-            :src="logo"
-            alt="GMO Travel"
-            class="w-[72px] h-[72px] object-contain mb-3"
-          />
+  :src="logo"
+  alt="GMO Travel"
+  class="w-[62px] h-[62px] object-contain mb-2"
+/>
 
-          <!-- BRAND NAME -->
-          <h1
-            class="m-0 text-[27px] font-bold tracking-[-0.5px] text-[#172033]"
-          >
-            GMO Travel
-          </h1>
+<h1
+  class="m-0 text-[24px] font-bold tracking-[-0.5px] text-[#172033]"
+>
+  GMO Travel
+</h1>
 
           <!-- COMPANY NAME -->
           <p
@@ -40,8 +39,8 @@
 
         <!-- LOGIN FORM -->
         <div
-          class="bg-white rounded-[15px] border border-slate-200 p-6 shadow-[0_5px_18px_rgba(15,23,42,0.04)]"
-        >
+  class="bg-white rounded-[12px] border border-slate-200 p-5 shadow-[0_4px_15px_rgba(15,23,42,0.04)]"
+>
           <!-- TITLE -->
           <div class="mb-5">
             <h2
@@ -125,7 +124,7 @@
             <button
               type="submit"
               :disabled="loading"
-              class="w-full h-[44px] border-0 rounded-[8px] bg-[#1E4F8A] text-white text-[13px] font-semibold cursor-pointer transition hover:bg-[#173F70] hover:shadow-[0_5px_15px_rgba(30,79,138,0.22)] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-full h-[44px] border-0 rounded-[8px] bg-[#1E4F8A] text-white text-[13px] font-semibold cursor-pointer transition hover:bg-[#173F70] hover:shadow-[0_5px_15px_rgba(30,79,138,0.18)] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {{ loading ? 'Signing in...' : 'Sign in' }}
             </button>
@@ -141,6 +140,11 @@
 
       </div>
     </div>
+    <AppLoading
+  v-if="loading"
+  container-class="fixed inset-0 z-[9999] bg-[#F5F7FA]/95 backdrop-blur-[2px]"
+/>
+
   </div>
 </template>
 
@@ -148,6 +152,7 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import logo from '../assets/logo.png'
+import AppLoading from '../components/AppLoading.vue'
 
 const auth = useAuthStore()
 
