@@ -1,10 +1,11 @@
 <template>
   <aside
-    class="relative h-screen flex-shrink-0 flex flex-col overflow-visible bg-white text-[#172033] border-r border-slate-200 shadow-[3px_0_15px_rgba(30,79,138,0.04)] transition-[width] duration-250 ease-in-out"
+    class="relative h-screen flex-shrink-0 flex flex-col overflow-visible bg-[#f8fafc] text-[#172033] border-r border-slate-200 shadow-[3px_0_15px_rgba(15,23,42,0.06)] transition-[width] duration-250 ease-in-out"
     :class="isCollapsed ? 'w-[70px]' : 'w-[240px]'"
   >
+    <!-- Logo -->
     <div
-      class="h-[78px] flex-shrink-0 flex items-center justify-center bg-white border-b border-[#eef2f6]"
+      class="h-[78px] flex-shrink-0 flex items-center justify-center bg-[#f8fafc] border-b border-slate-200"
       :class="isCollapsed ? 'p-0' : 'px-5 py-3'"
     >
       <img
@@ -15,19 +16,28 @@
       />
     </div>
 
+    <!-- Sidebar Content -->
     <div
-      class="relative flex-1 min-h-0 flex flex-col text-white bg-gradient-to-b from-[#1E4F8A] via-[#2D659C] to-[#245985]"
+      class="relative flex-1 min-h-0 flex flex-col text-[#172033] bg-[#f8fafc]"
     >
+      <!-- Collapse Button -->
       <button
         type="button"
-        class="absolute top-6 -right-[15px] w-[30px] h-[30px] flex items-center justify-center border border-[#dbe3ec] rounded-full bg-white text-[#1E4F8A] cursor-pointer shadow-[0_3px_10px_rgba(15,23,42,0.1)] z-10 hover:bg-[#DCEBF7] hover:text-[#173F70]"
+        class="absolute top-6 -right-[15px] w-[30px] h-[30px] flex items-center justify-center border border-[#dbe3ec] rounded-full bg-white text-[#1E4F8A] cursor-pointer shadow-[0_3px_10px_rgba(15,23,42,0.10)] z-10 hover:bg-[#e5f0fa] hover:text-[#173F70]"
         @click="$emit('toggle-collapse')"
         :aria-label="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
       >
-        <ChevronRight v-if="isCollapsed" :size="18" />
-        <ChevronLeft v-else :size="18" />
+        <ChevronRight
+          v-if="isCollapsed"
+          :size="18"
+        />
+        <ChevronLeft
+          v-else
+          :size="18"
+        />
       </button>
 
+      <!-- Navigation -->
       <nav
         class="flex flex-col gap-[5px]"
         :class="isCollapsed ? 'px-2.5 py-[22px]' : 'px-3 py-[22px]'"
@@ -43,10 +53,12 @@
             @click="navigate"
             class="w-full min-h-[44px] flex items-center rounded-lg no-underline font-medium text-sm transition duration-200"
             :class="[
-              isCollapsed ? 'justify-center p-2.5' : 'px-[13px] py-2.5',
-              isActive
-                ? 'bg-white text-[#1E4F8A] font-semibold shadow-[0_3px_10px_rgba(15,23,42,0.08)]'
-                : 'bg-transparent text-white/[.88] hover:bg-white/[.12] hover:text-white hover:translate-x-[2px]'
+              isCollapsed
+                ? 'justify-center p-2.5'
+                : 'px-[13px] py-2.5',
+                isActive
+  ? 'bg-[#1E4F8A] text-white font-semibold shadow-[0_3px_10px_rgba(30,79,138,0.15)]'
+  : 'bg-transparent text-slate-600 hover:bg-[#1E4F8A] hover:text-white hover:translate-x-[2px]'
             ]"
           >
             <span
@@ -70,12 +82,13 @@
         </router-link>
       </nav>
 
+      <!-- Current User -->
       <div
-        class="mt-auto flex-shrink-0 flex items-center gap-2.5 border-t border-white/[.16]"
+        class="mt-auto flex-shrink-0 flex items-center gap-2.5 border-t border-slate-200"
         :class="isCollapsed ? 'justify-center px-2.5 py-[15px]' : 'p-[15px]'"
       >
         <div
-          class="w-[38px] h-[38px] flex-shrink-0 flex items-center justify-center rounded-full bg-white/[.16] border border-white/[.14] text-white text-[13px] font-bold"
+          class="w-[38px] h-[38px] flex-shrink-0 flex items-center justify-center rounded-full bg-[#e8eef5] border border-[#dbe3ec] text-[#1E4F8A] text-[13px] font-bold"
         >
           {{ userInitial }}
         </div>
@@ -85,12 +98,12 @@
           class="min-w-0 flex flex-col items-start gap-0.5"
         >
           <strong
-            class="max-w-[145px] overflow-hidden text-ellipsis whitespace-nowrap text-white text-[13px] leading-tight"
+            class="max-w-[145px] overflow-hidden text-ellipsis whitespace-nowrap text-[#172033] text-[13px] leading-tight"
           >
             {{ currentUser.name }}
           </strong>
 
-          <span class="text-white/[.68] text-[11px] leading-tight">
+          <span class="text-slate-500 text-[11px] leading-tight">
             {{ currentUser.role }}
           </span>
         </div>
@@ -137,10 +150,10 @@ const menuItems = [
     icon: Users
   },
   {
-  to: '/master-management',
-  label: 'Master Management',
-  icon: FolderCog
-},
+    to: '/master-management',
+    label: 'Master Management',
+    icon: FolderCog
+  },
   {
     to: '/dashboard',
     label: 'Dashboard',
