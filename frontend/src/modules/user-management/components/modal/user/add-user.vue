@@ -330,25 +330,18 @@ const handleSubmit = async () => {
     const validationErrors =
       err?.response?.data?.errors
 
-    if (validationErrors) {
-      error.value =
-        validationErrors.name?.[0] ||
-        validationErrors.email?.[0] ||
-        validationErrors.password?.[0] ||
-        validationErrors.role?.[0] ||
-        ''
-    }
-
-    if (!error.value) {
-      error.value =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Failed to create user.'
-    }
+    const message =
+      validationErrors?.name?.[0] ||
+      validationErrors?.email?.[0] ||
+      validationErrors?.password?.[0] ||
+      validationErrors?.role?.[0] ||
+      err?.response?.data?.message ||
+      err?.message ||
+      'Failed to create user.'
 
     await swal.error(
       'Action Failed',
-      error.value
+      message
     )
   } finally {
     loading.value = false
@@ -356,4 +349,5 @@ const handleSubmit = async () => {
 }
 
 onMounted(fetchRoles)
+
 </script>
