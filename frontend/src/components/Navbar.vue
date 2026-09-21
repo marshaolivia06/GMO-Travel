@@ -1,15 +1,17 @@
 <template>
   <header
-    class="flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-[30px] shadow-[0_2px_8px_rgba(30,79,138,0.03)]"
-  >
-    <div class="text-2xl font-semibold tracking-[-0.02em] text-[#172033]">
+  class="flex h-[78px] w-full shrink-0 items-center justify-between border-b border-[#DCE3EA] bg-[#1E4F8A] px-[30px] text-white shadow-[0_2px_8px_rgba(30,79,138,0.12)]"
+>
+    <div
+      class="text-2xl font-semibold tracking-[-0.02em] text-white"
+    >
       {{ pageTitle }}
     </div>
 
     <div class="relative flex items-center justify-center">
       <button
         type="button"
-        class="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-gradient-to-br from-[#1E4F8A] to-[#2D659C] text-[13px] font-bold text-white shadow-[0_3px_10px_rgba(30,79,138,0.18)] transition duration-200 hover:-translate-y-px hover:shadow-[0_5px_14px_rgba(30,79,138,0.25)]"
+        class="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white text-[13px] font-bold text-[#1E4F8A] shadow-[0_3px_10px_rgba(15,23,42,0.15)] transition duration-200 hover:-translate-y-px hover:bg-[#f1f6fb] hover:shadow-[0_5px_14px_rgba(15,23,42,0.20)]"
         @click="toggleProfileMenu"
       >
         {{ userInitial }}

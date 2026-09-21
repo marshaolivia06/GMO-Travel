@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\UserManagement\Http\Controllers;
 
 use App\Http\Controllers\Controller;
@@ -29,29 +31,37 @@ class RoleController extends Controller
     }
 
     public function store(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                'unique:roles,name',
-            ],
-            'guard_name' => [
-                'nullable',
-                'string',
-                'max:255',
-            ],
-        ]);
+{
+    $data = $request->validate([
+        'name' => [
+            'required',
+            'string',
+            'max:255',
+            'unique:roles,name',
+        ],
+        'guard_name' => [
+            'nullable',
+            'string',
+            'max:255',
+        ],
+        'permissions' => [
+            'sometimes',
+            'array',
+        ],
+        'permissions.*' => [
+            'integer',
+        ],
+    ]);
 
-        $role = $this->roleRepository->create([
-            'name' => $data['name'],
-            'guard_name' => $data['guard_name'] ?? 'web',
-            'status' => 1,
-        ]);
+    $role = $this->roleRepository->create([
+        'name' => $data['name'],
+        'guard_name' => $data['guard_name'] ?? 'web',
+        'status' => 1,
+        'permissions' => $data['permissions'] ?? [],
+    ]);
 
-        return response()->json($role, 201);
-    }
+    return response()->json($role, 201);
+}
 
     public function update(
         Request $request,

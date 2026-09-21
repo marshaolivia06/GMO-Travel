@@ -2,68 +2,48 @@
   <div
     class="w-full px-0 py-2 text-[#172033] max-[900px]:px-4 max-[600px]:pb-4"
   >
-    <section
-      class="rounded-xl bg-gradient-to-br from-[#1E4F8A] via-[#2D659C] to-[#DCEBF7] px-[34px] py-[30px] text-white shadow-[0_10px_30px_rgba(30,79,138,0.14)] max-[600px]:px-6 max-[600px]:py-6"
-      aria-labelledby="user-management-title"
-    >
-      <p
-        class="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#DCEBF7]"
-      >
-        GMO TRAVEL · ADMINISTRASI
-      </p>
 
-      <h1
-        id="user-management-title"
-        class="mb-2 text-[clamp(25px,3vw,34px)] font-bold tracking-[-0.02em]"
-      >
-        User Management
-      </h1>
+  <div class="flex flex-wrap items-center gap-2">
+  <button
+    type="button"
+    class="rounded-lg px-4 py-2 text-xs font-bold transition"
+    :class="
+      activeTab === 'users'
+        ? 'bg-[#93C5FD] text-[#124A80] shadow-[0_3px_10px_rgba(30,79,138,0.22)]'
+        : 'bg-[#E2E8F0] text-slate-600 hover:bg-[#CFE3F3] hover:text-[#174A7F]'
+    "
+    @click="changeTab('users')"
+  >
+    Users
+  </button>
+  <!-- ROLES -->
+  <button
+    type="button"
+    class="rounded-lg px-4 py-2 text-xs font-bold transition"
+    :class="
+      activeTab === 'roles'
+        ? 'bg-[#86EFAC] text-[#14532D] shadow-[0_3px_10px_rgba(22,163,74,0.25)]'
+        : 'bg-[#E2E8F0] text-slate-600 hover:bg-[#D5EBD9] hover:text-[#176B2A]'
+    "
+    @click="changeTab('roles')"
+  >
+    Roles
+  </button>
 
-      <p class="mb-0 max-w-[590px] text-sm leading-[1.6] text-[#e5f2ff]">
-        Manage users, roles, and permissions in one panel.
-      </p>
-    </section>
-
-    <div class="mt-[18px] flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        class="rounded-lg px-4 py-2 text-xs font-bold transition"
-        :class="
-          activeTab === 'users'
-            ? 'bg-[#B8D8F0] text-[#174A7F] shadow-sm'
-            : 'bg-[#E2E8F0] text-slate-600 hover:bg-[#CFE3F3] hover:text-[#174A7F]'
-        "
-        @click="changeTab('users')"
-      >
-        Users
-      </button>
-
-      <button
-        type="button"
-        class="rounded-lg px-4 py-2 text-xs font-bold transition"
-        :class="
-          activeTab === 'roles'
-            ? 'bg-[#BFE3C7] text-[#176B2A] shadow-sm'
-            : 'bg-[#E2E8F0] text-slate-600 hover:bg-[#D5EBD9] hover:text-[#176B2A]'
-        "
-        @click="changeTab('roles')"
-      >
-        Roles
-      </button>
-
-      <button
-        type="button"
-        class="rounded-lg px-4 py-2 text-xs font-bold transition"
-        :class="
-          activeTab === 'permissions'
-            ? 'bg-[#F3D29D] text-[#985700] shadow-sm'
-            : 'bg-[#E2E8F0] text-slate-600 hover:bg-[#F0DFBF] hover:text-[#985700]'
-        "
-        @click="changeTab('permissions')"
-      >
-        Permissions
-      </button>
-    </div>
+  <!-- PERMISSIONS -->
+  <button
+    type="button"
+    class="rounded-lg px-4 py-2 text-xs font-bold transition"
+    :class="
+      activeTab === 'permissions'
+        ? 'bg-[#FBBF24] text-[#78350F] shadow-[0_3px_10px_rgba(217,119,6,0.25)]'
+        : 'bg-[#E2E8F0] text-slate-600 hover:bg-[#F0DFBF] hover:text-[#985700]'
+    "
+    @click="changeTab('permissions')"
+  >
+    Permissions
+  </button>
+</div>
 
     <div v-if="activeTab === 'users'" class="w-full">
       <section class="mt-[22px] w-full">
@@ -127,12 +107,11 @@
           </button>
         </div>
 
-        <div
-          v-if="loading"
-          class="flex flex-1 items-center justify-center p-8 text-center text-[13px] text-slate-500"
-        >
-          Loading users...
-        </div>
+        <AppLoading
+  v-if="loading"
+  container-class="min-h-[180px] rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
+  text="Loading users..."
+/>
 
         <div
           v-else-if="error"
@@ -348,12 +327,11 @@
           </button>
         </div>
 
-        <div
-          v-if="roleLoading"
-          class="flex flex-1 items-center justify-center p-8 text-center text-[13px] text-slate-500"
-        >
-          Loading roles...
-        </div>
+        <AppLoading
+  v-if="roleLoading"
+  container-class="min-h-[180px] rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
+  text="Loading roles..."
+/>
 
         <div
           v-else-if="roleError"
@@ -540,12 +518,11 @@
           </button>
         </div>
 
-        <div
-          v-if="permissionLoading"
-          class="flex flex-1 items-center justify-center p-8 text-center text-[13px] text-slate-500"
-        >
-          Loading permissions...
-        </div>
+        <AppLoading
+  v-if="permissionLoading"
+  container-class="min-h-[180px] rounded-[10px] border border-slate-200 bg-white shadow-[0_5px_20px_rgba(15,23,42,.05)]"
+  text="Loading permissions..."
+/>
 
         <div
           v-else-if="permissionError"
@@ -751,6 +728,7 @@ import { Edit, Plus, Search, Trash2 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppPagination from '../../../components/AppPagination.vue'
+import AppLoading from '../../../components/AppLoading.vue'
 import { useAuthStore } from '../../../stores/auth'
 import { useUserStore } from '../stores/userStore'
 import swal from '../../../plugins/swal'
@@ -773,6 +751,7 @@ const { users, loading, error, fetchUsers } = useUserStore()
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100]
 const PERMISSION_ACTION_ORDER = ['view', 'create', 'update', 'delete', 'approve']
+
 
 const formatDate = date => {
   if (!date) return '-'

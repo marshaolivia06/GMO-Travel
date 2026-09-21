@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\MasterManagement\Services;
 
 use Modules\MasterManagement\Repositories\CategoryRepository;
@@ -13,18 +15,15 @@ class CategoryService
 
     public function deleteCategory(int $id): bool
     {
-        $category = $this->categoryRepository->findById($id);
+        $this->categoryRepository->findById($id);
 
-        $isUsed = $this->categoryRepository
-            ->isUsedByDepartment($category->id);
-
-        if ($isUsed) {
+        if ($this->categoryRepository->isUsedByDepartment($id)) {
             abort(
                 422,
                 'Category cannot be deleted because it is already being used by a department.'
             );
         }
 
-        return $this->categoryRepository->delete($category);
+        return $this->categoryRepository->delete($id);
     }
 }
