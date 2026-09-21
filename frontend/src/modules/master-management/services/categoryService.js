@@ -1,68 +1,14 @@
-const API_URL = 'http://127.0.0.1:8000/api/v1'
+import { http } from '../../../plugins/axios'
 
-const getToken = () => {
-  return localStorage.getItem('token')
-}
+const BASE = '/v1/master-management/categories'
 
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-      ...(options.headers || {}),
-    },
-  })
+export const getCategories = (params = {}) => http.get(BASE, { params }).then(res => res.data)
 
-  const data = await response.json()
+export const createCategory = category => http.post(BASE, category).then(res => res.data)
 
-  if (!response.ok) {
-    throw new Error(
-      data.message || 'Terjadi kesalahan.'
-    )
-  }
+export const getCategory = id => http.get(`${BASE}/${id}`).then(res => res.data)
 
-  return data
-}
+export const updateCategory = (id, category) =>
+  http.put(`${BASE}/${id}`, category).then(res => res.data)
 
-// GET ALL CATEGORIES
-export const getCategories = () => {
-  return request('/master-management/categories')
-}
-
-// CREATE CATEGORY
-export const createCategory = (category) => {
-  return request('/master-management/categories', {
-    method: 'POST',
-    body: JSON.stringify(category),
-  })
-}
-
-// GET CATEGORY BY ID
-export const getCategory = (id) => {
-  return request(
-    `/master-management/categories/${id}`
-  )
-}
-
-// UPDATE CATEGORY
-export const updateCategory = (id, category) => {
-  return request(
-    `/master-management/categories/${id}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(category),
-    }
-  )
-}
-
-// DELETE CATEGORY
-export const deleteCategory = (id) => {
-  return request(
-    `/master-management/categories/${id}`,
-    {
-      method: 'DELETE',
-    }
-  )
-}
+export const deleteCategory = id => http.delete(`${BASE}/${id}`).then(res => res.data)

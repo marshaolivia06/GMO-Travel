@@ -1,10 +1,14 @@
 <script setup>
 import { RouterView } from 'vue-router'
 import AppToast from './components/AppToast.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 </script>
 
 <template>
-  <RouterView />
+  <VApp>
+    <RouterView />
 
-  <AppToast />
+    <AppToast />
+    <ConfirmDialog />
+  </VApp>
 </template>

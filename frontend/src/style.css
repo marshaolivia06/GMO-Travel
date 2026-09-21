@@ -1,4 +1,5 @@
-@import "tailwindcss";
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
 
 html,
 body,
@@ -12,4 +13,15 @@ body,
 
 body {
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root {
+  --v-hover-opacity: 0.04;
+  --v-focus-opacity: 0.12;
+  --v-selected-opacity: 0.08;
+  --v-activated-opacity: 0.12;
+  --v-pressed-opacity: 0.12;
+  --v-dragged-opacity: 0.08;
+  --v-border-opacity: 0.12;
+  --v-theme-overlay-multiplier: 1;
 }

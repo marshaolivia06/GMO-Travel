@@ -4,67 +4,75 @@ declare(strict_types=1);
 
 namespace Modules\MasterManagement\Http\Controllers;
 
+use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
-use Modules\MasterManagement\Http\Requests\Request;
-use Modules\MasterManagement\Repositories\CategoryRepository;
+use Illuminate\Http\Request as HttpRequest;
+use Modules\MasterManagement\Http\Requests\StoreCategoryRequest;
+use Modules\MasterManagement\Http\Requests\UpdateCategoryRequest;
+use Modules\MasterManagement\Http\Resources\CategoryResource;
 use Modules\MasterManagement\Services\CategoryService;
 
 class CategoryController extends Controller
 {
     public function __construct(
-        private CategoryRepository $categoryRepository,
         private CategoryService $categoryService
     ) {
     }
 
-    public function index(): JsonResponse
+    public function index(HttpRequest $request): JsonResponse
     {
-        return response()->json(
-            $this->categoryRepository->getAll()
+        $categories = $this->categoryService->paginate(
+            $request->integer('per_page', 15),
+            $request->query('search')
+        );
+
+        return ApiResponse::success(
+            CategoryResource::collection($categories)->response()->getData(true)
         );
     }
 
     public function show(int $id): JsonResponse
     {
-        return response()->json(
-            $this->categoryRepository->findById($id)
+        return ApiResponse::success(
+            new CategoryResource($this->categoryService->findById($id))
         );
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreCategoryRequest $request): JsonResponse
     {
-        $category = $this->categoryRepository->create(
+        $category = $this->categoryService->create(
             $request->validated()
         );
 
-        return response()->json([
-            'message' => 'Category created successfully.',
-            'data' => $category,
-        ], 201);
+        return ApiResponse::success(new CategoryResource($category), 'Category created successfully.', 201);
     }
 
     public function update(
-        Request $request,
+        UpdateCategoryRequest $request,
         int $id
     ): JsonResponse {
-        $category = $this->categoryRepository->update(
+        $category = $this->categoryService->update(
             $id,
             $request->validated()
         );
 
-        return response()->json([
-            'message' => 'Category updated successfully.',
-            'data' => $category,
-        ]);
+        return ApiResponse::success(new CategoryResource($category), 'Category updated successfully.');
     }
 
     public function destroy(int $id): JsonResponse
     {
-        $this->categoryService->deleteCategory($id);
+        $this->categoryService->findById($id);
 
-        return response()->json([
-            'message' => 'Category deleted successfully.',
-        ]);
+        if ($this->categoryService->isUsedByDepartment($id)) {
+            abort(
+                422,
+                'Category cannot be deleted because it is already being used by a department.'
+            );
+        }
+
+        $this->categoryService->delete($id);
+
+        return ApiResponse::success(null, 'Category deleted successfully.');
     }
 }

@@ -1,181 +1,15 @@
-<template>
-  <div
-    class="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-900/45 p-5"
-    @click.self="close"
-  >
-    <div
-      class="w-[500px] max-w-full rounded-xl bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
-    >
-      <div class="mb-5">
-        <h2 class="text-lg font-semibold text-[#172033]">
-          Add Department
-        </h2>
-
-        <p class="mt-1 text-xs text-slate-400">
-          Create a new department.
-        </p>
-      </div>
-
-      <form @submit.prevent="submitDepartment">
-        <div class="space-y-4">
-          <!-- Department Name -->
-          <div>
-            <label class="mb-1.5 block text-xs font-semibold text-slate-600">
-              Department Name
-            </label>
-
-            <input
-              v-model="form.name"
-              type="text"
-              placeholder="Enter department name"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10"
-              :disabled="loading"
-            />
-
-            <p
-              v-if="errors.name"
-              class="mt-1 text-xs text-red-600"
-            >
-              {{ errors.name }}
-            </p>
-          </div>
-
-          <!-- Category -->
-          <div>
-            <label class="mb-1.5 block text-xs font-semibold text-slate-600">
-              Category
-            </label>
-
-            <SelectTo
-              v-model="form.category_id"
-              :options="options.categories"
-              placeholder="Select category"
-              :loading="optionsLoading"
-              :disabled="loading || optionsLoading"
-              clearable
-            />
-
-            <p
-              v-if="errors.category_id"
-              class="mt-1 text-xs text-red-600"
-            >
-              {{ errors.category_id }}
-            </p>
-          </div>
-
-          <!-- Department Head -->
-          <div>
-            <label class="mb-1.5 block text-xs font-semibold text-slate-600">
-              Department Head
-            </label>
-
-            <SelectTo
-              v-model="form.dept_head_id"
-              :options="options.dept_heads"
-              placeholder="Select department head"
-              :loading="optionsLoading"
-              :disabled="loading || optionsLoading"
-              clearable
-            />
-
-            <p
-              v-if="errors.dept_head_id"
-              class="mt-1 text-xs text-red-600"
-            >
-              {{ errors.dept_head_id }}
-            </p>
-          </div>
-
-          <!-- Department Admin -->
-          <div>
-            <label class="mb-1.5 block text-xs font-semibold text-slate-600">
-              Department Admin
-            </label>
-
-            <SelectTo
-              v-model="form.dept_admin_id"
-              :options="options.dept_admins"
-              placeholder="Select department admin"
-              :loading="optionsLoading"
-              :disabled="loading || optionsLoading"
-              clearable
-            />
-
-            <p
-              v-if="errors.dept_admin_id"
-              class="mt-1 text-xs text-red-600"
-            >
-              {{ errors.dept_admin_id }}
-            </p>
-          </div>
-
-          <!-- Division Head -->
-          <div>
-            <label class="mb-1.5 block text-xs font-semibold text-slate-600">
-              Division Head
-            </label>
-
-            <SelectTo
-              v-model="form.division_head_id"
-              :options="options.division_heads"
-              label-key="division_name"
-              placeholder="Select division head"
-              :loading="optionsLoading"
-              :disabled="loading || optionsLoading"
-              clearable
-            />
-
-            <p
-              v-if="errors.division_head_id"
-              class="mt-1 text-xs text-red-600"
-            >
-              {{ errors.division_head_id }}
-            </p>
-          </div>
-
-          <!-- General Error -->
-          <p
-            v-if="generalError"
-            class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
-          >
-            {{ generalError }}
-          </p>
-        </div>
-
-        <!-- Actions -->
-        <div class="mt-6 flex justify-end gap-2.5">
-          <button
-            type="button"
-            class="rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:opacity-60"
-            :disabled="loading"
-            @click="close"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="rounded-lg bg-green-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="loading || optionsLoading"
-          >
-            {{ loading ? 'Saving...' : 'Save' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { createDepartment, getDepartmentOptions } from '../../../services/departmentService'
-import SelectTo from '../../../../../components/SelectTo.vue'
-import swal from '../../../../../plugins/swal'
+import { reactive, ref } from 'vue'
+import { useDepartmentStore } from '../../../stores/departmentStore'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
-const emit = defineEmits(['close', 'success'])
+const emit = defineEmits(['close'])
+const { confirm } = useConfirm()
+const toast = useToastStore()
+const departmentStore = useDepartmentStore()
 
 const loading = ref(false)
-const optionsLoading = ref(false)
 const generalError = ref('')
 
 const errors = reactive({
@@ -194,33 +28,7 @@ const form = reactive({
   division_head_id: '',
 })
 
-const options = reactive({
-  categories: [],
-  dept_heads: [],
-  dept_admins: [],
-  division_heads: [],
-})
-
-const loadOptions = async () => {
-  optionsLoading.value = true
-  generalError.value = ''
-
-  try {
-    const response = await getDepartmentOptions()
-
-    options.categories = response.categories ?? []
-    options.dept_heads = response.dept_heads ?? []
-    options.dept_admins = response.dept_admins ?? []
-    options.division_heads = response.division_heads ?? []
-  } catch (err) {
-    generalError.value =
-      err.message || 'Failed to load department options.'
-  } finally {
-    optionsLoading.value = false
-  }
-}
-
-const clearErrors = () => {
+function clearErrors() {
   errors.name = ''
   errors.category_id = ''
   errors.dept_head_id = ''
@@ -229,22 +37,18 @@ const clearErrors = () => {
   generalError.value = ''
 }
 
-const handleValidationError = err => {
+function handleValidationError(err) {
   const validationErrors = err?.response?.data?.errors
-
-  if (!validationErrors) return false
+  if (!validationErrors) return
 
   errors.name = validationErrors.name?.[0] || ''
   errors.category_id = validationErrors.category_id?.[0] || ''
   errors.dept_head_id = validationErrors.dept_head_id?.[0] || ''
   errors.dept_admin_id = validationErrors.dept_admin_id?.[0] || ''
-  errors.division_head_id =
-    validationErrors.division_head_id?.[0] || ''
-
-  return true
+  errors.division_head_id = validationErrors.division_head_id?.[0] || ''
 }
 
-const submitDepartment = async () => {
+async function submitDepartment() {
   if (loading.value) return
 
   clearErrors()
@@ -253,37 +57,34 @@ const submitDepartment = async () => {
     errors.name = 'Department name is required.'
     return
   }
-
   if (!form.category_id) {
     errors.category_id = 'Category is required.'
     return
   }
-
   if (!form.dept_head_id) {
     errors.dept_head_id = 'Department head is required.'
     return
   }
-
   if (!form.dept_admin_id) {
     errors.dept_admin_id = 'Department admin is required.'
     return
   }
-
   if (!form.division_head_id) {
     errors.division_head_id = 'Division head is required.'
     return
   }
 
-  const result = await swal.confirm(
-    'Are you sure you want to add this department?'
-  )
+  const confirmed = await confirm({
+    title: 'Add Department',
+    text: 'Are you sure you want to add this department?',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   loading.value = true
 
   try {
-    await createDepartment({
+    await departmentStore.addDepartment({
       name: form.name.trim(),
       category_id: form.category_id,
       dept_head_id: form.dept_head_id,
@@ -291,32 +92,96 @@ const submitDepartment = async () => {
       division_head_id: form.division_head_id,
     })
 
-    emit('success')
+    toast.success('Department has been added successfully.')
     emit('close')
-
-    await swal.success(
-      'Department Added',
-      'Department has been added successfully.'
-    )
   } catch (err) {
     handleValidationError(err)
-
-    const message =
-      err?.response?.data?.message ||
-      err?.message ||
-      'Failed to create department.'
-
-    await swal.error('Action Failed', message)
+    generalError.value = err.response?.data?.message || err.message || 'Failed to create department.'
   } finally {
     loading.value = false
   }
 }
 
-const close = () => {
-  if (!loading.value) {
-    emit('close')
-  }
+function close() {
+  if (!loading.value) emit('close')
 }
-
-onMounted(loadOptions)
 </script>
+
+<template>
+  <VDialog :model-value="true" max-width="520" persistent>
+    <VCard>
+      <VCardTitle class="pa-4">Add Department</VCardTitle>
+      <VCardSubtitle class="px-4">Create a new department.</VCardSubtitle>
+
+      <VForm @submit.prevent="submitDepartment">
+        <VCardText>
+          <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
+
+          <VTextField
+            v-model="form.name"
+            label="Department Name"
+            class="mb-2"
+            :disabled="loading"
+            :error-messages="errors.name ? [errors.name] : []"
+          />
+
+          <VAutocomplete
+            v-model="form.category_id"
+            :items="departmentStore.options.categories"
+            item-title="name"
+            item-value="id"
+            label="Category"
+            class="mb-2"
+            clearable
+            :loading="departmentStore.optionsLoading"
+            :disabled="loading || departmentStore.optionsLoading"
+            :error-messages="errors.category_id ? [errors.category_id] : []"
+          />
+
+          <VAutocomplete
+            v-model="form.dept_head_id"
+            :items="departmentStore.options.dept_heads"
+            item-title="name"
+            item-value="id"
+            label="Department Head"
+            class="mb-2"
+            clearable
+            :loading="departmentStore.optionsLoading"
+            :disabled="loading || departmentStore.optionsLoading"
+            :error-messages="errors.dept_head_id ? [errors.dept_head_id] : []"
+          />
+
+          <VAutocomplete
+            v-model="form.dept_admin_id"
+            :items="departmentStore.options.dept_admins"
+            item-title="name"
+            item-value="id"
+            label="Department Admin"
+            class="mb-2"
+            clearable
+            :loading="departmentStore.optionsLoading"
+            :disabled="loading || departmentStore.optionsLoading"
+            :error-messages="errors.dept_admin_id ? [errors.dept_admin_id] : []"
+          />
+
+          <VAutocomplete
+            v-model="form.division_head_id"
+            :items="departmentStore.options.division_heads"
+            item-title="division_name"
+            item-value="id"
+            label="Division Head"
+            clearable
+            :loading="departmentStore.optionsLoading"
+            :disabled="loading || departmentStore.optionsLoading"
+            :error-messages="errors.division_head_id ? [errors.division_head_id] : []"
+          />
+        </VCardText>
+
+        <VCardActions class="justify-end gap-2 pa-4">
+          <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
+          <VBtn type="submit" color="success" :loading="loading" :disabled="departmentStore.optionsLoading">Save</VBtn>
+        </VCardActions>
+      </VForm>
+    </VCard>
+  </VDialog>
+</template>

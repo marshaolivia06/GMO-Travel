@@ -1,116 +1,81 @@
-<template>
-  <div
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 p-5"
-    @click.self="closeModal"
-  >
-    <div
-      class="w-[420px] max-w-full rounded-xl bg-white p-[25px] shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
-    >
-      <div class="mb-5">
-        <h2 class="text-xl font-semibold text-[#172033]">
-          Add Category
-        </h2>
-
-        <p class="mt-1 text-xs text-slate-400">
-          Create a new category.
-        </p>
-      </div>
-
-      <form @submit.prevent="submitCategory">
-        <div>
-          <label
-            class="mb-2 block text-xs font-semibold text-slate-600"
-          >
-            Category Name
-          </label>
-
-          <input
-            v-model="categoryName"
-            type="text"
-            placeholder="Enter category name"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-2 focus:ring-[#1E4F8A]/10"
-            :disabled="loading"
-            autofocus
-          />
-        </div>
-
-        <div class="mt-6 flex justify-end gap-2.5">
-          <button
-            type="button"
-            class="min-w-[90px] rounded-lg bg-slate-100 px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="loading"
-            @click="closeModal"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="min-w-[90px] rounded-lg bg-green-600 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="loading || !categoryName.trim()"
-          >
-            {{ loading ? 'Adding...' : 'Add' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { ref } from 'vue'
-import { createCategory } from '../../../services/categoryService'
-import swal from '../../../../../plugins/swal'
+import { reactive, ref } from 'vue'
+import { useCategoryStore } from '../../../stores/categoryStore'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
-const emit = defineEmits(['close', 'success'])
+const emit = defineEmits(['close'])
+const { confirm } = useConfirm()
+const toast = useToastStore()
+const categoryStore = useCategoryStore()
 
-const categoryName = ref('')
+const form = reactive({ name: '' })
+const errors = reactive({ name: '' })
+const generalError = ref('')
 const loading = ref(false)
 
-const closeModal = () => {
+function closeModal() {
   if (loading.value) return
-
   emit('close')
 }
 
-const submitCategory = async () => {
+async function submitCategory() {
   if (loading.value) return
 
-  const name = categoryName.value.trim()
+  errors.name = ''
+  generalError.value = ''
 
-  if (!name) {
-    await swal.error(
-      'Invalid Category',
-      'Category name is required.'
-    )
+  if (!form.name.trim()) {
+    errors.name = 'Category name is required.'
     return
   }
 
-  const result = await swal.confirm(
-    'Are you sure you want to add this category?'
-  )
+  const confirmed = await confirm({
+    title: 'Add Category',
+    text: 'Are you sure you want to add this category?',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   loading.value = true
 
   try {
-    await createCategory({ name })
-
-    await swal.success(
-      'Category Added',
-      'Category has been added successfully.'
-    )
-
-    emit('success')
+    await categoryStore.addCategory({ name: form.name.trim() })
+    toast.success('Category has been added successfully.')
     emit('close')
-  } catch (error) {
-    await swal.error(
-      'Action Failed',
-      error.message || 'Failed to create category.'
-    )
+  } catch (err) {
+    errors.name = err.response?.data?.errors?.name?.[0] || ''
+    generalError.value = err.response?.data?.message || err.message || 'Failed to create category.'
   } finally {
     loading.value = false
   }
 }
 </script>
+
+<template>
+  <VDialog :model-value="true" max-width="440" persistent>
+    <VCard>
+      <VCardTitle class="pa-4">Add Category</VCardTitle>
+      <VCardSubtitle class="px-4">Create a new category.</VCardSubtitle>
+
+      <VForm @submit.prevent="submitCategory">
+        <VCardText>
+          <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
+
+          <VTextField
+            v-model="form.name"
+            label="Category Name"
+            :disabled="loading"
+            :error-messages="errors.name ? [errors.name] : []"
+            autofocus
+          />
+        </VCardText>
+
+        <VCardActions class="justify-end gap-2 pa-4">
+          <VBtn variant="tonal" :disabled="loading" @click="closeModal">Cancel</VBtn>
+          <VBtn type="submit" color="success" :loading="loading">Add</VBtn>
+        </VCardActions>
+      </VForm>
+    </VCard>
+  </VDialog>
+</template>

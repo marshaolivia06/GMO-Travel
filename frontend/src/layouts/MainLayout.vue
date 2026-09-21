@@ -1,62 +1,98 @@
-<template>
-  <div class="min-h-screen w-full bg-[#F8FBFF]">
-
-    <div
-      class="fixed inset-y-0 left-0 z-50 transition-[width] duration-250 ease-in-out"
-      :class="isCollapsed ? 'w-[70px]' : 'w-[240px]'"
-    >
-      <Sidebar
-        :is-collapsed="isCollapsed"
-        @toggle-collapse="isCollapsed = !isCollapsed"
-      />
-    </div>
-
-    <main
-      class="min-h-screen transition-[margin] duration-250 ease-in-out"
-      :class="isCollapsed ? 'ml-[70px]' : 'ml-[240px]'"
-    >
-      <div
-        class="fixed right-0 top-0 z-[60] transition-[left] duration-250 ease-in-out"
-        :class="isCollapsed ? 'left-[70px]' : 'left-[240px]'"
-      >
-        <Navbar />
-      </div>
-
-      <div class="h-screen overflow-y-auto pt-[70px]">
-        <div class="min-h-[calc(100vh-70px)] p-[25px]">
-          <router-view />
-        </div>
-
-        <Footer />
-      </div>
-    </main>
-
-  </div>
-</template>
-
-
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { useConfirm } from '../composables/useConfirm'
+import { navItems } from '../utils/navItems'
+import logoFull from '../assets/logo_ecogreen.png'
+import logoIcon from '../assets/logo.png'
 
-import Sidebar from '../components/Sidebar.vue'
-import Navbar from '../components/Navbar.vue'
-import Footer from '../components/Footer.vue'
+const route = useRoute()
+const authStore = useAuthStore()
+const { confirm } = useConfirm()
 
-const isCollapsed = ref(false)
+const rail = ref(false)
+const pageTitle = computed(() => route.meta.title || 'Dashboard')
+const userName = computed(() => authStore.user?.name || 'User')
+const userRole = computed(() => authStore.user?.roles?.[0]?.name || 'User')
+const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+async function logout() {
+  const confirmed = await confirm({
+    title: 'Logout',
+    text: 'Are you sure you want to logout?',
+    color: 'error',
+  })
+
+  if (!confirmed) return
+
+  await authStore.logout()
+}
 </script>
 
-<style>
-html,
-body,
-#app {
-  width: 100%;
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
-}
+<template>
+  <VLayout class="min-h-screen">
+    <VNavigationDrawer :rail="rail" permanent>
+      <VListItem class="py-4">
+        <VImg :src="rail ? logoIcon : logoFull" height="36" :width="rail ? 36 : undefined" contain />
+      </VListItem>
 
-body {
-  margin: 0;
-  overflow: hidden;
-}
-</style>
+      <VDivider />
+
+      <VList nav density="comfortable" color="primary">
+        <VListItem
+          v-for="item in navItems"
+          :key="item.to"
+          :to="{ name: item.to }"
+          :prepend-icon="item.icon"
+          :title="item.label"
+        />
+      </VList>
+
+      <template #append>
+        <VDivider />
+        <VListItem :title="userName" :subtitle="userRole">
+          <template #prepend>
+            <VAvatar color="primary">
+              <span class="text-white text-caption font-weight-bold">{{ userInitial }}</span>
+            </VAvatar>
+          </template>
+        </VListItem>
+      </template>
+    </VNavigationDrawer>
+
+    <VAppBar color="primary" density="comfortable">
+      <template #prepend>
+        <VBtn icon="ri-menu-line" variant="text" color="white" @click="rail = !rail" />
+      </template>
+
+      <VAppBarTitle>{{ pageTitle }}</VAppBarTitle>
+
+      <template #append>
+        <VMenu>
+          <template #activator="{ props }">
+            <VBtn icon variant="text" color="white" v-bind="props">
+              <VAvatar color="white" size="36">
+                <span class="text-primary text-caption font-weight-bold">{{ userInitial }}</span>
+              </VAvatar>
+            </VBtn>
+          </template>
+
+          <VList>
+            <VListItem title="Logout" prepend-icon="ri-logout-box-line" @click="logout" />
+          </VList>
+        </VMenu>
+      </template>
+    </VAppBar>
+
+    <VMain style="min-width: 0">
+      <VContainer fluid>
+        <RouterView />
+      </VContainer>
+    </VMain>
+
+    <VFooter app class="justify-center text-caption text-medium-emphasis">
+      © 2026 GMO Travel
+    </VFooter>
+  </VLayout>
+</template>

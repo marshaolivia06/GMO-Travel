@@ -1,67 +1,16 @@
-const API_URL = 'http://127.0.0.1:8000/api/v1'
+import { http } from '../../../plugins/axios'
 
-const getToken = () => {
-  return localStorage.getItem('token')
-}
+const BASE = '/v1/master-management/sections'
 
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-      ...(options.headers || {}),
-    },
-  })
+export const getSections = () => http.get(BASE).then(res => res.data)
 
-  const data = await response.json()
+export const createSection = section => http.post(BASE, section).then(res => res.data)
 
-  if (!response.ok) {
-    throw new Error(
-      data.message || 'An error occurred.'
-    )
-  }
+export const getSection = id => http.get(`${BASE}/${id}`).then(res => res.data)
 
-  return data
-}
+export const updateSection = (id, section) =>
+  http.put(`${BASE}/${id}`, section).then(res => res.data)
 
-export const getSections = () => {
-  return request('/master-management/sections')
-}
+export const deleteSection = id => http.delete(`${BASE}/${id}`).then(res => res.data)
 
-export const createSection = section => {
-  return request('/master-management/sections', {
-    method: 'POST',
-    body: JSON.stringify(section),
-  })
-}
-
-export const getSection = id => {
-  return request(
-    `/master-management/sections/${id}`
-  )
-}
-
-export const updateSection = (id, section) => {
-  return request(
-    `/master-management/sections/${id}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(section),
-    }
-  )
-}
-
-export const deleteSection = id => {
-  return request(
-    `/master-management/sections/${id}`,
-    {
-      method: 'DELETE',
-    }
-  )
-}
-
-export const getSectionOptions = () => {
-  return request('/master-management/sections/options')
-}
+export const getSectionOptions = () => http.get(`${BASE}/options`).then(res => res.data)

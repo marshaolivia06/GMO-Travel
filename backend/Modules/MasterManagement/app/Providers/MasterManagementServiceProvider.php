@@ -4,6 +4,8 @@ namespace Modules\MasterManagement\Providers;
 
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\MasterManagement\Repositories\CategoryRepository;
+use Modules\MasterManagement\Repositories\CategoryRepositoryInterface;
 
 class MasterManagementServiceProvider extends ModuleServiceProvider
 {
@@ -33,6 +35,13 @@ class MasterManagementServiceProvider extends ModuleServiceProvider
         EventServiceProvider::class,
         RouteServiceProvider::class,
     ];
+
+    public function register(): void
+    {
+        parent::register();
+
+        $this->app->bind(CategoryRepositoryInterface::class, CategoryRepository::class);
+    }
 
     /**
      * Define module schedules.

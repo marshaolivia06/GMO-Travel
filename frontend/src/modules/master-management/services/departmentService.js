@@ -1,67 +1,16 @@
-const API_URL = 'http://127.0.0.1:8000/api/v1'
+import { http } from '../../../plugins/axios'
 
-const getToken = () => {
-  return localStorage.getItem('token')
-}
+const BASE = '/v1/master-management/departments'
 
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-      ...(options.headers || {}),
-    },
-  })
+export const getDepartments = () => http.get(BASE).then(res => res.data)
 
-  const data = await response.json()
+export const createDepartment = department => http.post(BASE, department).then(res => res.data)
 
-  if (!response.ok) {
-    throw new Error(
-      data.message || 'An error occurred.'
-    )
-  }
+export const getDepartment = id => http.get(`${BASE}/${id}`).then(res => res.data)
 
-  return data
-}
+export const updateDepartment = (id, department) =>
+  http.put(`${BASE}/${id}`, department).then(res => res.data)
 
-export const getDepartments = () => {
-  return request('/master-management/departments')
-}
+export const deleteDepartment = id => http.delete(`${BASE}/${id}`).then(res => res.data)
 
-export const createDepartment = department => {
-  return request('/master-management/departments', {
-    method: 'POST',
-    body: JSON.stringify(department),
-  })
-}
-
-export const getDepartment = id => {
-  return request(
-    `/master-management/departments/${id}`
-  )
-}
-
-export const updateDepartment = (id, department) => {
-  return request(
-    `/master-management/departments/${id}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(department),
-    }
-  )
-}
-
-export const deleteDepartment = id => {
-  return request(
-    `/master-management/departments/${id}`,
-    {
-      method: 'DELETE',
-    }
-  )
-}
-
-export const getDepartmentOptions = () => {
-  return request('/master-management/departments/options')
-}
+export const getDepartmentOptions = () => http.get(`${BASE}/options`).then(res => res.data)
