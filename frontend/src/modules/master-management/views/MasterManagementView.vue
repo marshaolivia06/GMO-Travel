@@ -1,30 +1,7 @@
 <template>
   <div class="w-full px-0 py-2 text-[#172033] max-[900px]:px-4 max-[600px]:pb-4">
-    <section
-  class="rounded-xl border border-[#173F70] bg-[#1E4F8A] px-7 py-5 text-white shadow-[0_8px_24px_rgba(30,79,138,0.20)] transition-shadow duration-200 hover:shadow-[0_12px_30px_rgba(30,79,138,0.26)] max-[600px]:px-5 max-[600px]:py-5"
-  aria-labelledby="user-management-title"
->
-  <p
-    class="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#DCEBF7]"
-  >
-    GMO TRAVEL · ADMINISTRASI
-  </p>
 
-  <h1
-    id="user-management-title"
-    class="mb-1.5 text-[clamp(23px,2.7vw,30px)] font-bold tracking-[-0.02em] text-white"
-  >
-    Master Management
-  </h1>
-
-  <p
-    class="mb-0 max-w-[520px] text-[13px] leading-[1.5] text-[#DCEBF7]"
-  >
-    Manage departments, sections, and categories in one panel.
-  </p>
-</section>
-
-    <div class="mt-[18px] flex flex-wrap items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <button
         type="button"
         class="rounded-lg px-4 py-2 text-xs font-bold transition"
