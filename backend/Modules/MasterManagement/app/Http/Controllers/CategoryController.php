@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\MasterManagement\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Modules\MasterManagement\Http\Requests\Request;
 use Modules\MasterManagement\Repositories\CategoryRepository;
 use Modules\MasterManagement\Services\CategoryService;
 
@@ -32,18 +34,9 @@ class CategoryController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                'unique:categories,name',
-            ],
-        ]);
-
-        $category = $this->categoryRepository->create([
-            'name' => trim($validated['name']),
-        ]);
+        $category = $this->categoryRepository->create(
+            $request->validated()
+        );
 
         return response()->json([
             'message' => 'Category created successfully.',
@@ -55,22 +48,9 @@ class CategoryController extends Controller
         Request $request,
         int $id
     ): JsonResponse {
-        $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                'unique:categories,name,' . $id,
-            ],
-        ]);
-
-        $category = $this->categoryRepository->findById($id);
-
         $category = $this->categoryRepository->update(
-            $category,
-            [
-                'name' => trim($validated['name']),
-            ]
+            $id,
+            $request->validated()
         );
 
         return response()->json([
