@@ -1,12 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Modules\UserManagement\Repositories;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleRepository
 {
+    public function __construct(
+        private PermissionRegistrar $permissionRegistrar
+    ) {
+    }
+
     public function getAll(): Collection
     {
         $roles = DB::table('roles')
@@ -35,19 +43,52 @@ class RoleRepository
 
     public function create(array $data)
     {
-        $id = DB::table('roles')->insertGetId($data);
+        return DB::transaction(function () use ($data) {
+            $permissionIds = $data['permissions'] ?? [];
 
-        return $this->findById($id);
+            unset($data['permissions']);
+
+            $now = now();
+
+            $data['created_at'] = $now;
+            $data['updated_at'] = $now;
+
+            $id = DB::table('roles')->insertGetId($data);
+
+            if (!empty($permissionIds)) {
+                $permissions = DB::table('permissions')
+                    ->whereIn('id', $permissionIds)
+                    ->pluck('id');
+
+                $insertData = $permissions
+                    ->map(fn ($permissionId) => [
+                        'role_id' => $id,
+                        'permission_id' => $permissionId,
+                    ])
+                    ->toArray();
+
+                if (!empty($insertData)) {
+                    DB::table('role_has_permissions')
+                        ->insert($insertData);
+                }
+            }
+
+            $this->permissionRegistrar
+                ->forgetCachedPermissions();
+
+            return $this->findById($id);
+        });
     }
 
     public function update(int $id, array $data)
     {
-        DB::transaction(function () use ($id, $data) {
+        return DB::transaction(function () use ($id, $data) {
             DB::table('roles')
                 ->where('id', $id)
                 ->where('status', 1)
                 ->update([
                     'name' => $data['name'],
+                    'updated_at' => now(),
                 ]);
 
             if (array_key_exists('permissions', $data)) {
@@ -72,20 +113,33 @@ class RoleRepository
                             ->insert($insertData);
                     }
                 }
-            }
-        });
 
-        return $this->findById($id);
+                $this->permissionRegistrar
+                    ->forgetCachedPermissions();
+            }
+
+            return $this->findById($id);
+        });
     }
 
     public function delete(int $id): bool
     {
-        return DB::table('roles')
-            ->where('id', $id)
-            ->where('status', 1)
-            ->update([
-                'status' => 0,
-            ]) > 0;
+        return DB::transaction(function () use ($id) {
+            $deleted = DB::table('roles')
+                ->where('id', $id)
+                ->where('status', 1)
+                ->update([
+                    'status' => 0,
+                    'updated_at' => now(),
+                ]);
+
+            if ($deleted > 0) {
+                $this->permissionRegistrar
+                    ->forgetCachedPermissions();
+            }
+
+            return $deleted > 0;
+        });
     }
 
     private function loadPermissions(Collection $roles): Collection
