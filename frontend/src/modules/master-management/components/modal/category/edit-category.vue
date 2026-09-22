@@ -76,9 +76,9 @@ async function submitCategory() {
         </VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
-          <VBtn variant="tonal" :disabled="loading" @click="closeModal">Cancel</VBtn>
-          <VBtn type="submit" color="success" :loading="loading">Update</VBtn>
-        </VCardActions>
+  <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
+  <VBtn type="submit" color="success" variant="flat" :loading="loading" :disabled="loading">Update</VBtn>
+</VCardActions>
       </VForm>
     </VCard>
   </VDialog>

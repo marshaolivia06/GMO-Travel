@@ -50,7 +50,7 @@ async function submitSection() {
   }
 
   const confirmed = await confirm({
-    title: 'Update Section',
+    title: 'Are you sure',
     text: 'Are you sure you want to update this section?',
   })
 
@@ -124,9 +124,9 @@ function close() {
         </VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
-          <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
-          <VBtn type="submit" color="success" :loading="loading" :disabled="sectionStore.optionsLoading">Update</VBtn>
-        </VCardActions>
+  <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
+  <VBtn type="submit" color="success" variant="flat" :loading="loading" :disabled="sectionStore.optionsLoading">Update</VBtn>
+</VCardActions>
       </VForm>
     </VCard>
   </VDialog>

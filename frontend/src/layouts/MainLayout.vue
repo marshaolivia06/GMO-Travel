@@ -32,36 +32,46 @@ async function logout() {
 
 <template>
   <VLayout class="min-h-screen">
-    <VNavigationDrawer :rail="rail" permanent>
-      <VListItem class="py-4">
-        <VImg :src="rail ? logoIcon : logoFull" height="36" :width="rail ? 36 : undefined" contain />
-      </VListItem>
+    <VNavigationDrawer :rail="rail" permanent class="d-flex flex-column">
+  <VListItem class="py-4">
+    <VImg
+      :src="rail ? logoIcon : logoFull"
+      height="44"
+      :width="rail ? 44 : undefined"
+      contain
+    />
+  </VListItem>
 
-      <VDivider />
+  <VDivider />
 
-      <VList nav density="comfortable" color="primary">
-        <VListItem
-          v-for="item in navItems"
-          :key="item.to"
-          :to="{ name: item.to }"
-          :prepend-icon="item.icon"
-          :title="item.label"
-        />
-      </VList>
+  <VList nav density="comfortable" class="flex-grow-1">
+    <VListItem
+      v-for="item in navItems"
+      :key="item.to"
+      :to="{ name: item.to }"
+      :prepend-icon="item.icon"
+      :title="item.label"
+      color="primary"
+      rounded="lg"
+      class="font-weight-bold"
+    />
+  </VList>
 
-      <template #append>
-        <VDivider />
-        <VListItem :title="userName" :subtitle="userRole">
-          <template #prepend>
-            <VAvatar color="primary">
-              <span class="text-white text-caption font-weight-bold">{{ userInitial }}</span>
-            </VAvatar>
-          </template>
-        </VListItem>
+  <template #append>
+    <VDivider />
+
+    <VListItem :title="userName" :subtitle="userRole" class="py-3">
+      <template #prepend>
+        <VAvatar color="primary" size="40">
+          <span class="text-white text-caption font-weight-bold">
+            {{ userInitial }}
+          </span>
+        </VAvatar>
       </template>
-    </VNavigationDrawer>
-
-    <VAppBar color="primary" density="comfortable">
+    </VListItem>
+  </template>
+</VNavigationDrawer>
+<VAppBar color="primary" height="76">
       <template #prepend>
         <VBtn icon="ri-menu-line" variant="text" color="white" @click="rail = !rail" />
       </template>
@@ -96,3 +106,9 @@ async function logout() {
     </VFooter>
   </VLayout>
 </template>
+<style scoped>
+:deep(.v-list-item--active) {
+  background: rgb(var(--v-theme-primary)) !important;
+  color: white !important;
+}
+</style>

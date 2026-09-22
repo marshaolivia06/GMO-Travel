@@ -46,13 +46,12 @@ function errorMessage(err, fallback) {
   return err.response?.data?.message || err.message || fallback
 }
 
-// ---- Categories ----
 const categoryHeaders = [
+  { title: 'Actions', key: 'actions', sortable: false, width: 120 },
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
 ]
 
 const showCategoryModal = ref(false)
@@ -71,8 +70,8 @@ function closeEditCategory() {
 
 async function deleteSelectedCategory(category) {
   const confirmed = await confirm({
-    title: 'Delete Category',
-    text: `Delete "${category.name}"? This cannot be undone.`,
+    title: 'Are You Sure',
+    text: `Are you sure you want to delete this category?`,
     color: 'error',
   })
 
@@ -86,8 +85,8 @@ async function deleteSelectedCategory(category) {
   }
 }
 
-// ---- Departments ----
 const departmentHeaders = [
+  { title: 'Actions', key: 'actions', sortable: false, width: 100 },
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Category', key: 'category' },
@@ -96,7 +95,6 @@ const departmentHeaders = [
   { title: 'Division Head', key: 'division_head' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
 ]
 
 const departmentSearch = ref('')
@@ -116,8 +114,8 @@ function closeEditDepartment() {
 
 async function deleteSelectedDepartment(department) {
   const confirmed = await confirm({
-    title: 'Delete Department',
-    text: `Delete "${department.name}"? This cannot be undone.`,
+    title: 'Are You Sure',
+    text: `Are you sure you want to delete this department?`,
     color: 'error',
   })
 
@@ -131,15 +129,14 @@ async function deleteSelectedDepartment(department) {
   }
 }
 
-// ---- Sections ----
 const sectionHeaders = [
+  { title: 'Actions', key: 'actions', sortable: false, width: 100 },
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Sect Head', key: 'section_head' },
   { title: 'Department', key: 'department' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
 ]
 
 const sectionSearch = ref('')
@@ -159,8 +156,8 @@ function closeEditSection() {
 
 async function deleteSelectedSection(section) {
   const confirmed = await confirm({
-    title: 'Delete Section',
-    text: `Delete "${section.name}"? This cannot be undone.`,
+    title: 'Are You Sure',
+    text: `Are you sure you want to delete this section?`,
     color: 'error',
   })
 
@@ -183,8 +180,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <VCard rounded="lg">
-    <VTabs :model-value="activeTab" color="primary" @update:model-value="changeTab">
+  <VCard rounded="lg" elevation="2">
+    <VTabs :model-value="activeTab" color="primary" class="px-2" @update:model-value="changeTab">
       <VTab value="departments" prepend-icon="ri-building-4-line">Departments</VTab>
       <VTab value="sections" prepend-icon="ri-git-branch-line">Sections</VTab>
       <VTab value="categories" prepend-icon="ri-price-tag-3-line">Categories</VTab>
@@ -195,43 +192,39 @@ onMounted(() => {
     <VWindow :model-value="activeTab">
       <VWindowItem value="departments">
         <VCardText>
-          <VAlert v-if="departmentStore.error" type="error" class="mb-4">{{ departmentStore.error }}</VAlert>
+          <VAlert v-if="departmentStore.error" type="error" rounded="lg" class="mb-4">
+            {{ departmentStore.error }}
+          </VAlert>
 
-          <VDataTable
-            :headers="departmentHeaders"
-            :items="departmentStore.departments"
-            :loading="departmentStore.loading"
-            :search="departmentSearch"
-            item-value="id"
-            density="comfortable"
-            hover
-          >
+          <VDataTable :headers="departmentHeaders" :items="departmentStore.departments" :loading="departmentStore.loading" :search="departmentSearch" item-value="id" density="default" hover>
             <template #top>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: nowrap">
-                <VBtn color="success" prepend-icon="ri-add-line" @click="showDepartmentModal = true">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
+                <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" @click="showDepartmentModal = true">
                   Add Department
                 </VBtn>
-                <VTextField
-                  v-model="departmentSearch"
-                  prepend-inner-icon="ri-search-line"
-                  placeholder="Search departments..."
-                  single-line
-                  clearable
-                  hide-details
-                  density="compact"
-                  style="max-width: 220px"
-                />
+                <VTextField v-model="departmentSearch" prepend-inner-icon="ri-search-line" placeholder="Search departments..." single-line clearable hide-details density="compact" style="width: 220px !important; flex: 0 0 220px" />
               </div>
+              <VDivider />
             </template>
+
+            <template #headers="{ columns }">
+              <tr>
+                <th v-for="column in columns" :key="column.key" class="bg-grey-lighten-3">{{ column.title }}</th>
+              </tr>
+            </template>
+
             <template #item.category="{ item }">{{ item.category?.name || '-' }}</template>
             <template #item.dept_head="{ item }">{{ item.dept_head?.name || '-' }}</template>
             <template #item.dept_admin="{ item }">{{ item.dept_admin?.name || '-' }}</template>
             <template #item.division_head="{ item }">{{ item.division_head?.division_name || '-' }}</template>
             <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
             <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
+
             <template #item.actions="{ item }">
-              <VBtn icon="ri-edit-line" size="small" variant="text" color="success" @click="openEditDepartment(item)" />
-              <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedDepartment(item)" />
+              <div class="d-flex align-center ga-1 flex-nowrap">
+                <VBtn icon="ri-edit-line" size="small" variant="text" color="success" @click="openEditDepartment(item)" />
+                <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedDepartment(item)" />
+              </div>
             </template>
           </VDataTable>
         </VCardText>
@@ -239,41 +232,37 @@ onMounted(() => {
 
       <VWindowItem value="sections">
         <VCardText>
-          <VAlert v-if="sectionStore.error" type="error" class="mb-4">{{ sectionStore.error }}</VAlert>
+          <VAlert v-if="sectionStore.error" type="error" rounded="lg" class="mb-4">
+            {{ sectionStore.error }}
+          </VAlert>
 
-          <VDataTable
-            :headers="sectionHeaders"
-            :items="sectionStore.sections"
-            :loading="sectionStore.loading"
-            :search="sectionSearch"
-            item-value="id"
-            density="comfortable"
-            hover
-          >
+          <VDataTable :headers="sectionHeaders" :items="sectionStore.sections" :loading="sectionStore.loading" :search="sectionSearch" item-value="id" density="default" hover>
             <template #top>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: nowrap">
-                <VBtn color="success" prepend-icon="ri-add-line" @click="showSectionModal = true">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
+                <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" @click="showSectionModal = true">
                   Add Section
                 </VBtn>
-                <VTextField
-                  v-model="sectionSearch"
-                  prepend-inner-icon="ri-search-line"
-                  placeholder="Search sections..."
-                  single-line
-                  clearable
-                  hide-details
-                  density="compact"
-                  style="max-width: 220px"
-                />
+                <VTextField v-model="sectionSearch" prepend-inner-icon="ri-search-line" placeholder="Search sections..." single-line clearable hide-details density="compact" style="width: 220px !important; flex: 0 0 220px" />
               </div>
+              <VDivider />
             </template>
+
+            <template #headers="{ columns }">
+              <tr>
+                <th v-for="column in columns" :key="column.key" class="bg-grey-lighten-3">{{ column.title }}</th>
+              </tr>
+            </template>
+
             <template #item.section_head="{ item }">{{ item.section_head?.name || item.sectionHead?.name || '-' }}</template>
             <template #item.department="{ item }">{{ item.department?.name || '-' }}</template>
             <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
             <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
+
             <template #item.actions="{ item }">
-              <VBtn icon="ri-edit-line" size="small" variant="text" color="success" @click="openEditSection(item)" />
-              <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedSection(item)" />
+              <div class="d-flex align-center ga-1 flex-nowrap">
+                <VBtn icon="ri-edit-line" size="small" variant="text" color="success" @click="openEditSection(item)" />
+                <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedSection(item)" />
+              </div>
             </template>
           </VDataTable>
         </VCardText>
@@ -281,42 +270,35 @@ onMounted(() => {
 
       <VWindowItem value="categories">
         <VCardText>
-          <VAlert v-if="categoryStore.error" type="error" class="mb-4">{{ categoryStore.error }}</VAlert>
+          <VAlert v-if="categoryStore.error" type="error" rounded="lg" class="mb-4">
+            {{ categoryStore.error }}
+          </VAlert>
 
-          <VDataTableServer
-            v-model:items-per-page="categoryStore.perPage"
-            :headers="categoryHeaders"
-            :items="categoryStore.categories"
-            :items-length="categoryStore.total"
-            :loading="categoryStore.loading"
-            item-value="id"
-            density="comfortable"
-            hover
-            @update:options="opts => categoryStore.fetchCategories(opts.page)"
-          >
+          <VDataTableServer v-model:items-per-page="categoryStore.perPage" :headers="categoryHeaders" :items="categoryStore.categories" :items-length="categoryStore.total" :loading="categoryStore.loading" item-value="id" density="default" hover @update:options="opts => categoryStore.fetchCategories(opts.page)">
             <template #top>
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: nowrap">
-                <VBtn color="success" prepend-icon="ri-add-line" @click="showCategoryModal = true">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
+                <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" @click="showCategoryModal = true">
                   Add Category
                 </VBtn>
-                <VTextField
-                  v-model="categoryStore.search"
-                  prepend-inner-icon="ri-search-line"
-                  placeholder="Search categories..."
-                  single-line
-                  clearable
-                  hide-details
-                  density="compact"
-                  style="max-width: 220px"
-                  @update:model-value="categoryStore.fetchCategories(1)"
-                />
+                <VTextField v-model="categoryStore.search" prepend-inner-icon="ri-search-line" placeholder="Search categories..." single-line clearable hide-details density="compact" style="width: 220px !important; flex: 0 0 220px" @update:model-value="categoryStore.fetchCategories(1)" />
               </div>
+              <VDivider />
             </template>
+
+            <template #headers="{ columns }">
+              <tr>
+                <th v-for="column in columns" :key="column.key" class="bg-grey-lighten-3">{{ column.title }}</th>
+              </tr>
+            </template>
+
             <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
             <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
+
             <template #item.actions="{ item }">
-              <VBtn icon="ri-edit-line" size="small" variant="text" color="success" @click="openEditCategory(item)" />
-              <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedCategory(item)" />
+              <div class="d-flex align-center ga-1 flex-nowrap">
+                <VBtn icon="ri-edit-line" size="small" variant="text" color="success" @click="openEditCategory(item)" />
+                <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedCategory(item)" />
+              </div>
             </template>
           </VDataTableServer>
         </VCardText>

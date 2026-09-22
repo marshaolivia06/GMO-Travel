@@ -115,73 +115,90 @@ function close() {
 
       <VForm @submit.prevent="submitDepartment">
         <VCardText>
-          <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
+          <VAlert v-if="generalError" type="error" class="mb-4">
+            {{ generalError }}
+          </VAlert>
 
           <VTextField
             v-model="form.name"
             label="Department Name"
-            class="mb-2"
+            class="mb-3"
             :disabled="loading"
             :error-messages="errors.name ? [errors.name] : []"
           />
 
           <VAutocomplete
-            v-model="form.category_id"
-            :items="departmentStore.options.categories"
-            item-title="name"
-            item-value="id"
-            label="Category"
-            class="mb-2"
-            clearable
-            :loading="departmentStore.optionsLoading"
-            :disabled="loading || departmentStore.optionsLoading"
-            :error-messages="errors.category_id ? [errors.category_id] : []"
-          />
+  v-model="form.category_id"
+  :items="departmentStore.options.categories"
+  item-title="name"
+  item-value="id"
+  label="Select Category"
+  placeholder=""
+  class="mb-2"
+  :loading="departmentStore.optionsLoading"
+  :disabled="loading || departmentStore.optionsLoading"
+  :error-messages="errors.category_id ? [errors.category_id] : []"
+/>
 
-          <VAutocomplete
-            v-model="form.dept_head_id"
-            :items="departmentStore.options.dept_heads"
-            item-title="name"
-            item-value="id"
-            label="Department Head"
-            class="mb-2"
-            clearable
-            :loading="departmentStore.optionsLoading"
-            :disabled="loading || departmentStore.optionsLoading"
-            :error-messages="errors.dept_head_id ? [errors.dept_head_id] : []"
-          />
 
-          <VAutocomplete
-            v-model="form.dept_admin_id"
-            :items="departmentStore.options.dept_admins"
-            item-title="name"
-            item-value="id"
-            label="Department Admin"
-            class="mb-2"
-            clearable
-            :loading="departmentStore.optionsLoading"
-            :disabled="loading || departmentStore.optionsLoading"
-            :error-messages="errors.dept_admin_id ? [errors.dept_admin_id] : []"
-          />
+<VAutocomplete
+  v-model="form.dept_head_id"
+  :items="departmentStore.options.dept_heads"
+  item-title="name"
+  item-value="id"
+  label="Select Department Head"
+  class="mb-2"
+  :loading="departmentStore.optionsLoading"
+  :disabled="loading || departmentStore.optionsLoading"
+  :error-messages="errors.dept_head_id ? [errors.dept_head_id] : []"
+/>
 
-          <VAutocomplete
-            v-model="form.division_head_id"
-            :items="departmentStore.options.division_heads"
-            item-title="division_name"
-            item-value="id"
-            label="Division Head"
-            clearable
-            :loading="departmentStore.optionsLoading"
-            :disabled="loading || departmentStore.optionsLoading"
-            :error-messages="errors.division_head_id ? [errors.division_head_id] : []"
-          />
+<VAutocomplete
+  v-model="form.dept_admin_id"
+  :items="departmentStore.options.dept_admins"
+  item-title="name"
+  item-value="id"
+  label="Select Department Admin"
+  class="mb-2"
+  :loading="departmentStore.optionsLoading"
+  :disabled="loading || departmentStore.optionsLoading"
+  :error-messages="errors.dept_admin_id ? [errors.dept_admin_id] : []"
+/>
+
+<VAutocomplete
+  v-model="form.division_head_id"
+  :items="departmentStore.options.division_heads"
+  item-title="division_name"
+  item-value="id"
+  label="Select Division Head"
+  :loading="departmentStore.optionsLoading"
+  :disabled="loading || departmentStore.optionsLoading"
+  :error-messages="errors.division_head_id ? [errors.division_head_id] : []"
+/>
+
         </VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
-          <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
-          <VBtn type="submit" color="success" :loading="loading" :disabled="departmentStore.optionsLoading">Save</VBtn>
+          <VBtn
+            variant="tonal"
+            :disabled="loading"
+            @click="close"
+          >
+            Cancel
+          </VBtn>
+
+          <VBtn
+      type="submit"
+      color="success"
+      variant="flat"
+      :loading="loading"
+      :disabled="departmentStore.optionsLoading"
+    >
+      Add
+    </VBtn>
         </VCardActions>
       </VForm>
     </VCard>
   </VDialog>
 </template>
+

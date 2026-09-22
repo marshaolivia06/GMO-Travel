@@ -67,14 +67,23 @@ async function submitCategory() {
             label="Category Name"
             :disabled="loading"
             :error-messages="errors.name ? [errors.name] : []"
-            autofocus
           />
         </VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
-          <VBtn variant="tonal" :disabled="loading" @click="closeModal">Cancel</VBtn>
-          <VBtn type="submit" color="success" :loading="loading">Add</VBtn>
-        </VCardActions>
+  <VBtn variant="tonal" :disabled="loading" @click="closeModal">
+    Cancel
+  </VBtn>
+
+  <VBtn
+    type="submit"
+    color="success"
+    variant="flat"
+    :loading="loading"
+  >
+    Add
+  </VBtn>
+</VCardActions>
       </VForm>
     </VCard>
   </VDialog>
