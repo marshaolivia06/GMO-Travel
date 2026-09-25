@@ -1,135 +1,9 @@
-<template>
-  <div
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/50 p-5 backdrop-blur-[2px]"
-    @click.self="handleClose"
-    @keydown.esc="handleClose"
-  >
-    <div
-      class="w-full max-w-[480px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(15,23,42,0.20)]"
-    >
-      <div
-        class="flex items-start justify-between gap-5 border-b border-slate-200 px-6 py-[22px]"
-      >
-        <div>
-          <p
-            class="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#1E4F8A]"
-          >
-            Permission
-          </p>
-
-          <h2 class="m-0 text-xl font-semibold text-[#172033]">
-            Add Permission
-          </h2>
-        </div>
-
-        <button
-          type="button"
-          aria-label="Close"
-          class="flex h-8 w-8 items-center justify-center rounded-lg border-0 bg-slate-100 text-[22px] leading-none text-slate-500 transition hover:bg-slate-200 hover:text-[#172033] disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="loading"
-          @click="handleClose"
-        >
-          ×
-        </button>
-      </div>
-
-      <form
-        class="p-6"
-        @submit.prevent="handleSubmit"
-      >
-        <div class="mb-6 flex flex-col gap-2">
-          <label
-            for="permission-module"
-            class="text-[13px] font-semibold text-slate-700"
-          >
-            Module
-          </label>
-
-          <input
-            id="permission-module"
-            v-model="form.module"
-            type="text"
-            placeholder="Example: User Management"
-            required
-            class="box-border w-full rounded-lg border border-slate-300 px-[13px] py-[11px] text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
-          />
-        </div>
-
-        <div class="mb-6">
-          <label class="mb-1 block text-[13px] font-semibold text-slate-700">
-            Action
-          </label>
-
-          <p class="mb-3 text-[11px] text-slate-400">
-            Select actions
-          </p>
-
-          <div class="grid grid-cols-2 gap-3">
-            <label
-              v-for="action in availableActions"
-              :key="action.value"
-              class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-[#1E4F8A]/40 hover:bg-[#1E4F8A]/5"
-              :class="{
-                'border-[#1E4F8A] bg-[#1E4F8A]/5':
-                  form.actions.includes(action.value)
-              }"
-            >
-              <input
-                v-model="form.actions"
-                type="checkbox"
-                :value="action.value"
-                class="h-4 w-4 cursor-pointer accent-[#1E4F8A]"
-              />
-
-              <span class="text-[13px] font-medium text-slate-700">
-                {{ action.label }}
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div
-          v-if="error"
-          class="mb-[18px] rounded-lg bg-red-50 px-3 py-2.5 text-xs text-[#b42318]"
-        >
-          {{ error }}
-        </div>
-
-        <div
-          class="flex justify-end gap-2.5 pt-1 max-[600px]:flex-col-reverse"
-        >
-          <button
-            type="button"
-            class="rounded-lg border-0 bg-slate-100 px-4 py-[9px] text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-            :disabled="loading"
-            @click="handleClose"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="rounded-lg border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[600px]:w-full"
-            :disabled="loading"
-          >
-            {{ loading ? 'Adding...' : 'Add' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { ref } from 'vue'
-
 import swal from '../../../../../plugins/swal'
 import { createPermission } from '../../../services/permissionService'
 
-const emit = defineEmits([
-  'close',
-  'created',
-])
+const emit = defineEmits(['close', 'created'])
 
 const availableActions = [
   {
@@ -168,23 +42,25 @@ const form = ref({
 const loading = ref(false)
 const error = ref('')
 
-const handleClose = () => {
-  if (loading.value) return
-
-  emit('close')
+function handleClose() {
+  if (!loading.value) {
+    emit('close')
+  }
 }
 
-const handleSubmit = async () => {
+async function handleSubmit() {
   if (loading.value) return
 
   error.value = ''
 
-  if (!form.value.module.trim()) {
+  form.value.module = form.value.module.trim()
+
+  if (!form.value.module) {
     error.value = 'Module is required.'
     return
   }
 
-  if (form.value.actions.length === 0) {
+  if (!form.value.actions.length) {
     error.value = 'Please select at least one action.'
     return
   }
@@ -199,17 +75,14 @@ const handleSubmit = async () => {
 
   try {
     const moduleName = form.value.module
-      .trim()
       .toLowerCase()
       .replace(/\s+/g, '-')
 
-    const permissions = form.value.actions.map(action => ({
-      module: form.value.module.trim(),
-      name: `${moduleName}.${action}`,
-    }))
-
-    for (const permission of permissions) {
-      await createPermission(permission)
+    for (const action of form.value.actions) {
+      await createPermission({
+        module: form.value.module,
+        name: `${moduleName}.${action}`,
+      })
     }
 
     await swal.success(
@@ -220,12 +93,111 @@ const handleSubmit = async () => {
     emit('created')
     emit('close')
   } catch (err) {
+    error.value =
+      err?.response?.data?.message ||
+      err?.message ||
+      'Failed to add permission.'
+
     await swal.error(
       'Action Failed',
-      err.message || 'Failed to add permission.'
+      error.value
     )
   } finally {
     loading.value = false
   }
 }
 </script>
+
+<template>
+  <VDialog
+    :model-value="true"
+    max-width="480"
+    persistent
+  >
+    <VCard>
+      <VCardTitle class="pa-4">
+        Add Permission
+      </VCardTitle>
+
+      <VCardSubtitle class="px-4">
+        Create permissions for a module.
+      </VCardSubtitle>
+
+      <VForm @submit.prevent="handleSubmit">
+        <VCardText class="pt-3 pb-2">
+          <VTextField
+            v-model="form.module"
+            label="Module"
+            placeholder="Example: User Management"
+            density="compact"
+            :disabled="loading"
+            :error-messages="error === 'Module is required.' ? [error] : []"
+          />
+
+          <div class="mb-2">
+            <div class="text-subtitle-2 font-weight-semibold">
+              Actions
+            </div>
+
+            <div class="text-caption text-medium-emphasis">
+              Select actions for this module.
+            </div>
+          </div>
+
+          <VRow
+  class="mt-0"
+  no-gutters
+>
+  <VCol
+    v-for="action in availableActions"
+    :key="action.value"
+    cols="4"
+    class="py-1"
+  >
+    <div class="d-flex align-center ga-2">
+      <input
+        v-model="form.actions"
+        type="checkbox"
+        :value="action.value"
+        :disabled="loading"
+        class="flex-shrink-0"
+      />
+
+      <span class="text-body-2">
+        {{ action.label }}
+      </span>
+    </div>
+  </VCol>
+</VRow>
+          <VAlert
+            v-if="error && error !== 'Module is required.'"
+            type="error"
+            variant="tonal"
+            class="mt-3"
+          >
+            {{ error }}
+          </VAlert>
+        </VCardText>
+
+        <VCardActions class="justify-end gap-2 px-4 pt-2 pb-4">
+          <VBtn
+            variant="tonal"
+            :disabled="loading"
+            @click="handleClose"
+          >
+            Cancel
+          </VBtn>
+
+          <VBtn
+            type="submit"
+            color="success"
+            variant="flat"
+            :loading="loading"
+          >
+            Add
+          </VBtn>
+        </VCardActions>
+      </VForm>
+    </VCard>
+  </VDialog>
+</template>

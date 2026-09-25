@@ -1,190 +1,5 @@
-<template>
-  <div
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/45 p-5"
-    @click.self="handleClose"
-  >
-    <div
-      class="w-full max-w-[560px] max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-[0_20px_50px_rgba(15,23,42,0.20)]"
-    >
-      <div
-        class="flex items-start justify-between gap-5 border-b border-slate-200 px-[26px] py-6 max-[500px]:px-[18px]"
-      >
-        <div>
-          <p
-            class="mb-[5px] text-[10px] font-bold uppercase tracking-[0.14em] text-[#1E4F8A]"
-          >
-            Role Management
-          </p>
-
-          <h2 class="m-0 mb-[5px] text-[22px] font-semibold text-[#172033]">
-            Edit Role
-          </h2>
-
-          <p class="m-0 text-[13px] text-slate-500">
-            Update the role and its assigned permissions.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-0 bg-slate-100 text-[22px] leading-none text-slate-600 transition hover:bg-slate-200 hover:text-[#172033] disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="loading"
-          @click="handleClose"
-        >
-          ×
-        </button>
-      </div>
-
-      <form
-        class="px-[26px] py-6 max-[500px]:px-[18px]"
-        @submit.prevent="openConfirmation"
-      >
-        <div class="mb-[22px] flex flex-col gap-[7px]">
-          <label
-            for="role-name"
-            class="text-[13px] font-semibold text-slate-700"
-          >
-            Role Name
-          </label>
-
-          <input
-            id="role-name"
-            v-model="form.name"
-            type="text"
-            placeholder="Example: Admin"
-            required
-            class="box-border w-full rounded-[7px] border border-slate-300 px-3 py-2.5 text-[13px] text-[#172033] outline-none transition placeholder:text-slate-400 focus:border-[#1E4F8A] focus:ring-[3px] focus:ring-[#1E4F8A]/10"
-          />
-        </div>
-
-        <div class="mb-[22px] flex flex-col gap-[7px]">
-          <label class="text-[13px] font-semibold text-slate-700">
-            Permissions
-          </label>
-
-          <p class="-mt-0.5 mb-[5px] text-[11px] text-slate-400">
-            Select the permissions assigned to this role.
-          </p>
-
-          <div
-            v-if="loadingPermissions"
-            class="rounded-lg bg-slate-50 p-[18px] text-center text-xs text-slate-500"
-          >
-            Loading permissions...
-          </div>
-
-          <div
-            v-else-if="permissionError"
-            class="rounded-[7px] bg-red-50 px-3 py-2.5 text-xs text-red-700"
-          >
-            {{ permissionError }}
-          </div>
-
-          <div
-            v-else
-            class="overflow-hidden rounded-lg border border-slate-200"
-          >
-            <div
-              class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 bg-slate-100"
-            >
-              <div
-                class="flex items-center px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-400"
-              >
-                Module
-              </div>
-
-              <label
-                v-for="action in headerActions"
-                :key="action"
-                class="flex cursor-pointer flex-col items-center justify-center gap-1 border-l border-slate-200 py-2.5 transition hover:bg-slate-200"
-              >
-                <input
-                  type="checkbox"
-                  :checked="isActionSelected(action)"
-                  :disabled="!getActionPermissions(action).length"
-                  class="h-3.5 w-3.5 accent-[#1E4F8A]"
-                  @change="toggleAction(action)"
-                />
-
-                <span class="text-[9px] font-bold uppercase text-[#1E4F8A]">
-                  {{ action }}
-                </span>
-              </label>
-            </div>
-
-            <div class="max-h-[300px] overflow-y-auto">
-              <div
-                v-for="group in permissionGroups"
-                :key="group.module"
-                class="grid grid-cols-[1fr_repeat(5,60px)] border-b border-slate-200 last:border-b-0"
-              >
-                <div class="flex items-center bg-white px-4 py-3">
-                  <span class="text-[12px] font-semibold text-slate-700">
-                    {{ group.module }}
-                  </span>
-                </div>
-
-                <div
-                  v-for="action in headerActions"
-                  :key="`${group.module}-${action}`"
-                  class="flex items-center justify-center border-l border-slate-200 bg-white"
-                >
-                  <template v-if="getPermissionByAction(group, action)">
-                    <input
-                      v-model="form.permissions"
-                      type="checkbox"
-                      :value="getPermissionByAction(group, action).id"
-                      class="h-4 w-4 accent-[#1E4F8A]"
-                    />
-                  </template>
-
-                  <span
-                    v-else
-                    class="text-[11px] text-slate-200"
-                  >
-                    —
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-if="error"
-          class="mb-[18px] rounded-[7px] bg-red-50 px-3 py-2.5 text-xs text-red-700"
-        >
-          {{ error }}
-        </div>
-
-        <div
-          class="flex justify-end gap-2.5 pt-1 max-[500px]:flex-col-reverse"
-        >
-          <button
-            type="button"
-            class="rounded-[7px] border-0 bg-slate-100 px-4 py-[9px] text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 max-[500px]:w-full"
-            :disabled="loading"
-            @click="handleClose"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="rounded-[7px] border-0 bg-green-600 px-4 py-[9px] text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-[500px]:w-full"
-            :disabled="loading"
-          >
-            Update
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-
+import { computed, onMounted, reactive, ref } from 'vue'
 import { updateRole } from '../../../services/roleService'
 import { getPermissions } from '../../../services/permissionService'
 import swal from '../../../../../plugins/swal'
@@ -196,23 +11,24 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits([
-  'close',
-  'updated',
-])
+const emit = defineEmits(['close', 'updated'])
 
-const form = ref({
-  name: props.role.name || '',
-  permissions: Array.isArray(props.role.permissions)
+const loading = ref(false)
+const permissionsLoading = ref(false)
+const generalError = ref('')
+const permissionError = ref('')
+const permissions = ref([])
+
+const errors = reactive({
+  name: '',
+})
+
+const form = reactive({
+  name: props.role?.name || '',
+  permissions: Array.isArray(props.role?.permissions)
     ? props.role.permissions.map(permission => permission.id)
     : [],
 })
-
-const permissions = ref([])
-const loadingPermissions = ref(false)
-const permissionError = ref('')
-const loading = ref(false)
-const error = ref('')
 
 const headerActions = [
   'view',
@@ -222,10 +38,22 @@ const headerActions = [
   'approve',
 ]
 
-const getAction = permission => {
-  if (!permission?.name) {
-    return ''
-  }
+function clearErrors() {
+  errors.name = ''
+  generalError.value = ''
+  permissionError.value = ''
+}
+
+function handleValidationError(err) {
+  const validationErrors = err?.response?.data?.errors
+
+  if (!validationErrors) return
+
+  errors.name = validationErrors.name?.[0] || ''
+}
+
+function getAction(permission) {
+  if (!permission?.name) return ''
 
   const parts = permission.name.split('.')
 
@@ -251,81 +79,66 @@ const permissionGroups = computed(() => {
   }))
 })
 
-const getPermissionByAction = (group, action) => {
+function getPermissionByAction(group, action) {
   return group.permissions.find(
     permission => getAction(permission) === action
   )
 }
 
-const getActionPermissions = action => {
+function getActionPermissions(action) {
   return permissions.value.filter(
     permission => getAction(permission) === action
   )
 }
 
-const isActionSelected = action => {
+function isActionSelected(action) {
   const list = getActionPermissions(action)
 
   return (
     list.length > 0 &&
     list.every(permission =>
-      form.value.permissions.includes(permission.id)
+      form.permissions.includes(permission.id)
     )
   )
 }
 
-const toggleAction = action => {
+function toggleAction(action) {
   const list = getActionPermissions(action)
   const ids = list.map(permission => permission.id)
 
   if (isActionSelected(action)) {
-    form.value.permissions =
-      form.value.permissions.filter(
-        id => !ids.includes(id)
-      )
+    form.permissions = form.permissions.filter(
+      id => !ids.includes(id)
+    )
 
     return
   }
 
-  form.value.permissions = [
+  form.permissions = [
     ...new Set([
-      ...form.value.permissions,
+      ...form.permissions,
       ...ids,
     ]),
   ]
 }
 
-const openConfirmation = async () => {
-  error.value = ''
-
-  form.value.name = form.value.name.trim()
-
-  if (!form.value.name) {
-    error.value = 'Role name is required.'
-    return
-  }
-
-  const result = await swal.confirm(
-    'Are you sure you want to update this role?'
+const isAllSelected = computed(() => {
+  return (
+    permissions.value.length > 0 &&
+    permissions.value.every(permission =>
+      form.permissions.includes(permission.id)
+    )
   )
+})
 
-  if (!result.isConfirmed) {
-    return
-  }
-
-  await handleSubmit()
+function toggleAll() {
+  form.permissions = isAllSelected.value
+    ? []
+    : permissions.value.map(permission => permission.id)
 }
 
-const handleClose = () => {
-  if (loading.value) {
-    return
-  }
-
-  emit('close')
-}
-
-const fetchPermissions = async () => {
-  loadingPermissions.value = true
+async function fetchPermissions() {
+  permissionsLoading.value = true
   permissionError.value = ''
 
   try {
@@ -334,56 +147,259 @@ const fetchPermissions = async () => {
     permissions.value = response.data ?? response
   } catch (err) {
     permissionError.value =
-      err.message ||
+      err?.response?.data?.message ||
+      err?.message ||
       'Failed to load permissions.'
   } finally {
-    loadingPermissions.value = false
+    permissionsLoading.value = false
   }
 }
 
-const handleSubmit = async () => {
-  if (loading.value) {
+async function submitRole() {
+  if (loading.value) return
+
+  clearErrors()
+
+  form.name = form.name.trim()
+
+  if (!form.name) {
+    errors.name = 'Role name is required.'
     return
   }
 
+  const confirmed = await swal.confirm(
+    'Are you sure you want to update this role?'
+  )
+
+  if (!confirmed.isConfirmed) return
+
   loading.value = true
-  error.value = ''
 
   try {
-    await updateRole(
-      props.role.id,
-      {
-        name: form.value.name.trim(),
-        permissions: form.value.permissions,
-      }
-    )
-
-    emit('updated')
-    emit('close')
+    await updateRole(props.role.id, {
+      name: form.name,
+      permissions: form.permissions,
+    })
 
     await swal.success(
       'Role Updated',
       'Role has been updated successfully.'
     )
-  } catch (err) {
-    console.log('ROLE UPDATE ERROR:', err)
-    console.log(
-      'ROLE UPDATE RESPONSE:',
-      err.response?.data
-    )
 
-    error.value =
-      err.message ||
+    emit('updated')
+    emit('close')
+  } catch (err) {
+    handleValidationError(err)
+
+    generalError.value =
+      err?.response?.data?.message ||
+      err?.message ||
       'Failed to update role.'
 
     await swal.error(
       'Action Failed',
-      error.value
+      generalError.value
     )
   } finally {
     loading.value = false
   }
 }
 
+function close() {
+  if (!loading.value) {
+    emit('close')
+  }
+}
+
 onMounted(fetchPermissions)
 </script>
+
+<template>
+  <VDialog
+    :model-value="true"
+    max-width="700"
+    persistent
+  >
+    <VCard>
+      <VCardTitle class="pa-4">
+        Edit Role
+      </VCardTitle>
+
+      <VCardSubtitle class="px-4">
+        Update the role and its assigned permissions.
+      </VCardSubtitle>
+
+      <VForm @submit.prevent="submitRole">
+        <VCardText>
+          <VAlert
+            v-if="generalError"
+            type="error"
+            class="mb-4"
+          >
+            {{ generalError }}
+          </VAlert>
+
+          <VTextField
+            v-model="form.name"
+            label="Role Name"
+            placeholder="Example: Admin"
+            class="mb-3"
+            :disabled="loading"
+            :error-messages="
+              errors.name ? [errors.name] : []
+            "
+          />
+
+          <div class="d-flex align-center justify-space-between mb-3">
+            <div>
+              <div class="text-subtitle-2 font-weight-semibold">
+                Assign Permissions
+              </div>
+
+              <div class="text-caption text-medium-emphasis">
+                Select permissions for this role.
+              </div>
+            </div>
+
+            <VBtn
+              size="small"
+              color="primary"
+              variant="flat"
+              :disabled="
+                permissionsLoading ||
+                !permissions.length ||
+                loading
+              "
+              @click="toggleAll"
+            >
+              {{ isAllSelected ? 'Uncheck All' : 'Check All' }}
+            </VBtn>
+          </div>
+
+          <VProgressLinear
+            v-if="permissionsLoading"
+            indeterminate
+            color="primary"
+            class="mb-3"
+          />
+
+          <VAlert
+            v-else-if="permissionError"
+            type="error"
+            variant="tonal"
+            class="mb-3"
+          >
+            {{ permissionError }}
+          </VAlert>
+
+          <VTable
+            v-else-if="permissionGroups.length"
+            density="compact"
+            class="border rounded"
+          >
+            <thead>
+              <tr>
+                <th class="text-left">
+                  Module
+                </th>
+
+                <th
+                  v-for="action in headerActions"
+                  :key="action"
+                  class="text-center"
+                >
+                  <div
+                    class="d-flex flex-column align-center justify-center py-2"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="isActionSelected(action)"
+                      :disabled="
+                        !getActionPermissions(action).length ||
+                        loading
+                      "
+                      @change="toggleAction(action)"
+                    />
+
+                    <span
+                      class="text-caption text-uppercase font-weight-bold mt-1"
+                    >
+                      {{ action }}
+                    </span>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr
+                v-for="group in permissionGroups"
+                :key="group.module"
+              >
+                <td>
+                  <span class="text-body-2 font-weight-medium">
+                    {{ group.module }}
+                  </span>
+                </td>
+
+                <td
+                  v-for="action in headerActions"
+                  :key="`${group.module}-${action}`"
+                  class="text-center"
+                >
+                  <div class="d-flex align-center justify-center">
+                    <input
+                      v-if="getPermissionByAction(group, action)"
+                      v-model="form.permissions"
+                      type="checkbox"
+                      :value="
+                        getPermissionByAction(group, action).id
+                      "
+                      :disabled="loading"
+                    />
+
+                    <span
+                      v-else
+                      class="text-medium-emphasis"
+                    >
+                      —
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </VTable>
+
+          <VAlert
+            v-else
+            type="info"
+            variant="tonal"
+            class="mt-3"
+          >
+            No permissions have been registered yet.
+          </VAlert>
+        </VCardText>
+
+        <VCardActions class="justify-end gap-2 pa-4">
+          <VBtn
+            variant="tonal"
+            :disabled="loading"
+            @click="close"
+          >
+            Cancel
+          </VBtn>
+
+          <VBtn
+            type="submit"
+            color="success"
+            variant="flat"
+            :loading="loading"
+            :disabled="permissionsLoading"
+          >
+            Update
+          </VBtn>
+        </VCardActions>
+      </VForm>
+    </VCard>
+  </VDialog>
+</template>

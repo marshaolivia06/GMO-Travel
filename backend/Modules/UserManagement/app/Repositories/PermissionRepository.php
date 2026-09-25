@@ -44,7 +44,14 @@ class PermissionRepository
 
     public function create(array $data)
     {
-        $id = DB::table('permissions')->insertGetId($data);
+        $now = now();
+
+        $id = DB::table('permissions')->insertGetId(
+            array_merge($data, [
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])
+        );
 
         return DB::table('permissions')
             ->where('id', $id)
@@ -55,7 +62,9 @@ class PermissionRepository
     {
         DB::table('permissions')
             ->where('id', $id)
-            ->update($data);
+            ->update(array_merge($data, [
+                'updated_at' => now(),
+            ]));
 
         return $this->findById($id);
     }

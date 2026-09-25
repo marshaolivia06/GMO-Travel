@@ -4,5 +4,6 @@
     "Roles": false,
     "Permissions": false,
     "UserManagement": true,
-    "MasterManagement": true
+    "MasterManagement": true,
+    "TravelOrder": true
 }

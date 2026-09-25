@@ -12,3 +12,23 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
     <ConfirmDialog />
   </VApp>
 </template>
+
+<style>
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.v-application,
+.v-application__wrap {
+  height: 100%;
+}
+
+.v-main {
+  height: 100%;
+  overflow-y: auto;
+}
+</style>
