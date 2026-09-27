@@ -36,6 +36,7 @@ class RolePermissionSeeder extends Seeder
             'create',
             'update',
             'delete',
+            'approve',
         ];
 
         foreach ($modules as $module) {

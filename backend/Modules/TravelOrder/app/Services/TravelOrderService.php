@@ -26,11 +26,36 @@ class TravelOrderService
     }
 
     public function find(int $id): TravelOrder
-    {
-        return $this->repository->findById($id);
-    }
+{
+    return $this->repository->findById($id);
+}
 
-    public function getDepartmentLockInfo(User $user): array
+public function approve(int $id): TravelOrder
+{
+    $travelOrder = $this->repository->findById($id);
+
+    $nextStatus = match ($travelOrder->status) {
+        'awaiting_approval_manager' => 'awaiting_approval_director',
+        'awaiting_approval_director' => 'awaiting_approval_predir',
+        'awaiting_approval_predir' => 'awaiting_approval_gmo',
+        'awaiting_approval_gmo' => 'approved',
+        default => null,
+    };
+
+    abort_if(
+        ! $nextStatus,
+        422,
+        'Travel Order tidak dapat diproses pada status saat ini.'
+    );
+
+    $travelOrder->update([
+        'status' => $nextStatus,
+    ]);
+
+    return $travelOrder->fresh();
+}
+
+public function getDepartmentLockInfo(User $user): array
     {
         $department = Department::where('dept_head_id', $user->id)
             ->orWhere('dept_admin_id', $user->id)
@@ -92,20 +117,21 @@ class TravelOrderService
         }
 
         return DB::transaction(function () use ($data, $user, $departmentId) {
-            $data['order_number'] = $this->generateOrderNumber();
-            $data['trip_type'] = 'individual';
-            $data['status'] = 'submitted';
-            $data['user_id'] = $user->id;
-            $data['department_id'] = $departmentId;
-            $data['created_by'] = $user->id;
+    $data['order_number'] = $this->generateOrderNumber();
+    $data['trip_type'] = 'individual';
+    $data['status'] = 'awaiting_approval_manager';
 
-            $advanceData = [
-                'meal_allowance' => $data['meal_allowance'] ?? null,
-                'pocket_money' => $data['pocket_money'] ?? null,
-                'currency' => $data['meal_currency']
-                    ?? $data['pocket_currency']
-                    ?? null,
-            ];
+    $data['user_id'] = $user->id;
+    $data['department_id'] = $departmentId;
+    $data['created_by'] = $user->id;
+
+    $advanceData = [
+        'meal_allowance' => $data['meal_allowance'] ?? null,
+        'pocket_money' => $data['pocket_money'] ?? null,
+        'currency' => $data['meal_currency']
+            ?? $data['pocket_currency']
+            ?? null,
+    ];
 
             unset(
                 $data['meal_allowance'],

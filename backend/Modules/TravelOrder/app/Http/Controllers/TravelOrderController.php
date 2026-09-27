@@ -32,6 +32,16 @@ class TravelOrderController extends Controller
         ]);
     }
 
+    public function approve(int $id): JsonResponse
+{
+    $order = $this->service->approve($id);
+
+    return response()->json([
+        'message' => 'Travel Order has been successfully approved.',
+        'data' => $order,
+    ]);
+}
+
     public function departmentLock(Request $request): JsonResponse
     {
         return response()->json(

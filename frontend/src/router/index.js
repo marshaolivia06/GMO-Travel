@@ -10,6 +10,7 @@ import annualLeaveRoutes from '../modules/annual-leave/router'
 import travelOrderRoutes from '../modules/travel-order/router'
 import userManagementRoutes from '../modules/user-management/router'
 import masterManagementRoutes from '../modules/master-management/router'
+import masterAdvanceRoutes from '../modules/master-advance/router'
 
 const routes = [
   {
@@ -35,6 +36,7 @@ const routes = [
       ...travelOrderRoutes,
       ...userManagementRoutes,
       ...masterManagementRoutes,
+      ...masterAdvanceRoutes,
     ],    
   },
 

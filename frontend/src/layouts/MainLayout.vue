@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { VListGroup } from 'vuetify/components'
 import { useAuthStore } from '../stores/auth'
 import { useConfirm } from '../composables/useConfirm'
 import { navItems } from '../utils/navItems'
@@ -45,9 +46,9 @@ async function logout() {
   <VDivider />
 
   <VList nav density="comfortable" class="flex-grow-1">
+  <template v-for="item in navItems" :key="item.label">
     <VListItem
-      v-for="item in navItems"
-      :key="item.to"
+      v-if="!item.children"
       :to="{ name: item.to }"
       :prepend-icon="item.icon"
       :title="item.label"
@@ -55,7 +56,30 @@ async function logout() {
       rounded="lg"
       class="font-weight-bold"
     />
-  </VList>
+
+    <VListGroup v-else :value="item.label">
+      <template #activator="{ props }">
+        <VListItem
+          v-bind="props"
+          :prepend-icon="item.icon"
+          :title="item.label"
+          color="primary"
+          rounded="lg"
+          class="font-weight-bold"
+        />
+      </template>
+
+      <VListItem
+        v-for="child in item.children"
+        :key="child.to"
+        :to="{ name: child.to }"
+        :title="child.label"
+        color="primary"
+        rounded="lg"
+      />
+    </VListGroup>
+  </template>
+</VList>
 
   <template #append>
     <VDivider />
