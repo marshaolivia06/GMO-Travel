@@ -19,7 +19,7 @@ Route::middleware(['auth:sanctum'])
                 ->middleware('permission:travel-order.view');
 
             Route::post('/{id}/approve', [TravelOrderController::class, 'approve'])
-                F->middleware('permission:travel-order.approve');
+                ->middleware('permission:travel-order.approve');
 
             Route::post('/', [TravelOrderController::class, 'store'])
                 ->middleware('permission:travel-order.create');
@@ -27,12 +27,27 @@ Route::middleware(['auth:sanctum'])
 
         // TRAVEL ADVANCE MASTER
         Route::get(
-            'travel-advance-masters/limit',
-            [TravelAdvanceMasterController::class, 'limit']
+    'travel-advance-masters/limit',
+    [TravelAdvanceMasterController::class, 'limit']
+        )->middleware('permission:travel-order.create');
+
+        Route::get(
+    'travel-advance-masters/limit-by-grade',
+    [TravelAdvanceMasterController::class, 'limitByGrade']
+        )->middleware('permission:travel-order.create');
+
+        Route::get(
+    'travel-advance-masters/regions',
+    [TravelAdvanceMasterController::class, 'regions']
+        )->middleware('permission:travel-order.create');
+
+        Route::get(
+    'travel-advance-masters/countries',
+    [TravelAdvanceMasterController::class, 'countries']
         )->middleware('permission:travel-order.create');
 
         Route::apiResource(
-            'travel-advance-masters',
-            TravelAdvanceMasterController::class
+    'travel-advance-masters',
+    TravelAdvanceMasterController::class
         );
     });

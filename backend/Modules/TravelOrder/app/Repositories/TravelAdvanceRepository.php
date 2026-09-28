@@ -35,6 +35,39 @@ class TravelAdvanceRepository
             ->first();
     }
 
+    public function findByRegionAndGrade(
+        string $travelRegion,
+        int $grade
+    ): ?TravelAdvanceMaster {
+        return TravelAdvanceMaster::query()
+            ->where('travel_region', $travelRegion)
+            ->where('grade_min', '<=', $grade)
+            ->where('grade_max', '>=', $grade)
+            ->where('status', 1)
+            ->first();
+    }
+
+    public function getDistinctRegions(): array
+    {
+    return TravelAdvanceMaster::query()
+        ->where('status', 1)
+        ->distinct()
+        ->pluck('travel_region')
+        ->toArray();
+    }
+
+    public function getCountriesByRegion(string $travelRegion): array
+    {
+    return TravelAdvanceMaster::query()
+        ->where('travel_region', $travelRegion)
+        ->where('status', 1)
+        ->select('country', 'currency')
+        ->distinct()
+        ->orderBy('country')
+        ->get()
+        ->toArray();
+    }
+
     public function create(array $data): TravelAdvanceMaster
     {
         return TravelAdvanceMaster::create($data);

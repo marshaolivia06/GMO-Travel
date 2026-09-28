@@ -1,8 +1,9 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useMasterAdvanceStore } from '../../stores/masterAdvanceStore'
 import { useConfirm } from '../../../../composables/useConfirm'
 import { useToastStore } from '../../../../stores/toast'
+import { getTravelAdvanceRegions } from '../../services/masterAdvanceService'
 
 const emit = defineEmits(['close'])
 const { confirm } = useConfirm()
@@ -11,26 +12,19 @@ const masterAdvanceStore = useMasterAdvanceStore()
 
 const loading = ref(false)
 const generalError = ref('')
+const travelRegions = ref([])
+const loadingRegions = ref(false)
 
 const errors = reactive({
-  travel_region: '',
-  currency: '',
-  pocket_money_limit: '',
-  meal_allowance_limit: '',
+  travel_region: '', grade_min: '', grade_max: '', country: '', currency: '', pocket_money_limit: '', meal_allowance_limit: '',
 })
 
 const form = reactive({
-  travel_region: '',
-  currency: '',
-  pocket_money_limit: '',
-  meal_allowance_limit: '',
+  travel_region: '', grade_min: '', grade_max: '', country: '', currency: '', pocket_money_limit: '', meal_allowance_limit: '',
 })
 
 function clearErrors() {
-  errors.travel_region = ''
-  errors.currency = ''
-  errors.pocket_money_limit = ''
-  errors.meal_allowance_limit = ''
+  Object.keys(errors).forEach(k => { errors[k] = '' })
   generalError.value = ''
 }
 
@@ -38,10 +32,7 @@ function handleValidationError(err) {
   const validationErrors = err?.response?.data?.errors
   if (!validationErrors) return
 
-  errors.travel_region = validationErrors.travel_region?.[0] || ''
-  errors.currency = validationErrors.currency?.[0] || ''
-  errors.pocket_money_limit = validationErrors.pocket_money_limit?.[0] || ''
-  errors.meal_allowance_limit = validationErrors.meal_allowance_limit?.[0] || ''
+  Object.keys(errors).forEach(k => { errors[k] = validationErrors[k]?.[0] || '' })
 }
 
 function formatNumber(value) {
@@ -57,43 +48,38 @@ function handleNumberInput(field, event) {
   form[field] = event.target.value.replace(/\D/g, '')
 }
 
+async function loadRegions() {
+  loadingRegions.value = true
+  try {
+    travelRegions.value = await getTravelAdvanceRegions()
+  } catch (err) {
+    generalError.value = err?.response?.data?.message || 'Gagal memuat data travel region.'
+  } finally {
+    loadingRegions.value = false
+  }
+}
+
 async function submitMasterAdvance() {
   if (loading.value) return
 
   clearErrors()
 
-  if (!form.travel_region.trim()) {
-    errors.travel_region = 'Travel region is required.'
-    return
-  }
+  if (!form.travel_region) { errors.travel_region = 'Travel region is required.'; return }
+  if (!form.currency.trim()) { errors.currency = 'Currency is required.'; return }
+  if (form.pocket_money_limit === '' || form.pocket_money_limit === null) { errors.pocket_money_limit = 'Pocket money limit is required.'; return }
+  if (form.meal_allowance_limit === '' || form.meal_allowance_limit === null) { errors.meal_allowance_limit = 'Meal allowance limit is required.'; return }
 
-  if (!form.currency.trim()) {
-    errors.currency = 'Currency is required.'
-    return
-  }
-
-  if (form.pocket_money_limit === '' || form.pocket_money_limit === null) {
-    errors.pocket_money_limit = 'Pocket money limit is required.'
-    return
-  }
-
-  if (form.meal_allowance_limit === '' || form.meal_allowance_limit === null) {
-    errors.meal_allowance_limit = 'Meal allowance limit is required.'
-    return
-  }
-
-  const confirmed = await confirm({
-    title: 'Add Master Advance',
-    text: 'Are you sure you want to add this travel advance master?',
-  })
-
+  const confirmed = await confirm({ title: 'Add Master Advance', text: 'Are you sure you want to add this travel advance master?' })
   if (!confirmed) return
 
   loading.value = true
 
   try {
     await masterAdvanceStore.addTravelAdvanceMaster({
-      travel_region: form.travel_region.trim(),
+      travel_region: form.travel_region,
+      grade_min: form.grade_min === '' ? null : Number(form.grade_min),
+      grade_max: form.grade_max === '' ? null : Number(form.grade_max),
+      country: form.country.trim() || null,
       currency: form.currency.trim().toUpperCase(),
       pocket_money_limit: Number(form.pocket_money_limit),
       meal_allowance_limit: Number(form.meal_allowance_limit),
@@ -112,6 +98,8 @@ async function submitMasterAdvance() {
 function close() {
   if (!loading.value) emit('close')
 }
+
+onMounted(loadRegions)
 </script>
 
 <template>
@@ -124,7 +112,13 @@ function close() {
         <VCardText>
           <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
 
-          <VTextField v-model="form.travel_region" label="Travel Region" class="mb-3" :disabled="loading" :error-messages="errors.travel_region ? [errors.travel_region] : []" />
+          <VSelect v-model="form.travel_region" :items="travelRegions" label="Travel Region"  placeholder=" " class="mb-3" :loading="loadingRegions" :disabled="loading" :error-messages="errors.travel_region ? [errors.travel_region] : []" />
+          <VRow dense class="mb-3">
+            <VCol cols="6"><VTextField v-model.number="form.grade_min" label="Grade Min" type="number" :disabled="loading" :error-messages="errors.grade_min ? [errors.grade_min] : []" /></VCol>
+            <VCol cols="6"><VTextField v-model.number="form.grade_max" label="Grade Max" type="number" :disabled="loading" :error-messages="errors.grade_max ? [errors.grade_max] : []" /></VCol>
+          </VRow>
+
+          <VTextField v-model="form.country" label="Country" class="mb-3" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" />
 
           <VTextField v-model="form.currency" label="Currency" placeholder="USD" maxlength="3" class="mb-3" :disabled="loading" :error-messages="errors.currency ? [errors.currency] : []" />
 

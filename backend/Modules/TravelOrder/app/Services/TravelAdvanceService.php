@@ -38,6 +38,26 @@ class TravelAdvanceService
         return $this->travelAdvanceRepository->delete($id);
     }
 
+    public function findByRegionAndGrade(
+        string $travelRegion,
+        int $grade
+    ): ?TravelAdvanceMaster {
+        return $this->travelAdvanceRepository->findByRegionAndGrade(
+            $travelRegion,
+            $grade
+        );
+    }
+
+    public function getDistinctRegions(): array
+    {
+    return $this->travelAdvanceRepository->getDistinctRegions();
+    }
+
+    public function getCountriesByRegion(string $travelRegion): array
+    {
+    return $this->travelAdvanceRepository->getCountriesByRegion($travelRegion);
+    }
+
     public function findByRegionAndCurrency(
         string $travelRegion,
         string $currency

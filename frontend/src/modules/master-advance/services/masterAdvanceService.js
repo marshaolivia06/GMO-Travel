@@ -16,3 +16,6 @@ export const updateTravelAdvanceMaster = (id, data) =>
 
 export const deleteTravelAdvanceMaster = id =>
   http.delete(`${BASE}/${id}`).then(res => res.data)
+
+export const getTravelAdvanceRegions = () =>
+  http.get(`${BASE}/regions`).then(res => res.data.data)

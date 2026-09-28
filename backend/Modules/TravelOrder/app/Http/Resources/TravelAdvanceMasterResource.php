@@ -14,6 +14,10 @@ class TravelAdvanceMasterResource extends JsonResource
         return [
             'id_travel_advance_master' => $this->id_travel_advance_master,
             'travel_region' => $this->travel_region,
+            'grade' => $this->grade,
+            'grade_min' => $this->grade_min,
+            'grade_max' => $this->grade_max,
+            'country' => $this->country,
             'currency' => $this->currency,
             'pocket_money_limit' => (float) $this->pocket_money_limit,
             'meal_allowance_limit' => (float) $this->meal_allowance_limit,

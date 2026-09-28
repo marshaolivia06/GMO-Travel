@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useMasterAdvanceStore } from '../stores/masterAdvanceStore'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
@@ -11,14 +11,19 @@ const { confirm } = useConfirm()
 const toast = useToastStore()
 
 const search = ref('')
+const regionFilter = ref('Domestic')
 const showMasterAdvanceModal = ref(false)
 const showEditMasterAdvanceModal = ref(false)
 const selectedMasterAdvance = ref(null)
+
+const regionOptions = ['Domestic', 'Singapore', 'Overseas']
 
 const headers = [
   { title: 'Actions', key: 'actions', sortable: false, width: 120 },
   { title: 'ID', key: 'id_travel_advance_master', width: 80 },
   { title: 'Travel Region', key: 'travel_region' },
+  { title: 'Grade', key: 'grade' },
+  { title: 'Country', key: 'country' },
   { title: 'Currency', key: 'currency' },
   { title: 'Pocket Money Limit', key: 'pocket_money_limit' },
   { title: 'Meal Allowance Limit', key: 'meal_allowance_limit' },
@@ -26,9 +31,12 @@ const headers = [
   { title: 'Updated', key: 'updated_at' },
 ]
 
+const filteredMasterAdvances = computed(() => {
+  return masterAdvanceStore.travelAdvanceMasters.filter(item => item.travel_region === regionFilter.value)
+})
+
 function formatDate(date) {
   if (!date) return '-'
-
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
@@ -39,11 +47,7 @@ function formatDate(date) {
 
 function formatAmount(value) {
   if (value === null || value === undefined || value === '') return '-'
-
-  return Number(value).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function openEditMasterAdvance(item) {
@@ -75,10 +79,14 @@ onMounted(() => {
 <template>
   <VCard rounded="lg" elevation="2">
     <VCardText>
-      <VDataTable :headers="headers" :items="masterAdvanceStore.travelAdvanceMasters" :loading="masterAdvanceStore.loading" :search="search" item-value="id_travel_advance_master" density="default" hover>
+      <VDataTable :headers="headers" :items="filteredMasterAdvances" :loading="masterAdvanceStore.loading" :search="search" item-value="id_travel_advance_master" density="default" hover>
         <template #top>
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
-            <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" @click="showMasterAdvanceModal = true">Add Master Advance</VBtn>
+            <div style="display: flex; align-items: center; gap: 16px">
+              <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" @click="showMasterAdvanceModal = true">Add Master Advance</VBtn>
+
+              <VSelect v-model="regionFilter" :items="regionOptions" label="Travel Region" density="compact" hide-details style="width: 180px" />
+            </div>
 
             <VTextField v-model="search" prepend-inner-icon="ri-search-line" placeholder="Search master advance..." single-line clearable hide-details density="compact" style="width: 260px !important; flex: 0 0 260px" />
           </div>
