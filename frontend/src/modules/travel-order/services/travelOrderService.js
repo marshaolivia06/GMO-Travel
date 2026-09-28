@@ -2,7 +2,6 @@ import { http } from '../../../plugins/axios'
 
 const BASE = '/v1/travel-orders'
 
-// Ubah data form (camelCase) ke format backend (snake_case)
 const toPayload = form => {
   const isOverseas = ['Singapore', 'Non Singapore'].includes(form.travelRegion)
 
@@ -35,5 +34,10 @@ export const getDepartmentLock = () => http.get(`${BASE}/department-lock`).then(
 
 export const getTravelAdvanceLimit = (travelRegion, currency) =>
   http.get('/v1/travel-advance-masters/limit', { params: { travel_region: travelRegion, currency } }).then(res => res.data)
+
+export const getTravelAdvanceCountries = travelRegion =>
+  http.get('/v1/travel-advance-masters/countries', {
+    params: { travel_region: travelRegion },
+  }).then(res => res.data)
 
 export const createTravelOrder = form => http.post(BASE, toPayload(form)).then(res => res.data)

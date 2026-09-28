@@ -8,6 +8,7 @@ const view = ref('root')
 const dialog = ref(false)
 const dialogType = ref(null)
 const reviewDialog = ref(false)
+const confirmDialog = ref(false)
 const reviewData = ref(null)
 const confirmInfo = ref(false)
 const confirmTer = ref(false)
@@ -69,12 +70,18 @@ function backToEdit() {
   dialog.value = true
 }
 
-async function handleFinalSubmit() {
+function handleFinalSubmit() {
+  if (!confirmInfo.value || !confirmTer.value || submitting.value) return
+  confirmDialog.value = true
+}
+
+async function confirmFinalSubmit() {
   submitting.value = true
 
   try {
     const response = await createTravelOrder(reviewData.value)
     submittedTravelOrder.value = response.data
+    confirmDialog.value = false
     reviewDialog.value = false
     showMessage(response.message || 'Travel order submitted successfully.')
   } catch (error) {
@@ -95,7 +102,6 @@ async function handleIndividualSubmit(payload) {
   } catch (error) {
     const errors = error?.response?.data?.errors
     const firstError = errors ? Object.values(errors)[0][0] : null
-
     showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
   } finally {
     submitting.value = false
@@ -113,7 +119,6 @@ async function handleGroupSubmit(payload) {
   } catch (error) {
     const errors = error?.response?.data?.errors
     const firstError = errors ? Object.values(errors)[0][0] : null
-
     showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
   } finally {
     submitting.value = false
@@ -133,9 +138,7 @@ async function loadTravelOrders() {
   }
 }
 
-onMounted(() => {
-  loadTravelOrders()
-})
+onMounted(() => loadTravelOrders())
 </script>
 
 <template>
@@ -152,9 +155,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="text-body-2 text-medium-emphasis mb-6">
-        Select a request category to continue.
-      </div>
+      <div class="text-body-2 text-medium-emphasis mb-6">Select a request category to continue.</div>
 
       <VRow>
         <VCol v-for="item in rootCards" :key="item.key" cols="12" md="6">
@@ -194,9 +195,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="text-body-2 text-medium-emphasis mb-6">
-        Select the appropriate business trip format.
-      </div>
+      <div class="text-body-2 text-medium-emphasis mb-6">Select the appropriate business trip format.</div>
 
       <VRow>
         <VCol v-for="item in businessCards" :key="item.key" cols="12" md="6">
@@ -241,69 +240,60 @@ onMounted(() => {
       <div class="d-flex align-center justify-space-between flex-wrap ga-4 mb-6">
         <div>
           <div class="text-body-2 text-medium-emphasis">Order Number</div>
-          <div class="text-h6 font-weight-bold">
-            {{ submittedTravelOrder.order_number || '-' }}
-          </div>
+          <div class="text-h6 font-weight-bold">{{ submittedTravelOrder.order_number || '-' }}</div>
         </div>
 
         <div class="text-end">
           <div class="text-body-2 text-medium-emphasis mb-1">Status</div>
-          <VChip color="warning" variant="tonal">
-            Awaiting Approval Manager
-          </VChip>
+          <VChip color="warning" variant="tonal">Awaiting Approval Manager</VChip>
         </div>
       </div>
     </VCardText>
   </VCard>
 
-  <VDialog
-  v-if="!reviewDialog"
-  v-model="dialog"
-  max-width="1200"
-  scrollable
->
-  <VCard rounded="lg" class="overflow-hidden">
-    <VCardTitle class="d-flex align-center justify-space-between pa-5">
-      <div class="d-flex align-center ga-3">
-        <VAvatar color="primary" variant="tonal" size="42">
-          <VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" />
-        </VAvatar>
+  <VDialog v-if="!reviewDialog" v-model="dialog" max-width="1200" scrollable>
+    <VCard rounded="lg" class="overflow-hidden">
+      <VCardTitle class="d-flex align-center justify-space-between pa-5">
+        <div class="d-flex align-center ga-3">
+          <VAvatar color="primary" variant="tonal" size="42">
+            <VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" />
+          </VAvatar>
 
-        <div>
-          <div class="text-subtitle-1 font-weight-bold">
-            {{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}
-          </div>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">
+              {{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}
+            </div>
 
-          <div class="text-caption text-medium-emphasis">
-            {{ dialogType === 'individual'
-              ? 'Create an individual business trip request.'
-              : 'Create a group business trip request.' }}
+            <div class="text-caption text-medium-emphasis">
+              {{ dialogType === 'individual'
+                ? 'Create an individual business trip request.'
+                : 'Create a group business trip request.' }}
+            </div>
           </div>
         </div>
-      </div>
 
-      <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
-    </VCardTitle>
+        <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
+      </VCardTitle>
 
-    <VDivider />
+      <VDivider />
 
-    <VCardText class="pa-6">
-      <IndividualTripForm
-        v-if="dialogType === 'individual'"
-        :loading="submitting"
-        @cancel="closeDialog"
-        @review="handleIndividualReview"
-      />
+      <VCardText class="pa-6">
+        <IndividualTripForm
+          v-if="dialogType === 'individual'"
+          :loading="submitting"
+          @cancel="closeDialog"
+          @review="handleIndividualReview"
+        />
 
-      <GroupTripForm
-        v-else-if="dialogType === 'group'"
-        :loading="submitting"
-        @cancel="closeDialog"
-        @review="handleGroupSubmit"
-      />
-    </VCardText>
-  </VCard>
-</VDialog>
+        <GroupTripForm
+          v-else-if="dialogType === 'group'"
+          :loading="submitting"
+          @cancel="closeDialog"
+          @review="handleGroupSubmit"
+        />
+      </VCardText>
+    </VCard>
+  </VDialog>
 
   <!-- REVIEW -->
   <VDialog v-model="reviewDialog" max-width="1200" scrollable>
@@ -326,11 +316,6 @@ onMounted(() => {
 
           <VCardText>
             <VRow>
-              <VCol cols="12" md="3">
-                <div class="text-caption">Request Type</div>
-                <b>Business Trip - Individual</b>
-              </VCol>
-
               <VCol cols="12" md="3">
                 <div class="text-caption">Travel Region</div>
                 <b>{{ reviewData?.travelRegion || '-' }}</b>
@@ -410,7 +395,6 @@ onMounted(() => {
 
       <VCardActions class="justify-end">
         <VBtn variant="outlined" @click="backToEdit">Back to Edit</VBtn>
-
         <VBtn
           color="primary"
           :loading="submitting"
@@ -423,7 +407,21 @@ onMounted(() => {
     </VCard>
   </VDialog>
 
+  <VDialog v-model="confirmDialog" max-width="420">
+    <VCard rounded="lg">
+      <VCardTitle class="text-h6 font-weight-bold">Are you sure?</VCardTitle>
+
+      <VCardText>Are you sure you want to submit this Travel Order?</VCardText>
+
+      <VCardActions class="justify-end">
+        <VBtn variant="text" :disabled="submitting" @click="confirmDialog = false">Cancel</VBtn>
+        <VBtn color="primary" :loading="submitting" @click="confirmFinalSubmit">Yes, Submit</VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
+
   <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="4000" location="top end">
     {{ snackbarText }}
   </VSnackbar>
 </template>
+
