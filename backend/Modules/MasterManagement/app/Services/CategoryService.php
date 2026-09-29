@@ -2,49 +2,45 @@
 
 declare(strict_types=1);
 
-namespace Modules\TravelOrder\Services;
+namespace Modules\MasterManagement\Services;
 
-use Modules\TravelOrder\Repositories\TravelAdvanceRepository;
+use Modules\MasterManagement\Models\Category;
+use Modules\MasterManagement\Repositories\CategoryRepositoryInterface;
 
-class TravelAdvanceMasterService
+class CategoryService
 {
     public function __construct(
-        private TravelAdvanceRepository $travelAdvanceRepository
+        private CategoryRepositoryInterface $categoryRepository
     ) {
     }
 
-    public function getAll()
+    public function paginate(int $perPage = 15, ?string $search = null)
     {
-        return $this->travelAdvanceRepository->getAll();
+        return $this->categoryRepository->paginate($perPage, $search);
     }
 
-    public function findById(int $id)
+    public function findById(int $id): Category
     {
-        return $this->travelAdvanceRepository->findById($id);
+        return $this->categoryRepository->findById($id);
     }
 
-    public function create(array $data)
+    public function create(array $data): Category
     {
-        return $this->travelAdvanceRepository->create($data);
+        return $this->categoryRepository->create($data);
     }
 
-    public function update(int $id, array $data)
+    public function update(int $id, array $data): Category
     {
-        return $this->travelAdvanceRepository->update($id, $data);
+        return $this->categoryRepository->update($id, $data);
     }
 
     public function delete(int $id): bool
     {
-        return $this->travelAdvanceRepository->delete($id);
+        return $this->categoryRepository->delete($id);
     }
 
-    public function findByRegionAndCurrency(
-        string $travelRegion,
-        string $currency
-    ) {
-        return $this->travelAdvanceRepository->findByRegionAndCurrency(
-            $travelRegion,
-            $currency
-        );
+    public function isUsedByDepartment(int $id): bool
+    {
+        return $this->categoryRepository->isUsedByDepartment($id);
     }
 }
