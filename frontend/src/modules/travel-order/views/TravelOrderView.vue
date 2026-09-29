@@ -1,24 +1,80 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
 import IndividualTripForm from '../components/modal/IndividualTripForm.vue'
-import { createTravelOrder, getTravelOrders } from '../services/travelOrderService'
+import { getTravelOrders, createTravelOrder } from '../services/travelOrderService'
 
-const view = ref('root')
-const dialog = ref(false)
-const dialogType = ref(null)
-const reviewDialog = ref(false)
-const confirmDialog = ref(false)
-const reviewData = ref(null)
-const confirmInfo = ref(false)
-const confirmTer = ref(false)
+const route = useRoute()
+const router = useRouter()
+
+const orders = ref([])
+const loading = ref(false)
+const errorMessage = ref('')
 const snackbar = ref(false)
 const snackbarText = ref('')
 const snackbarColor = ref('success')
+const detailDialog = ref(false)
+const requestDialog = ref(false)
+const businessDialog = ref(false)
+const dialog = ref(false)
+const selected = ref(null)
+const dialogType = ref(null)
 const submitting = ref(false)
-const travelOrders = ref([])
-const loadingOrders = ref(false)
-const submittedTravelOrder = ref(null)
+
+const filters = reactive({ search: '', status: null })
+
+const statusOptions = ['Awaiting Approval Manager', 'Awaiting GMO Processing', 'Awaiting GMO Booking Preparation', 'Awaiting GMO Document Issuance', 'Processed by GMO']
+
+const statusColor = {
+  'Processed by GMO': 'success',
+  'Awaiting Approval Manager': 'warning',
+}
+
+const statusLabel = {
+  awaiting_approval_manager: 'Awaiting Approval Manager',
+  awaiting_gmo_processing: 'Awaiting GMO Processing',
+  awaiting_gmo_booking_preparation: 'Awaiting GMO Booking Preparation',
+  awaiting_gmo_document_issuance: 'Awaiting GMO Document Issuance',
+  processed_by_gmo: 'Processed by GMO',
+}
+
+const typeColor = {
+  'Business Trip - Individual': 'primary',
+  'Business Trip - Group Trip': 'info',
+  'Annual Trip': 'success',
+}
+
+const typeLabel = {
+  individual: 'Business Trip - Individual',
+  group: 'Business Trip - Group Trip',
+  annual: 'Annual Trip',
+}
+
+const headerClass = 'px-3 py-3 text-caption font-weight-bold text-medium-emphasis bg-grey-lighten-4 text-no-wrap'
+const cellClass = 'px-3 py-3'
+
+const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
+
+const headers = [
+  col('ID', 'id'),
+  col('REQUEST TYPE', 'type'),
+  col('SUBJECT', 'subject'),
+  col('PERIOD', 'period'),
+  col('ARRANGEMENT', 'arrangement'),
+  col('STATUS', 'status'),
+  col('ACTION', 'action', { align: 'center', width: 100 }),
+]
+
+const requestTypes = [
+  { key: 'annual', badge: 'AL', title: 'Annual Leave', desc: 'Submit your annual leave request.', points: ['Leave period selection', 'Leave balance check'] },
+  { key: 'business', badge: 'BT', title: 'Business Trip', desc: 'Create an individual trip or a group trip request.', points: ['Individual Trip', 'Group Trip', 'Travel region and travel advance'] },
+]
+
+const businessTypes = [
+  { key: 'individual', badge: 'IT', title: 'Individual Trip', desc: 'Business trip for one person.', points: ['Route and travel dates', 'Ticket and accommodation', 'Travel advance'] },
+  { key: 'group', badge: 'GT', title: 'Group Trip', desc: 'Business trip for multiple people.', points: ['Traveler list', 'Route and travel dates', 'Ticket and accommodation'] },
+]
 
 function showMessage(text, color = 'success') {
   snackbarText.value = text
@@ -26,28 +82,81 @@ function showMessage(text, color = 'success') {
   snackbar.value = true
 }
 
-const rootCards = [
-  { key: 'annual', title: 'Annual Leave', desc: 'Submit your annual leave request.', icon: 'ri-calendar-check-line' },
-  { key: 'business', title: 'Business Trip', desc: 'Submit an individual or group business trip request.', icon: 'ri-briefcase-line' },
-]
+function toStatusLabel(status) {
+  return status ? statusLabel[status] || status : 'Awaiting Approval Manager'
+}
 
-const businessCards = [
-  { key: 'individual', title: 'Individual Trip', desc: 'Business trip for one person.', icon: 'ri-user-line' },
-  { key: 'group', title: 'Group Trip', desc: 'Business trip for multiple people.', icon: 'ri-group-line' },
-]
+function formatDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
-function handleClick(item) {
-  if (item.key === 'business') view.value = 'business'
+function resolveArrangement(order) {
+  const a = order.ferry_arrangement ?? order.ticket_arrangement
+  const b = order.accommodation_arrangement
 
-  if (item.key === 'individual') {
-    dialogType.value = 'individual'
-    dialog.value = true
+  if (!a && !b) return '-'
+  if (!b || a === b) return a || b
+  if (!a) return b
+  if (b === 'Not Required') return a
+
+  return 'Mixed'
+}
+
+function normalize(order) {
+  return {
+    raw: order,
+    id: order.order_number,
+    type: typeLabel[order.request_type] || 'Business Trip - Individual',
+    subject: order.subject || order.user?.name || '-',
+    department: order.department?.name || order.department_name || '',
+    period: `${formatDate(order.departure_date)} – ${formatDate(order.return_date)}`,
+    arrangement: resolveArrangement(order),
+    status: toStatusLabel(order.status),
+  }
+}
+
+const rows = computed(() => orders.value.map(normalize))
+
+const filteredRows = computed(() => {
+  const query = filters.search.trim().toLowerCase()
+
+  return rows.value.filter(row =>
+    (!query || `${row.id} ${row.subject}`.toLowerCase().includes(query)) &&
+    (!filters.status || row.status === filters.status),
+  )
+})
+
+function clearFilters() {
+  filters.search = ''
+  filters.status = null
+}
+
+function openNewRequest() {
+  requestDialog.value = true
+}
+
+function selectRequest(type) {
+  if (type === 'annual') {
+    requestDialog.value = false
+    showMessage('Annual Leave form is not available yet.', 'info')
+    return
   }
 
-  if (item.key === 'group') {
-    dialogType.value = 'group'
-    dialog.value = true
-  }
+  requestDialog.value = false
+  businessDialog.value = true
+}
+
+function backToRequest() {
+  businessDialog.value = false
+  requestDialog.value = true
+}
+
+function selectBusinessType(type) {
+  businessDialog.value = false
+  dialogType.value = type
+  dialog.value = true
 }
 
 function closeDialog() {
@@ -55,373 +164,314 @@ function closeDialog() {
   dialogType.value = null
 }
 
-function handleIndividualReview(data) {
-  dialog.value = false
-  dialogType.value = null
-  reviewData.value = data
-  confirmInfo.value = false
-  confirmTer.value = false
-  reviewDialog.value = true
+function openDetail(row) {
+  selected.value = row.raw
+  detailDialog.value = true
 }
 
-function backToEdit() {
-  reviewDialog.value = false
-  dialogType.value = 'individual'
-  dialog.value = true
-}
+const detailSections = computed(() => {
+  const order = selected.value
+  if (!order) return []
 
-function handleFinalSubmit() {
-  if (!confirmInfo.value || !confirmTer.value || submitting.value) return
-  confirmDialog.value = true
-}
+  const ticket = order.ticket || {}
+  const accommodation = order.accommodation || {}
+  const advance = order.advance || {}
+  const val = value => value === null || value === undefined || value === '' ? '-' : value
 
-async function confirmFinalSubmit() {
-  submitting.value = true
+  return [
+    {
+      title: 'Request Summary',
+      items: [
+        { label: 'Request Type', value: typeLabel[order.request_type] || 'Business Trip - Individual' },
+        { label: 'Employee', value: val(order.user?.name) },
+        { label: 'Department', value: val(order.department?.name) },
+        { label: 'Travel Region', value: val(order.travel_region) },
+        { label: 'Country', value: val(order.country) },
+        { label: 'Route', value: `${val(order.travel_from)} → ${val(order.travel_to)}` },
+        { label: 'Departure', value: `${formatDate(order.departure_date)} ${order.departure_time || ''}`.trim() },
+        { label: 'Return', value: `${formatDate(order.return_date)} ${order.return_time || ''}`.trim() },
+        { label: 'Purpose', value: val(order.purpose), full: true },
+        { label: 'Remarks', value: val(order.remarks), full: true },
+      ],
+    },
+    {
+      title: 'Ticket, Accommodation & Travel Advance',
+      items: [
+        { label: 'Ticket Type', value: val(ticket.ticket_type ?? order.ferry_ticket_type) },
+        { label: 'Ticket Arrangement', value: val(ticket.arrangement ?? order.ferry_arrangement) },
+        { label: 'Accommodation', value: val(accommodation.arrangement ?? order.accommodation_arrangement) },
+        { label: 'Meal Allowance', value: advance.meal_allowance ? `${advance.meal_allowance} ${advance.meal_currency || ''}` : 'Not Applicable' },
+        { label: 'Pocket Money', value: advance.pocket_money ? `${advance.pocket_money} ${advance.pocket_currency || ''}` : 'Not Applicable' },
+      ],
+    },
+  ]
+})
 
-  try {
-    const response = await createTravelOrder(reviewData.value)
-    submittedTravelOrder.value = response.data
-    confirmDialog.value = false
-    reviewDialog.value = false
-    showMessage(response.message || 'Travel order submitted successfully.')
-  } catch (error) {
-    showMessage(error?.response?.data?.message || 'Failed to submit travel order.', 'error')
-  } finally {
-    submitting.value = false
-  }
-}
-
-async function handleIndividualSubmit(payload) {
-  submitting.value = true
-
-  try {
-    const response = await createTravelOrder(payload)
-    submittedTravelOrder.value = response.data
-    closeDialog()
-    showMessage(response.message || 'Travel order submitted successfully.')
-  } catch (error) {
-    const errors = error?.response?.data?.errors
-    const firstError = errors ? Object.values(errors)[0][0] : null
-    showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
-  } finally {
-    submitting.value = false
-  }
-}
-
-async function handleGroupSubmit(payload) {
-  submitting.value = true
-
-  try {
-    const response = await createTravelOrder(payload)
-    submittedTravelOrder.value = response.data
-    closeDialog()
-    showMessage(response.message || 'Travel order submitted successfully.')
-  } catch (error) {
-    const errors = error?.response?.data?.errors
-    const firstError = errors ? Object.values(errors)[0][0] : null
-    showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
-  } finally {
-    submitting.value = false
-  }
-}
-
-async function loadTravelOrders() {
-  loadingOrders.value = true
+async function loadOrders() {
+  loading.value = true
+  errorMessage.value = ''
 
   try {
     const response = await getTravelOrders()
-    travelOrders.value = response.data ?? response
+    const data = response.data ?? response
+    orders.value = Array.isArray(data) ? data : data.data || []
   } catch (error) {
-    showMessage(error?.response?.data?.message || 'Failed to load travel orders.', 'error')
+    errorMessage.value = error?.response?.data?.message || 'Failed to load travel orders.'
   } finally {
-    loadingOrders.value = false
+    loading.value = false
   }
 }
 
-onMounted(() => loadTravelOrders())
+async function submitOrder(payload) {
+  if (submitting.value) return
+
+  submitting.value = true
+
+  try {
+    await createTravelOrder(payload)
+    closeDialog()
+    router.push({ name: 'my-travel-order', query: { submitted: '1' } })
+  } catch (error) {
+    console.error('Submit error:', error?.response?.data || error)
+
+    const errors = error?.response?.data?.errors
+    const firstError = errors ? Object.values(errors)[0][0] : null
+
+    showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(() => {
+  loadOrders()
+
+  if (route.query.submitted) {
+    snackbar.value = true
+    snackbarText.value = 'Travel order submitted successfully.'
+    snackbarColor.value = 'success'
+    router.replace({ query: {} })
+  }
+})
 </script>
 
 <template>
-  <VCard v-if="view === 'root' && !submittedTravelOrder" rounded="lg" elevation="2">
-    <VCardText class="pa-6">
-      <div class="d-flex align-center ga-3 mb-2">
-        <VAvatar color="primary" variant="tonal" size="44">
-          <VIcon icon="ri-file-list-3-line" size="24" />
-        </VAvatar>
-
+  <div>
+    <div class="mb-6">
+      <div class="text-overline text-medium-emphasis">EMPLOYEE WORKSPACE</div>
+      <div class="d-flex align-center justify-space-between">
         <div>
-          <div class="text-primary text-body-2 font-weight-bold">REQUEST</div>
-          <div class="text-h5 font-weight-bold">What would you like to request today?</div>
+          <div class="text-h4 font-weight-bold mb-1">My Travel Orders</div>
+          <div class="text-body-1 text-medium-emphasis">Track approval and GMO operational status using one current Travel Order status.</div>
         </div>
+
+        <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
       </div>
+    </div>
 
-      <div class="text-body-2 text-medium-emphasis mb-6">Select a request category to continue.</div>
+    <VCard rounded="lg" elevation="1">
+      <VCardItem class="px-6 py-4">
+        <VCardTitle class="text-subtitle-1 font-weight-bold">Travel Order Inquiry</VCardTitle>
 
-      <VRow>
-        <VCol v-for="item in rootCards" :key="item.key" cols="12" md="6">
-          <VCard rounded="lg" color="primary" elevation="2" hover class="h-100" @click="handleClick(item)">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center ga-4">
-                <VAvatar color="white" variant="flat" size="56">
-                  <VIcon :icon="item.icon" color="primary" size="30" />
-                </VAvatar>
+        <template #append>
+          <VChip size="small" variant="tonal" color="primary">{{ filteredRows.length }} requests</VChip>
+        </template>
+      </VCardItem>
 
-                <div class="flex-grow-1">
-                  <div class="text-h6 font-weight-bold text-white">{{ item.title }}</div>
-                  <div class="text-body-2 text-white">{{ item.desc }}</div>
-                </div>
+      <VDivider />
 
-                <VIcon icon="ri-arrow-right-s-line" color="white" size="26" />
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-    </VCardText>
-  </VCard>
+      <VCardText class="filter-section px-6 py-5">
+        <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
 
-  <VCard v-else-if="view === 'business' && !submittedTravelOrder" rounded="lg" elevation="2">
-    <VCardText class="pa-6">
-      <div class="d-flex align-center mb-6">
-        <VBtn variant="text" icon="ri-arrow-left-line" class="me-3" @click="view = 'root'" />
+        <VRow align="end" dense>
+          <VCol cols="12" md="4">
+            <div class="text-caption font-weight-bold mb-1">Travel Order ID / Subject</div>
+            <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable />
+          </VCol>
 
-        <VAvatar color="primary" variant="tonal" size="44" class="me-3">
-          <VIcon icon="ri-briefcase-line" size="24" />
-        </VAvatar>
+          <VCol cols="12" md="3">
+            <div class="text-caption font-weight-bold mb-1">Status</div>
+            <VSelect v-model="filters.status" :items="statusOptions" placeholder="All statuses" variant="outlined" density="compact" hide-details clearable />
+          </VCol>
 
-        <div>
-          <div class="text-primary text-body-2 font-weight-bold">BUSINESS TRIP</div>
-          <div class="text-h5 font-weight-bold">How many people are traveling?</div>
-        </div>
-      </div>
+          <VCol cols="12" md="2">
+            <VBtn variant="tonal" color="error" block height="40" @click="clearFilters">Clear</VBtn>
+          </VCol>
+        </VRow>
+      </VCardText>
 
-      <div class="text-body-2 text-medium-emphasis mb-6">Select the appropriate business trip format.</div>
+      <VDivider />
 
-      <VRow>
-        <VCol v-for="item in businessCards" :key="item.key" cols="12" md="6">
-          <VCard rounded="lg" color="primary" elevation="2" hover class="h-100" @click="handleClick(item)">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center ga-4">
-                <VAvatar color="white" size="56">
-                  <VIcon :icon="item.icon" color="primary" size="30" />
-                </VAvatar>
+      <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" :items-per-page="10" item-value="id" hover no-data-text="No travel orders found.">
+        <template #item.id="{ item }">
+          <span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span>
+        </template>
 
-                <div class="flex-grow-1">
-                  <div class="text-h6 font-weight-bold text-white">{{ item.title }}</div>
-                  <div class="text-body-2 text-white">{{ item.desc }}</div>
-                </div>
+        <template #item.type="{ item }">
+          <VChip size="small" variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip>
+        </template>
 
-                <VIcon icon="ri-arrow-right-s-line" color="white" size="26" />
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-    </VCardText>
-  </VCard>
+        <template #item.subject="{ item }">
+          <div class="font-weight-bold text-body-2">{{ item.subject }}</div>
+          <div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div>
+        </template>
 
-  <VCard v-else-if="submittedTravelOrder" rounded="lg" elevation="2">
-    <VCardText class="pa-6">
-      <div class="d-flex align-center ga-3 mb-6">
-        <VAvatar color="primary" variant="tonal" size="44">
-          <VIcon icon="ri-file-list-3-line" size="24" />
-        </VAvatar>
+        <template #item.period="{ item }">
+          <span class="text-body-2 text-no-wrap">{{ item.period }}</span>
+        </template>
 
-        <div>
-          <div class="text-primary text-body-2 font-weight-bold">TRAVEL ORDER</div>
-          <div class="text-h5 font-weight-bold">Travel Order Summary</div>
-        </div>
-      </div>
+        <template #item.arrangement="{ item }">
+          <span class="text-body-2 text-no-wrap">{{ item.arrangement }}</span>
+        </template>
 
-      <VAlert type="success" variant="tonal" class="mb-6">
-        Travel Order has been submitted successfully.
-      </VAlert>
+        <template #item.status="{ item }">
+          <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap">
+            <VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />
+            {{ item.status }}
+          </VChip>
+        </template>
 
-      <div class="d-flex align-center justify-space-between flex-wrap ga-4 mb-6">
-        <div>
-          <div class="text-body-2 text-medium-emphasis">Order Number</div>
-          <div class="text-h6 font-weight-bold">{{ submittedTravelOrder.order_number || '-' }}</div>
-        </div>
+        <template #item.action="{ item }">
+          <VBtn size="small" variant="tonal" color="primary" prepend-icon="ri-eye-line" @click="openDetail(item)">View</VBtn>
+        </template>
+      </VDataTable>
+    </VCard>
 
-        <div class="text-end">
-          <div class="text-body-2 text-medium-emphasis mb-1">Status</div>
-          <VChip color="warning" variant="tonal">Awaiting Approval Manager</VChip>
-        </div>
-      </div>
-    </VCardText>
-  </VCard>
+    <!-- Modal 1: pilih Annual Leave / Business Trip -->
+    <VDialog v-model="requestDialog" max-width="720">
+      <VCard rounded="xl">
+        <VCardItem class="px-6 py-5">
+          <VCardTitle class="text-h6 font-weight-bold">New Travel Request</VCardTitle>
+          <VCardSubtitle>Select the type of request you want to submit.</VCardSubtitle>
 
-  <VDialog v-if="!reviewDialog" v-model="dialog" max-width="1200" scrollable>
-    <VCard rounded="lg" class="overflow-hidden">
-      <VCardTitle class="d-flex align-center justify-space-between pa-5">
-        <div class="d-flex align-center ga-3">
-          <VAvatar color="primary" variant="tonal" size="42">
-            <VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" />
-          </VAvatar>
+          <template #append>
+            <VBtn icon="ri-close-line" variant="text" size="small" @click="requestDialog = false" />
+          </template>
+        </VCardItem>
 
-          <div>
-            <div class="text-subtitle-1 font-weight-bold">
-              {{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}
-            </div>
+        <VDivider />
 
-            <div class="text-caption text-medium-emphasis">
-              {{ dialogType === 'individual'
-                ? 'Create an individual business trip request.'
-                : 'Create a group business trip request.' }}
+        <VCardText class="pa-6">
+          <VRow>
+            <VCol v-for="item in requestTypes" :key="item.key" cols="6">
+              <VCard variant="outlined" rounded="lg" hover class="pick-tile h-100" @click="selectRequest(item.key)">
+                <VCardText class="pa-6">
+                  <VAvatar color="primary" rounded="lg" size="56" class="mb-4"><span class="text-h6 font-weight-bold">{{ item.badge }}</span></VAvatar>
+                  <div class="text-h6 font-weight-bold mb-1">{{ item.title }}</div>
+                  <div class="text-body-2 text-medium-emphasis">{{ item.desc }}</div>
+                  <ul class="text-body-2 text-medium-emphasis ps-5 mt-4">
+                    <li v-for="point in item.points" :key="point">{{ point }}</li>
+                  </ul>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+        </VCardText>
+      </VCard>
+    </VDialog>
+
+    <!-- Modal 2: pilih Individual / Group -->
+    <VDialog v-model="businessDialog" max-width="720">
+      <VCard rounded="xl">
+        <VCardItem class="px-6 py-5">
+          <template #prepend>
+            <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" @click="backToRequest" />
+          </template>
+
+          <VCardTitle class="text-h6 font-weight-bold">Business Trip</VCardTitle>
+          <VCardSubtitle>How many people are traveling?</VCardSubtitle>
+
+          <template #append>
+            <VBtn icon="ri-close-line" variant="text" size="small" @click="businessDialog = false" />
+          </template>
+        </VCardItem>
+
+        <VDivider />
+
+        <VCardText class="pa-6">
+          <VRow>
+            <VCol v-for="item in businessTypes" :key="item.key" cols="6">
+              <VCard variant="outlined" rounded="lg" hover class="pick-tile h-100" @click="selectBusinessType(item.key)">
+                <VCardText class="pa-6">
+                  <VAvatar color="primary" rounded="lg" size="56" class="mb-4"><span class="text-h6 font-weight-bold">{{ item.badge }}</span></VAvatar>
+                  <div class="text-h6 font-weight-bold mb-1">{{ item.title }}</div>
+                  <div class="text-body-2 text-medium-emphasis">{{ item.desc }}</div>
+                  <ul class="text-body-2 text-medium-emphasis ps-5 mt-4">
+                    <li v-for="point in item.points" :key="point">{{ point }}</li>
+                  </ul>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+        </VCardText>
+      </VCard>
+    </VDialog>
+
+    <VDialog v-model="dialog" max-width="1200" scrollable>
+      <VCard rounded="lg">
+        <VCardTitle class="d-flex align-center justify-space-between pa-5">
+          <div class="d-flex align-center ga-3">
+            <VAvatar color="primary" variant="tonal" size="42"><VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" /></VAvatar>
+
+            <div>
+              <div class="text-subtitle-1 font-weight-bold">{{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}</div>
+              <div class="text-caption text-medium-emphasis">{{ dialogType === 'individual' ? 'Create an individual business trip request.' : 'Create a group business trip request.' }}</div>
             </div>
           </div>
-        </div>
 
-        <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
-      </VCardTitle>
+          <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
+        </VCardTitle>
 
-      <VDivider />
+        <VDivider />
 
-      <VCardText class="pa-6">
-        <IndividualTripForm
-          v-if="dialogType === 'individual'"
-          :loading="submitting"
-          @cancel="closeDialog"
-          @review="handleIndividualReview"
-        />
+        <VCardText class="pa-6">
+          <IndividualTripForm v-if="dialogType === 'individual'" :loading="submitting" @cancel="closeDialog" @submit="submitOrder" />
+          <GroupTripForm v-else-if="dialogType === 'group'" :loading="submitting" @cancel="closeDialog" @review="submitOrder" />
+        </VCardText>
+      </VCard>
+    </VDialog>
 
-        <GroupTripForm
-          v-else-if="dialogType === 'group'"
-          :loading="submitting"
-          @cancel="closeDialog"
-          @review="handleGroupSubmit"
-        />
-      </VCardText>
-    </VCard>
-  </VDialog>
+    <VDialog v-model="detailDialog" max-width="800" scrollable>
+      <VCard rounded="lg">
+        <VCardItem class="px-6 py-4">
+          <div class="text-caption text-primary font-weight-bold">TRAVEL ORDER</div>
+          <VCardTitle class="pa-0 text-h6 font-weight-bold">{{ selected?.order_number || '-' }}</VCardTitle>
 
-  <!-- REVIEW -->
-  <VDialog v-model="reviewDialog" max-width="1200" scrollable>
-    <VCard>
-      <VCardTitle class="d-flex align-center justify-space-between">
-        <div>
-          <div class="text-caption text-primary font-weight-bold">FINAL REVIEW</div>
-          <div class="text-h5 font-weight-bold">Travel Order Summary</div>
-        </div>
+          <template #append>
+            <VChip size="small" variant="tonal" :color="statusColor[toStatusLabel(selected?.status)] || 'primary'" class="me-2">{{ toStatusLabel(selected?.status) }}</VChip>
+            <VBtn icon="ri-close-line" variant="text" @click="detailDialog = false" />
+          </template>
+        </VCardItem>
 
-        <VChip color="warning" variant="outlined">Not Submitted</VChip>
-      </VCardTitle>
+        <VDivider />
 
-      <VDivider />
+        <VCardText class="px-6 py-2">
+          <template v-for="(section, index) in detailSections" :key="section.title">
+            <VDivider v-if="index > 0" class="my-4" />
+            <div class="text-subtitle-2 font-weight-bold text-primary mt-4 mb-4">{{ section.title }}</div>
 
-      <VCardText>
-        <VCard variant="outlined" class="mb-4">
-          <VCardTitle>Request Summary</VCardTitle>
-          <VDivider />
-
-          <VCardText>
-            <VRow>
-              <VCol cols="12" md="3">
-                <div class="text-caption">Travel Region</div>
-                <b>{{ reviewData?.travelRegion || '-' }}</b>
-              </VCol>
-
-              <VCol cols="12" md="3">
-                <div class="text-caption">Departure</div>
-                <b>{{ reviewData?.departureDate || '-' }} {{ reviewData?.departureTime || '' }}</b>
-              </VCol>
-
-              <VCol cols="12" md="3">
-                <div class="text-caption">Return</div>
-                <b>{{ reviewData?.returnDate || '-' }} {{ reviewData?.returnTime || '' }}</b>
-              </VCol>
-
-              <VCol cols="12" md="6">
-                <div class="text-caption">Route</div>
-                <b>{{ reviewData?.travelFrom || '-' }} → {{ reviewData?.travelTo || '-' }}</b>
-              </VCol>
-
-              <VCol cols="12">
-                <div class="text-caption">Purpose</div>
-                <b>{{ reviewData?.purpose || '-' }}</b>
-              </VCol>
-
-              <VCol cols="12">
-                <div class="text-caption">Remarks</div>
-                <b>{{ reviewData?.remarks || '—' }}</b>
+            <VRow dense>
+              <VCol v-for="item in section.items" :key="item.label" cols="12" :md="item.full ? 12 : 4" class="pb-4">
+                <div class="text-caption text-medium-emphasis">{{ item.label }}</div>
+                <div class="text-body-2 font-weight-medium">{{ item.value }}</div>
               </VCol>
             </VRow>
-          </VCardText>
-        </VCard>
+          </template>
+        </VCardText>
 
-        <VCard variant="outlined" class="mb-4">
-          <VCardTitle>Ticket, Accommodation & Travel Advance</VCardTitle>
-          <VDivider />
+        <VDivider />
 
-          <VCardText>
-            <VRow>
-              <VCol cols="12" md="4">
-                <div class="text-caption">Airplane Ticket</div>
-                <b>{{ reviewData?.ferryTicketType || '-' }}</b>
-              </VCol>
+        <VCardActions class="px-6 py-3 justify-end">
+          <VBtn variant="tonal" color="primary" @click="detailDialog = false">Close</VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
 
-              <VCol cols="12" md="4">
-                <div class="text-caption">Accommodation</div>
-                <b>{{ reviewData?.accommodationArrangement || '-' }}</b>
-              </VCol>
-
-              <VCol cols="12" md="4">
-                <div class="text-caption">Travel Advance</div>
-                <b>{{ reviewData?.mealAllowance || reviewData?.pocketMoney ? 'Applicable' : 'Not Applicable' }}</b>
-              </VCol>
-            </VRow>
-          </VCardText>
-        </VCard>
-
-        <VCard variant="outlined">
-          <VCardTitle>Submission Declaration</VCardTitle>
-          <VDivider />
-
-          <VCardText>
-            <VCheckbox
-              v-model="confirmInfo"
-              label="I confirm that the Travel Order information is correct and ready to enter the approval process."
-            />
-
-            <VCheckbox
-              v-model="confirmTer"
-              label="I acknowledge and commit to submit the TER no later than 7 calendar days after the Return Date."
-            />
-          </VCardText>
-        </VCard>
-      </VCardText>
-
-      <VDivider />
-
-      <VCardActions class="justify-end">
-        <VBtn variant="outlined" @click="backToEdit">Back to Edit</VBtn>
-        <VBtn
-          color="primary"
-          :loading="submitting"
-          :disabled="!confirmInfo || !confirmTer"
-          @click="handleFinalSubmit"
-        >
-          Submit Travel Order
-        </VBtn>
-      </VCardActions>
-    </VCard>
-  </VDialog>
-
-  <VDialog v-model="confirmDialog" max-width="420">
-    <VCard rounded="lg">
-      <VCardTitle class="text-h6 font-weight-bold">Are you sure?</VCardTitle>
-
-      <VCardText>Are you sure you want to submit this Travel Order?</VCardText>
-
-      <VCardActions class="justify-end">
-        <VBtn variant="text" :disabled="submitting" @click="confirmDialog = false">Cancel</VBtn>
-        <VBtn color="primary" :loading="submitting" @click="confirmFinalSubmit">Yes, Submit</VBtn>
-      </VCardActions>
-    </VCard>
-  </VDialog>
-
-  <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="4000" location="top end">
-    {{ snackbarText }}
-  </VSnackbar>
+    <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="4000" location="top end">{{ snackbarText }}</VSnackbar>
+  </div>
 </template>
 
+<style scoped>
+.pick-tile { border-color: rgba(var(--v-border-color), var(--v-border-opacity)); transition: transform .2s, border-color .2s; }
+.pick-tile:hover { transform: translateY(-4px); border-color: rgb(var(--v-theme-primary)); }
+</style>

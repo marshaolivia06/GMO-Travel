@@ -18,6 +18,7 @@ class TravelOrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $orders = $this->service->list(
+            $request->user(),
             $request->only(['search', 'status', 'travel_region']),
             (int) $request->input('per_page', 10)
         );
@@ -33,14 +34,14 @@ class TravelOrderController extends Controller
     }
 
     public function approve(int $id): JsonResponse
-{
-    $order = $this->service->approve($id);
+    {
+        $order = $this->service->approve($id);
 
-    return response()->json([
-        'message' => 'Travel Order has been successfully approved.',
-        'data' => $order,
-    ]);
-}
+        return response()->json([
+            'message' => 'Travel Order has been successfully approved.',
+            'data' => $order,
+        ]);
+    }
 
     public function departmentLock(Request $request): JsonResponse
     {
@@ -51,7 +52,10 @@ class TravelOrderController extends Controller
 
     public function store(StoreTravelOrderRequest $request): JsonResponse
     {
-        $order = $this->service->create($request->validated(), $request->user());
+        $order = $this->service->create(
+            $request->validated(),
+            $request->user()
+        );
 
         return response()->json([
             'message' => 'The travel order has been successfully submitted.',
