@@ -39,49 +39,49 @@ class TravelAdvanceMasterController extends Controller
     }
 
     public function limitByGrade(HttpRequest $request): JsonResponse
-{
-    $request->validate([
-        'travel_region' => ['required', 'string'],
-        'grade' => ['required', 'integer'],
-    ]);
+    {
+        $request->validate([
+            'travel_region' => ['required', 'string'],
+            'grade' => ['required', 'integer'],
+        ]);
 
-    $travelAdvance = $this->travelAdvanceService->findByRegionAndGrade(
-        $request->input('travel_region'),
-        (int) $request->input('grade')
-    );
+        $travelAdvance = $this->travelAdvanceService->findByRegionAndGrade(
+            $request->input('travel_region'),
+            (int) $request->input('grade')
+        );
 
-    if (! $travelAdvance) {
+        if (! $travelAdvance) {
+            return ApiResponse::success([
+                'pocket_money_limit' => null,
+                'meal_allowance_limit' => null,
+            ]);
+        }
+
         return ApiResponse::success([
-            'pocket_money_limit' => null,
-            'meal_allowance_limit' => null,
+            'pocket_money_limit' => (float) $travelAdvance->pocket_money_limit,
+            'meal_allowance_limit' => (float) $travelAdvance->meal_allowance_limit,
         ]);
     }
 
-    return ApiResponse::success([
-        'pocket_money_limit' => (float) $travelAdvance->pocket_money_limit,
-        'meal_allowance_limit' => (float) $travelAdvance->meal_allowance_limit,
-    ]);
-}
+    public function regions(): JsonResponse
+    {
+        return ApiResponse::success(
+            $this->travelAdvanceService->getDistinctRegions()
+        );
+    }
 
-public function regions(): JsonResponse
-{
-    return ApiResponse::success(
-        $this->travelAdvanceService->getDistinctRegions()
-    );
-}
+    public function countries(HttpRequest $request): JsonResponse
+    {
+        $request->validate([
+            'travel_region' => ['required', 'string'],
+        ]);
 
-public function countries(HttpRequest $request): JsonResponse
-{
-    $request->validate([
-        'travel_region' => ['required', 'string'],
-    ]);
+        $countries = $this->travelAdvanceService->getCountriesByRegion(
+            $request->travel_region
+        );
 
-    $countries = $this->travelAdvanceService->getCountriesByRegion(
-        $request->travel_region
-    );
-
-    return ApiResponse::success($countries);
-}
+        return ApiResponse::success($countries);
+    }
 
     public function store(
         StoreTravelAdvanceMasterRequest $request
@@ -115,7 +115,6 @@ public function countries(HttpRequest $request): JsonResponse
     public function destroy(int $id): JsonResponse
     {
         $this->travelAdvanceService->findById($id);
-
         $this->travelAdvanceService->delete($id);
 
         return ApiResponse::success(
@@ -131,10 +130,29 @@ public function countries(HttpRequest $request): JsonResponse
             'currency' => ['required', 'string'],
         ]);
 
-        $travelAdvance = $this->travelAdvanceService->findByRegionAndCurrency(
-            $request->input('travel_region'),
-            $request->input('currency')
-        );
+        $travelRegion = $request->input('travel_region');
+        $currency = $request->input('currency');
+
+        if ($travelRegion === 'Domestic') {
+            $user = $request->user();
+
+            if (! $user || $user->grade === null) {
+                return ApiResponse::error(
+                    'Grade user tidak ditemukan.',
+                    422
+                );
+            }
+
+            $travelAdvance = $this->travelAdvanceService->findByRegionAndGrade(
+                'Domestic',
+                (int) $user->grade
+            );
+        } else {
+            $travelAdvance = $this->travelAdvanceService->findByRegionAndCurrency(
+                $travelRegion,
+                $currency
+            );
+        }
 
         if (! $travelAdvance) {
             return ApiResponse::success([
