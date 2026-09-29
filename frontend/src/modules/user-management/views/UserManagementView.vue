@@ -367,6 +367,7 @@ onMounted(() => {
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Email', key: 'email' },
+  { title: 'Grade', key: 'grade', width: 100 },
   { title: 'Role', key: 'role' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },

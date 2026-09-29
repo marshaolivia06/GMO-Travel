@@ -16,6 +16,7 @@ const errors = reactive({
   password: '',
   confirmPassword: '',
   role: '',
+  grade: '',
 })
 
 const form = reactive({
@@ -24,6 +25,7 @@ const form = reactive({
   password: '',
   confirmPassword: '',
   role: '',
+  grade: null,
 })
 
 function clearErrors() {
@@ -32,6 +34,7 @@ function clearErrors() {
   errors.password = ''
   errors.confirmPassword = ''
   errors.role = ''
+  errors.grade = ''
   generalError.value = ''
 }
 
@@ -43,9 +46,9 @@ function handleValidationError(err) {
   errors.name = validationErrors.name?.[0] || ''
   errors.email = validationErrors.email?.[0] || ''
   errors.password = validationErrors.password?.[0] || ''
-  errors.confirmPassword =
-    validationErrors.confirmPassword?.[0] || ''
+  errors.confirmPassword = validationErrors.confirmPassword?.[0] || ''
   errors.role = validationErrors.role?.[0] || ''
+  errors.grade = validationErrors.grade?.[0] || ''
 }
 
 async function fetchRoles() {
@@ -104,9 +107,12 @@ async function submitUser() {
     return
   }
 
-  const confirmed = await swal.confirm(
-    'Are you sure you want to add this user?'
-  )
+  if (form.grade === null || form.grade === '') {
+    errors.grade = 'Grade is required.'
+    return
+  }
+
+  const confirmed = await swal.confirm('Are you sure you want to add this user?')
 
   if (!confirmed.isConfirmed) return
 
@@ -118,6 +124,7 @@ async function submitUser() {
       email: form.email.trim(),
       password: form.password,
       role: form.role,
+      grade: form.grade,
     })
 
     await swal.success(
@@ -140,36 +147,22 @@ async function submitUser() {
 }
 
 function close() {
-  if (!loading.value) {
-    emit('close')
-  }
+  if (!loading.value) emit('close')
 }
 
 onMounted(fetchRoles)
 </script>
 
 <template>
-  <VDialog
-    :model-value="true"
-    max-width="480"
-    persistent
-  >
+  <VDialog :model-value="true" max-width="480" persistent>
     <VCard>
-      <VCardTitle class="pa-4">
-        Add User
-      </VCardTitle>
+      <VCardTitle class="pa-4">Add User</VCardTitle>
 
-      <VCardSubtitle class="px-4">
-        Create a new user.
-      </VCardSubtitle>
+      <VCardSubtitle class="px-4">Create a new user.</VCardSubtitle>
 
       <VForm @submit.prevent="submitUser">
         <VCardText>
-          <VAlert
-            v-if="generalError"
-            type="error"
-            class="mb-4"
-          >
+          <VAlert v-if="generalError" type="error" class="mb-4">
             {{ generalError }}
           </VAlert>
 
@@ -191,6 +184,15 @@ onMounted(fetchRoles)
           />
 
           <VTextField
+            v-model.number="form.grade"
+            label="Grade"
+            type="number"
+            class="mb-3"
+            :disabled="loading"
+            :error-messages="errors.grade ? [errors.grade] : []"
+          />
+
+          <VTextField
             v-model="form.password"
             label="Password"
             type="password"
@@ -205,11 +207,7 @@ onMounted(fetchRoles)
             type="password"
             class="mb-3"
             :disabled="loading"
-            :error-messages="
-              errors.confirmPassword
-                ? [errors.confirmPassword]
-                : []
-            "
+            :error-messages="errors.confirmPassword ? [errors.confirmPassword] : []"
           />
 
           <VAutocomplete
@@ -227,13 +225,7 @@ onMounted(fetchRoles)
         </VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
-          <VBtn
-            variant="tonal"
-            :disabled="loading"
-            @click="close"
-          >
-            Cancel
-          </VBtn>
+          <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
 
           <VBtn
             type="submit"

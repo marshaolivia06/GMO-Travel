@@ -55,6 +55,10 @@ class UserController extends Controller
                 'string',
                 'exists:roles,name',
             ],
+            'grade' => [
+                'nullable',
+                'integer',
+            ],
         ]);
 
         return response()->json([
@@ -93,6 +97,11 @@ class UserController extends Controller
                 'required',
                 'string',
                 'exists:roles,name',
+            ],
+            'grade' => [
+                'sometimes',
+                'nullable',
+                'integer',
             ],
         ]);
 

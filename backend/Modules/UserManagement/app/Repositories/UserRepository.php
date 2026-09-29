@@ -36,6 +36,7 @@ class UserRepository
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
+            'grade' => $data['grade'] ?? null,
         ]);
 
         $user->assignRole($role);
@@ -61,7 +62,6 @@ class UserRepository
             unset($data['role']);
 
             $user->update($data);
-
             $user->syncRoles([$role]);
 
             return $user->fresh()->load('roles.permissions');

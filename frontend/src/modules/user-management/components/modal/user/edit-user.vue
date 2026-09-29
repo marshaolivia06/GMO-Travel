@@ -4,10 +4,7 @@ import { updateUser, getRoles } from '../../../services/userService'
 import swal from '../../../../../plugins/swal'
 
 const props = defineProps({
-  user: {
-    type: Object,
-    required: true,
-  },
+  user: { type: Object, required: true },
 })
 
 const emit = defineEmits(['close', 'updated'])
@@ -23,11 +20,13 @@ const errors = reactive({
   password: '',
   confirmPassword: '',
   role: '',
+  grade: '',
 })
 
 const form = reactive({
   name: props.user?.name || '',
   email: props.user?.email || '',
+  grade: props.user?.grade ?? null,
   password: '',
   confirmPassword: '',
   role: props.user?.roles?.[0]?.name || '',
@@ -39,19 +38,19 @@ function clearErrors() {
   errors.password = ''
   errors.confirmPassword = ''
   errors.role = ''
+  errors.grade = ''
   generalError.value = ''
 }
 
 function handleValidationError(err) {
   const validationErrors = err?.response?.data?.errors
-
   if (!validationErrors) return
 
   errors.name = validationErrors.name?.[0] || ''
   errors.email = validationErrors.email?.[0] || ''
+  errors.grade = validationErrors.grade?.[0] || ''
   errors.password = validationErrors.password?.[0] || ''
-  errors.confirmPassword =
-    validationErrors.confirmPassword?.[0] || ''
+  errors.confirmPassword = validationErrors.confirmPassword?.[0] || ''
   errors.role = validationErrors.role?.[0] || ''
 }
 
@@ -62,10 +61,7 @@ async function fetchRoles() {
   try {
     roles.value = await getRoles()
   } catch (err) {
-    generalError.value =
-      err?.response?.data?.message ||
-      err?.message ||
-      'Failed to load roles.'
+    generalError.value = err?.response?.data?.message || err?.message || 'Failed to load roles.'
   } finally {
     rolesLoading.value = false
   }
@@ -88,28 +84,22 @@ async function submitUser() {
 
   if (form.password) {
     if (form.password.length < 8) {
-      errors.password =
-        'Password must be at least 8 characters.'
+      errors.password = 'Password must be at least 8 characters.'
       return
     }
 
     if (!form.confirmPassword) {
-      errors.confirmPassword =
-        'Please confirm your new password.'
+      errors.confirmPassword = 'Please confirm your new password.'
       return
     }
 
     if (form.password !== form.confirmPassword) {
-      errors.confirmPassword =
-        'Password and confirmation do not match.'
+      errors.confirmPassword = 'Password and confirmation do not match.'
       return
     }
   }
 
-  const confirmed = await swal.confirm(
-    'Are you sure you want to update this user?'
-  )
-
+  const confirmed = await swal.confirm('Are you sure you want to update this user?')
   if (!confirmed.isConfirmed) return
 
   loading.value = true
@@ -118,11 +108,10 @@ async function submitUser() {
     const data = {
       name: form.name.trim(),
       email: form.email.trim(),
+      grade: form.grade,
     }
 
-    if (form.role) {
-      data.role = form.role
-    }
+    if (form.role) data.role = form.role
 
     if (form.password) {
       data.password = form.password
@@ -131,145 +120,54 @@ async function submitUser() {
 
     await updateUser(props.user.id, data)
 
-    await swal.success(
-      'User Updated',
-      `User ${form.name} has been updated successfully.`
-    )
+    await swal.success('User Updated', `User ${form.name} has been updated successfully.`)
 
     emit('updated')
     emit('close')
   } catch (err) {
     handleValidationError(err)
 
-    generalError.value =
-      err?.response?.data?.message ||
-      err?.message ||
-      'Failed to update user.'
+    generalError.value = err?.response?.data?.message || err?.message || 'Failed to update user.'
 
-    await swal.error(
-      'Action Failed',
-      generalError.value
-    )
+    await swal.error('Action Failed', generalError.value)
   } finally {
     loading.value = false
   }
 }
 
 function close() {
-  if (!loading.value) {
-    emit('close')
-  }
+  if (!loading.value) emit('close')
 }
 
 onMounted(fetchRoles)
 </script>
 
 <template>
-  <VDialog
-    :model-value="true"
-    max-width="480"
-    persistent
-  >
+  <VDialog :model-value="true" max-width="480" persistent>
     <VCard>
-      <VCardTitle class="pa-4">
-        Edit User
-      </VCardTitle>
-
-      <VCardSubtitle class="px-4">
-        Update user information.
-      </VCardSubtitle>
+      <VCardTitle class="pa-4">Edit User</VCardTitle>
+      <VCardSubtitle class="px-4">Update user information.</VCardSubtitle>
 
       <VForm @submit.prevent="submitUser">
         <VCardText>
-          <VAlert
-            v-if="generalError"
-            type="error"
-            class="mb-4"
-          >
-            {{ generalError }}
-          </VAlert>
+          <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
 
-          <VTextField
-            v-model="form.name"
-            label="Name"
-            class="mb-3"
-            :disabled="loading"
-            :error-messages="
-              errors.name ? [errors.name] : []
-            "
-          />
+          <VTextField v-model="form.name" label="Name" class="mb-3" :disabled="loading" :error-messages="errors.name ? [errors.name] : []" />
 
-          <VTextField
-            v-model="form.email"
-            label="Email"
-            type="email"
-            class="mb-3"
-            :disabled="loading"
-            :error-messages="
-              errors.email ? [errors.email] : []
-            "
-          />
+          <VTextField v-model="form.email" label="Email" type="email" class="mb-3" :disabled="loading" :error-messages="errors.email ? [errors.email] : []" />
 
-          <VTextField
-            v-model="form.password"
-            label="New Password"
-            type="password"
-            placeholder="Leave blank to keep current password"
-            class="mb-3"
-            :disabled="loading"
-            :error-messages="
-              errors.password ? [errors.password] : []
-            "
-          />
+          <VTextField v-model.number="form.grade" label="Grade" type="number" class="mb-3" :disabled="loading" :error-messages="errors.grade ? [errors.grade] : []" />
 
-          <VTextField
-            v-model="form.confirmPassword"
-            label="Confirm Password"
-            type="password"
-            placeholder="Re-enter new password"
-            class="mb-3"
-            :disabled="loading"
-            :error-messages="
-              errors.confirmPassword
-                ? [errors.confirmPassword]
-                : []
-            "
-          />
+          <VTextField v-model="form.password" label="New Password" type="password" placeholder="Leave blank to keep current password" class="mb-3" :disabled="loading" :error-messages="errors.password ? [errors.password] : []" />
 
-          <VAutocomplete
-            v-model="form.role"
-            :items="roles"
-            item-title="name"
-            item-value="name"
-            label="Select Role"
-            class="mb-2"
-            :loading="rolesLoading"
-            :disabled="loading || rolesLoading"
-            :error-messages="
-              errors.role ? [errors.role] : []
-            "
-            clearable
-          />
+          <VTextField v-model="form.confirmPassword" label="Confirm Password" type="password" placeholder="Re-enter new password" class="mb-3" :disabled="loading" :error-messages="errors.confirmPassword ? [errors.confirmPassword] : []" />
+
+          <VAutocomplete v-model="form.role" :items="roles" item-title="name" item-value="name" label="Select Role" class="mb-2" :loading="rolesLoading" :disabled="loading || rolesLoading" :error-messages="errors.role ? [errors.role] : []" clearable />
         </VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
-          <VBtn
-            variant="tonal"
-            :disabled="loading"
-            @click="close"
-          >
-            Cancel
-          </VBtn>
-
-          <VBtn
-            type="submit"
-            color="success"
-            variant="flat"
-            :loading="loading"
-            :disabled="rolesLoading"
-          >
-            Update
-          </VBtn>
+          <VBtn variant="tonal" :disabled="loading" @click="close">Cancel</VBtn>
+          <VBtn type="submit" color="success" variant="flat" :loading="loading" :disabled="rolesLoading">Update</VBtn>
         </VCardActions>
       </VForm>
     </VCard>

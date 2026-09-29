@@ -19,13 +19,13 @@ class UserService
             ->where('guard_name', 'web')
             ->firstOrFail();
 
-        $user = $this->userRepository->create([
+        $user = $this->userRepository->createUser([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
+            'grade' => $data['grade'],
+            'role' => $data['role'],
         ]);
-
-        $user->assignRole($role);
 
         return $user->fresh()->load('roles.permissions');
     }
@@ -47,19 +47,13 @@ class UserService
 
             unset($data['role']);
 
-            $user = $this->userRepository->update(
-                $user,
-                $data
-            );
+            $user = $this->userRepository->updateUser($id, $data);
 
             $user->syncRoles([$role]);
 
             return $user->fresh()->load('roles.permissions');
         }
 
-        return $this->userRepository->update(
-            $user,
-            $data
-        );
+        return $this->userRepository->updateUser($id, $data);
     }
 }
