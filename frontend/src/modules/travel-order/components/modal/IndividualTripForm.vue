@@ -6,9 +6,11 @@ import { getDepartmentOptions } from '../../../master-management/services/depart
 import { useConfirm } from '../../../../composables/useConfirm'
 
 const emit = defineEmits(['cancel', 'submit'])
-const authStore = useAuthStore()
-const userGrade = computed(() => Number(authStore.user?.grade) || 0) // TODO: sesuaikan nama field grade di authStore.user
 const props = defineProps({ loading: { type: Boolean, default: false } })
+const authStore = useAuthStore()
+const { confirm } = useConfirm()
+
+const userGrade = computed(() => Number(authStore.user?.grade) || 0)
 
 const generalError = ref('')
 const reviewDialog = ref(false)
@@ -16,13 +18,16 @@ const confirmInfo = ref(false)
 const acknowledgeTer = ref(false)
 const departmentLocked = ref(false)
 const departmentOptions = ref([])
+const countryOptions = ref([])
 const loadingDepartmentInfo = ref(true)
 const loadingTravelAdvanceLimit = ref(false)
 const travelAdvanceLimits = reactive({})
 const mealCurrency = ref('')
 const pocketCurrency = ref('')
 const customCountryInput = ref(null)
-const { confirm } = useConfirm()
+const manualCountry = ref(false)
+const selectedCountryCurrency = ref('')
+const manualCurrency = ref('')
 
 const travelRegions = ['Indonesia', 'Singapore', 'Non Singapore']
 const ferryTicketTypes = ['Ferry', 'Airplane']
@@ -30,106 +35,130 @@ const ferryArrangements = ['Direct Payment', 'Booked by Company']
 const accommodationArrangements = ['Direct Payment', 'Booked by Company', 'Not Required']
 const nonSingaporeCurrencies = ['USD', 'EUR', 'MYR', 'JPY']
 
-const errors = reactive({ employee: '', department: '', travelFrom: '', travelTo: '', departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '', travelRegion: '', country: '', customCountry: '', pocketMoney: '', mealAllowance: '', ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '' })
+const errors = reactive({
+  employee: '', department: '', travelFrom: '', travelTo: '', departureDate: '', departureTime: '',
+  returnDate: '', returnTime: '', purpose: '', remarks: '', travelRegion: '', country: '',
+  customCountry: '', pocketMoney: '', mealAllowance: '', ferryTicketType: '', ferryArrangement: '',
+  accommodationArrangement: ''
+})
 
-const form = reactive({ employee: authStore.user?.name || '', department: '', departmentId: null, travelFrom: '', travelTo: '', departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '', travelRegion: '', country: '', customCountry: '', pocketMoney: '', mealAllowance: '', ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '' })
+const form = reactive({
+  employee: authStore.user?.name || '', department: '', departmentId: null, travelFrom: '', travelTo: '',
+  departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '',
+  travelRegion: '', country: '', customCountry: '', pocketMoney: '', mealAllowance: '',
+  ferryTicketType: '', ferryArrangement: '', accommodationArrangement: ''
+})
 
-const hasAdvance = computed(() => ['Indonesia', 'Singapore', 'Non Singapore'].includes(form.travelRegion))
-const advanceCurrencyItems = computed(() => form.travelRegion === 'Indonesia' ? ['IDR'] : form.travelRegion === 'Singapore' ? ['SGD'] : [selectedCountryCurrency.value || manualCurrency.value || 'USD'])
+const hasAdvance = computed(() => travelRegions.includes(form.travelRegion))
 const showCountry = computed(() => form.travelRegion === 'Non Singapore')
 const isFerryReimbursable = computed(() => form.ferryArrangement === 'Direct Payment')
 const isAccommodationReimbursable = computed(() => form.accommodationArrangement === 'Direct Payment')
 
-// Batas per hari dari master advance
-const mealLimit = computed(() => (!hasAdvance.value || !mealCurrency.value) ? null : travelAdvanceLimits[`${form.travelRegion}_${mealCurrency.value}`]?.meal_allowance_limit ?? null)
-const pocketLimit = computed(() => (!hasAdvance.value || !pocketCurrency.value) ? null : travelAdvanceLimits[`${form.travelRegion}_${pocketCurrency.value}`]?.pocket_money_limit ?? null)
+const advanceCurrencyItems = computed(() => {
+  if (form.travelRegion === 'Indonesia') return ['IDR']
+  if (form.travelRegion === 'Singapore') return ['SGD']
+  return [selectedCountryCurrency.value || manualCurrency.value || 'USD']
+})
 
-// Jumlah hari perjalanan (tanggal berangkat & pulang dihitung, jadi 1 Okt - 2 Okt = 2 hari)
 const travelDays = computed(() => {
   if (!form.departureDate || !form.returnDate) return 0
-  const diff = new Date(form.returnDate) - new Date(form.departureDate)
+  const start = new Date(form.departureDate)
+  const end = new Date(form.returnDate)
+  const diff = end - start
   return isNaN(diff) || diff < 0 ? 0 : Math.floor(diff / 86400000) + 1
 })
 
-// Batas total = limit per hari x jumlah hari
+const mealLimit = computed(() => {
+  if (!hasAdvance.value || !mealCurrency.value) return null
+  return travelAdvanceLimits[`${form.travelRegion}_${mealCurrency.value}`]?.meal_allowance_limit ?? null
+})
+
+const pocketLimit = computed(() => {
+  if (!hasAdvance.value || !pocketCurrency.value) return null
+  return travelAdvanceLimits[`${form.travelRegion}_${pocketCurrency.value}`]?.pocket_money_limit ?? null
+})
+
 const mealMax = computed(() => mealLimit.value === null ? null : Number(mealLimit.value) * travelDays.value)
 const pocketMax = computed(() => pocketLimit.value === null ? null : Number(pocketLimit.value) * travelDays.value)
 
 const mealExceeded = computed(() => mealMax.value !== null && form.mealAllowance !== '' && Number(form.mealAllowance) > mealMax.value)
 const pocketExceeded = computed(() => pocketMax.value !== null && form.pocketMoney !== '' && Number(form.pocketMoney) > pocketMax.value)
-const mealHint = computed(() => mealMax.value !== null && travelDays.value ? `Max ${formatNumberByCurrency(mealMax.value, mealCurrency.value)} ${mealCurrency.value} (${travelDays.value} days)` : '')
-const pocketHint = computed(() => pocketMax.value !== null && travelDays.value ? `Max ${formatNumberByCurrency(pocketMax.value, pocketCurrency.value)} ${pocketCurrency.value} (${travelDays.value} days)` : '')
+
+const mealHint = computed(() => mealMax.value !== null && travelDays.value ? `Maximum ${formatNumberByCurrency(mealMax.value, mealCurrency.value)} ${mealCurrency.value} for ${travelDays.value} day(s)` : 'Maximum travel advance based on travel duration.')
+const pocketHint = computed(() => pocketMax.value !== null && travelDays.value ? `Maximum ${formatNumberByCurrency(pocketMax.value, pocketCurrency.value)} ${pocketCurrency.value} for ${travelDays.value} day(s)` : 'Maximum travel advance based on travel duration.')
+
 const canSubmit = computed(() => confirmInfo.value && acknowledgeTer.value && !props.loading)
 
 const mealAllowanceDisplay = computed({
   get: () => formatNumberByCurrency(form.mealAllowance, mealCurrency.value),
-  set: v => { form.mealAllowance = parseNumberInput(v, mealCurrency.value) },
+  set: value => { form.mealAllowance = parseNumberInput(value, mealCurrency.value) },
 })
 
 const pocketMoneyDisplay = computed({
   get: () => formatNumberByCurrency(form.pocketMoney, pocketCurrency.value),
-  set: v => { form.pocketMoney = parseNumberInput(v, pocketCurrency.value) },
-})
-
-const travelAdvanceCurrencyOptions = computed(() => {
-  if (manualCountry.value) {
-    return [
-      { title: 'USD', value: 'USD', disabled: false },
-      { title: 'EUR', value: 'EUR', disabled: false },
-      { title: 'MYR', value: 'MYR', disabled: true },
-      { title: 'JPY', value: 'JPY', disabled: true },
-    ]
-  }
-
-  return nonSingaporeCurrencies
+  set: value => { form.pocketMoney = parseNumberInput(value, pocketCurrency.value) },
 })
 
 const departureDisplay = computed(() => `${formatReviewDate(form.departureDate)} ${form.departureTime || ''}`.trim())
 const returnDisplay = computed(() => `${formatReviewDate(form.returnDate)} ${form.returnTime || ''}`.trim())
 
+function formatNumberByCurrency(value, currency) {
+  if (value === '' || value == null) return ''
+  const number = Number(value)
+  if (isNaN(number)) return ''
+
+  if (currency === 'IDR') return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(number)
+  if (currency === 'EUR') return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(number)
+  if (currency === 'JPY') return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(number)
+
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(number)
+}
+
+function parseNumberInput(value, currency) {
+  if (!value) return ''
+
+  let result = String(value)
+  if (currency === 'IDR') return result.replace(/[^0-9]/g, '')
+
+  result = currency === 'EUR'
+    ? result.replace(/\./g, '').replace(',', '.')
+    : result.replace(/,/g, '')
+
+  return result.replace(/[^0-9.]/g, '')
+}
+
+function blockOverMax(event, max, currency) {
+  if (max === null || event.inputType?.startsWith('delete')) return
+
+  const text = event.data ?? event.dataTransfer?.getData('text') ?? ''
+  if (!text) return
+
+  const el = event.target
+  const next = el.value.slice(0, el.selectionStart) + text + el.value.slice(el.selectionEnd)
+
+  if (Number(parseNumberInput(next, currency) || 0) > max) event.preventDefault()
+}
+
+function formatReviewDate(date) {
+  if (!date) return '-'
+
+  const value = new Date(date)
+  return isNaN(value.getTime())
+    ? '-'
+    : value.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 function onDepartmentSelect(id) {
   form.departmentId = id
-  form.department = departmentOptions.value.find(d => d.id === id)?.name || ''
-}
-
-function formatNumberByCurrency(rawValue, currency) {
-  if (rawValue === '' || rawValue == null) return ''
-  const num = Number(rawValue)
-  if (isNaN(num)) return ''
-  if (currency === 'IDR') return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(num)
-  if (currency === 'EUR') return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(num)
-  if (currency === 'JPY') return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(num)
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(num)
-}
-
-function parseNumberInput(val, currency) {
-  if (!val) return ''
-  if (currency === 'IDR') return String(val).replace(/[^0-9]/g, '')
-  let c = String(val)
-  c = currency === 'EUR' ? c.replace(/\./g, '').replace(',', '.') : c.replace(/,/g, '')
-  return c.replace(/[^0-9.]/g, '')
-}
-
-// Blok ketikan/paste sebelum masuk ke input kalau hasilnya melebihi batas (tanpa pesan warning)
-function blockOverMax(e, max, currency) {
-  if (max === null || e.inputType?.startsWith('delete')) return
-  const text = e.data ?? e.dataTransfer?.getData('text') ?? ''
-  if (!text) return
-  const el = e.target
-  const next = el.value.slice(0, el.selectionStart) + text + el.value.slice(el.selectionEnd)
-  if (Number(parseNumberInput(next, currency) || 0) > max) e.preventDefault()
-}
-
-function formatReviewDate(dateStr) {
-  if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  form.department = departmentOptions.value.find(item => item.id === id)?.name || ''
 }
 
 async function loadDepartmentInfo() {
   loadingDepartmentInfo.value = true
+
   try {
     const lockInfo = await getDepartmentLock()
+
     if (lockInfo.locked) {
       departmentLocked.value = true
       form.departmentId = lockInfo.department.id
@@ -138,8 +167,8 @@ async function loadDepartmentInfo() {
       departmentLocked.value = false
       departmentOptions.value = await getDepartmentOptions()
     }
-  } catch (err) {
-    generalError.value = err?.response?.data?.message || 'Gagal memuat data department.'
+  } catch (error) {
+    generalError.value = error?.response?.data?.message || 'Gagal memuat data department.'
   } finally {
     loadingDepartmentInfo.value = false
   }
@@ -149,6 +178,7 @@ const masterRegionMap = { Indonesia: 'Domestic', Singapore: 'Singapore', 'Non Si
 
 async function loadTravelAdvanceLimit(region, currency) {
   if (!region || !currency) return
+
   const key = `${region}_${currency}`
   if (travelAdvanceLimits[key]) return
 
@@ -158,72 +188,50 @@ async function loadTravelAdvanceLimit(region, currency) {
   }
 
   loadingTravelAdvanceLimit.value = true
+
   try {
-    const res = region === 'Indonesia'
+    const response = region === 'Indonesia'
       ? await getTravelAdvanceLimitByGrade(masterRegionMap[region], userGrade.value)
       : await getTravelAdvanceLimit(region, currency)
-    travelAdvanceLimits[key] = res.data || res
-  } catch (err) {
-    generalError.value = err?.response?.data?.message || 'Gagal memuat batas Travel Advance.'
+
+    travelAdvanceLimits[key] = response.data || response
+  } catch (error) {
+    generalError.value = error?.response?.data?.message || 'Gagal memuat batas Travel Advance.'
   } finally {
     loadingTravelAdvanceLimit.value = false
   }
 }
 
-function selectRegion(region) {
-  form.travelRegion = region
-  loadCountries(region)
-  form.country = ''
-  form.customCountry = ''
-  manualCountry.value = false
-  manualCurrency.value = ''
-  selectedCountryCurrency.value = ''
-
-  form.pocketMoney = ''
-  form.mealAllowance = ''
-  errors.pocketMoney = ''
-  errors.mealAllowance = ''
-
-  if (region === 'Indonesia') {
-    mealCurrency.value = 'IDR'
-    pocketCurrency.value = 'IDR'
-  }
-
-  if (region === 'Singapore') {
-    mealCurrency.value = 'SGD'
-    pocketCurrency.value = 'SGD'
-  }
-
-  if (region === 'Non Singapore') {
-    mealCurrency.value = 'USD'
-    pocketCurrency.value = 'USD'
-  }
-}
-
-const countryOptions = ref([])
-const manualCountry = ref(false)
-const selectedCountryCurrency = ref('')
-const manualCurrency = ref('')
-
 async function loadCountries(region) {
   countryOptions.value = []
   if (!region) return
 
-  const masterRegion = { Indonesia: 'Domestic', Singapore: 'Singapore', 'Non Singapore': 'Overseas' }[region]
+  const masterRegion = masterRegionMap[region]
   if (!masterRegion) return
 
   try {
-    const res = await getTravelAdvanceCountries(masterRegion)
-    console.log('Region form:', region)
-    console.log('Region master:', masterRegion)
-    console.log('Country API response:', res)
-    console.log('Country data:', res.data)
-    countryOptions.value = [...(res.data || res || []), { country: 'Other', currency: null }]
-    console.log('Country options:', countryOptions.value)
+    const response = await getTravelAdvanceCountries(masterRegion)
+    countryOptions.value = [...(response.data || response || []), { country: 'Other', currency: null }]
   } catch (error) {
     console.error('Country API error:', error)
     countryOptions.value = []
   }
+}
+
+function selectRegion(region) {
+  form.travelRegion = region
+  form.country = ''
+  form.customCountry = ''
+  form.pocketMoney = ''
+  form.mealAllowance = ''
+  manualCountry.value = false
+  manualCurrency.value = ''
+  selectedCountryCurrency.value = ''
+  mealCurrency.value = region === 'Indonesia' ? 'IDR' : region === 'Singapore' ? 'SGD' : 'USD'
+  pocketCurrency.value = mealCurrency.value
+  errors.pocketMoney = ''
+  errors.mealAllowance = ''
+  loadCountries(region)
 }
 
 function selectCountry(country) {
@@ -254,32 +262,39 @@ function selectManualCurrency(currency) {
   pocketCurrency.value = currency
 }
 
-function focusCustomCountry() {
-  nextTick(() => customCountryInput.value?.focus())
+function backToCountryDropdown() {
+  manualCountry.value = false
+  form.country = ''
+  manualCurrency.value = ''
+  mealCurrency.value = ''
+  pocketCurrency.value = ''
 }
 
 function clearErrors() {
-  Object.keys(errors).forEach(k => { errors[k] = '' })
+  Object.keys(errors).forEach(key => { errors[key] = '' })
   generalError.value = ''
 }
 
 function validate() {
   clearErrors()
   let valid = true
-  const required = ['employee', 'department', 'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate', 'returnTime', 'purpose', 'travelRegion', 'ferryTicketType', 'ferryArrangement', 'accommodationArrangement']
 
-  required.forEach(k => {
-    if (!String(form[k] ?? '').trim()) {
-      errors[k] = 'This field is required.'
+  const required = [
+    'employee', 'department', 'travelFrom', 'travelTo', 'departureDate', 'departureTime',
+    'returnDate', 'returnTime', 'purpose', 'travelRegion', 'ferryTicketType',
+    'ferryArrangement', 'accommodationArrangement'
+  ]
+
+  required.forEach(key => {
+    if (!String(form[key] ?? '').trim()) {
+      errors[key] = 'This field is required.'
       valid = false
     }
   })
 
-  if (form.travelRegion === 'Non Singapore') {
-    if (!String(form.country || '').trim()) {
-      errors.country = 'This field is required.'
-      valid = false
-    }
+  if (form.travelRegion === 'Non Singapore' && !String(form.country || '').trim()) {
+    errors.country = 'This field is required.'
+    valid = false
   }
 
   if (hasAdvance.value) {
@@ -307,14 +322,6 @@ function validate() {
   return valid
 }
 
-function backToCountryDropdown() {
-  manualCountry.value = false
-  form.country = ''
-  manualCurrency.value = ''
-  mealCurrency.value = ''
-  pocketCurrency.value = ''
-}
-
 function submitForm() {
   if (props.loading || !validate()) return
   reviewDialog.value = true
@@ -335,23 +342,29 @@ async function confirmSubmit() {
 
   if (!confirmed) return
 
-  emit('submit', {
-    ...form,
-    mealCurrency: mealCurrency.value,
-    pocketCurrency: pocketCurrency.value,
-  })
+  let currency = null
+
+  if (form.travelRegion === 'Indonesia') currency = 'IDR'
+  else if (form.travelRegion === 'Singapore') currency = 'SGD'
+  else currency = manualCurrency.value || selectedCountryCurrency.value || mealCurrency.value || pocketCurrency.value || null
+
+  emit('submit', { ...form, currency })
 }
 
 function cancel() {
   if (!props.loading) emit('cancel')
 }
 
-watch([() => form.travelRegion, mealCurrency], ([r, c]) => loadTravelAdvanceLimit(r, c), { immediate: true })
-watch([() => form.travelRegion, pocketCurrency], ([r, c]) => loadTravelAdvanceLimit(r, c), { immediate: true })
+watch([() => form.travelRegion, mealCurrency], ([region, currency]) => loadTravelAdvanceLimit(region, currency), { immediate: true })
+watch([() => form.travelRegion, pocketCurrency], ([region, currency]) => loadTravelAdvanceLimit(region, currency), { immediate: true })
 
-// Kalau tanggal diubah sampai batas turun, nilai yang sudah terisi otomatis dipotong ke batas baru
-watch(mealMax, m => { if (m !== null && form.mealAllowance !== '' && Number(form.mealAllowance) > m) form.mealAllowance = String(m) })
-watch(pocketMax, m => { if (m !== null && form.pocketMoney !== '' && Number(form.pocketMoney) > m) form.pocketMoney = String(m) })
+watch(mealMax, max => {
+  if (max !== null && form.mealAllowance !== '' && Number(form.mealAllowance) > max) form.mealAllowance = String(max)
+})
+
+watch(pocketMax, max => {
+  if (max !== null && form.pocketMoney !== '' && Number(form.pocketMoney) > max) form.pocketMoney = String(max)
+})
 
 onMounted(loadDepartmentInfo)
 </script>
@@ -379,6 +392,7 @@ onMounted(loadDepartmentInfo)
           <VAlert v-if="generalError" type="error" variant="tonal" class="mb-6">{{ generalError }}</VAlert>
 
           <div class="text-subtitle-2 font-weight-bold mb-4">Employee Information</div>
+
           <VRow>
             <VCol cols="12" md="6"><VTextField v-model="form.employee" label="Employee *" variant="outlined" density="comfortable" hide-details="auto" disabled /></VCol>
             <VCol cols="12" md="6">
@@ -388,6 +402,7 @@ onMounted(loadDepartmentInfo)
           </VRow>
 
           <div class="text-subtitle-2 font-weight-bold mb-4 mt-4">Trip Information</div>
+
           <VRow>
             <VCol cols="12" md="6"><VTextField v-model="form.travelFrom" label="Travel From *" placeholder="Contoh: Batam" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
             <VCol cols="12" md="6"><VTextField v-model="form.travelTo" label="Travel To *" placeholder="Contoh: Jakarta" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
@@ -400,31 +415,31 @@ onMounted(loadDepartmentInfo)
           </VRow>
 
           <div class="text-subtitle-2 font-weight-bold mb-4 mt-4">Travel Region</div>
+
           <VRow>
             <VCol cols="12" md="3">
               <VSelect v-model="form.travelRegion" :items="travelRegions" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelRegion ? [errors.travelRegion] : []" @update:model-value="selectRegion">
-                <template #selection="{ item }"><span v-if="form.travelRegion">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size: 13px">Select travel region</span></template>
+                <template #selection="{ item }"><span v-if="form.travelRegion">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
               </VSelect>
             </VCol>
 
             <VCol v-if="showCountry" cols="12" md="3">
               <VSelect v-if="!manualCountry" v-model="form.country" :items="countryOptions" item-title="country" item-value="country" label="Country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" @update:model-value="selectCountry">
-                <template #selection="{ item }"><span v-if="form.country">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size: 13px">Select country</span></template>
+                <template #selection="{ item }"><span v-if="form.country">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select country</span></template>
               </VSelect>
+
               <VTextField v-else ref="customCountryInput" v-model="form.country" label="Country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" />
             </VCol>
 
             <VCol v-if="manualCountry" cols="12" md="3">
               <VSelect v-model="manualCurrency" :items="['USD', 'EUR']" label="Currency" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" @update:model-value="selectManualCurrency">
-                <template #selection="{ item }">
-                  <span v-if="manualCurrency">{{ item.title }}</span>
-                  <span v-else class="text-medium-emphasis" style="font-size: 13px">Select currency</span>
-                </template>
+                <template #selection="{ item }"><span v-if="manualCurrency">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select currency</span></template>
               </VSelect>
             </VCol>
           </VRow>
 
           <div class="text-subtitle-2 font-weight-bold mb-4 mt-6">Ticket, Accommodation & Travel Advance</div>
+
           <VRow>
             <VCol cols="12" md="4">
               <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
@@ -433,10 +448,11 @@ onMounted(loadDepartmentInfo)
                   <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Ferry Ticket <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
                   <div class="text-caption text-medium-emphasis mt-1">Select transport type, arranger, and payer.</div>
                 </VCardItem>
+
                 <VCardText>
                   <VRow>
-                    <VCol cols="6"><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size: 13px">Select ticket type</span></template></VSelect></VCol>
-                    <VCol cols="6"><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size: 13px">Select arrangement</span></template></VSelect></VCol>
+                    <VCol cols="6"><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
+                    <VCol cols="6"><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
                   </VRow>
                 </VCardText>
               </VCard>
@@ -449,14 +465,15 @@ onMounted(loadDepartmentInfo)
                   <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Accommodation <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
                   <div class="text-caption text-medium-emphasis mt-1">Select accommodation arrangement.</div>
                 </VCardItem>
-                <VCardText><VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size: 13px">Select arrangement</span></template></VSelect></VCardText>
+
+                <VCardText><VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCardText>
               </VCard>
             </VCol>
 
             <VCol cols="12" md="4">
               <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
                 <VCardItem>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Optional and determined by Travel Region."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
+                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
                   <div class="text-caption text-medium-emphasis mt-1">Optional advance based on travel region.</div>
                 </VCardItem>
 
@@ -471,16 +488,31 @@ onMounted(loadDepartmentInfo)
                     </VAlert>
 
                     <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
-                    <div class="text-body-2 font-weight-medium mb-2">Meal Allowance</div>
+
+                    <div class="d-flex align-center text-body-2 font-weight-medium mb-2">
+                      <span>Meal Allowance</span>
+                      <VTooltip location="top">
+                        <template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template>
+                        <span>{{ mealHint }}</span>
+                      </VTooltip>
+                    </div>
+
                     <VRow class="align-center">
-                      <VSelect v-model="mealCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled />
-                      <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" :hint="mealHint" persistent-hint variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" @beforeinput="blockOverMax($event, mealMax, mealCurrency)" /></VCol>
+                      <VCol cols="4" class="pa-1"><VSelect v-model="mealCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                      <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, mealCurrency)" /></VCol>
                     </VRow>
 
-                    <div class="text-body-2 font-weight-medium mb-2 mt-4">Pocket Money</div>
+                    <div class="d-flex align-center text-body-2 font-weight-medium mb-2 mt-4">
+                      <span>Pocket Money</span>
+                      <VTooltip location="top">
+                        <template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template>
+                        <span>{{ pocketHint }}</span>
+                      </VTooltip>
+                    </div>
+
                     <VRow class="align-center">
-                      <VSelect v-model="pocketCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled />
-                      <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" :hint="pocketHint" persistent-hint variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" @beforeinput="blockOverMax($event, pocketMax, pocketCurrency)" /></VCol>
+                      <VCol cols="4" class="pa-1"><VSelect v-model="pocketCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                      <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, pocketCurrency)" /></VCol>
                     </VRow>
                   </template>
                 </VCardText>
@@ -490,6 +522,7 @@ onMounted(loadDepartmentInfo)
         </VCardText>
 
         <VDivider />
+
         <VCardActions class="pa-4 justify-end">
           <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
           <VBtn type="submit" color="primary" variant="flat" :disabled="props.loading || mealExceeded || pocketExceeded">Continue</VBtn>
@@ -509,6 +542,7 @@ onMounted(loadDepartmentInfo)
       <VCard rounded="lg" elevation="1" class="mb-4">
         <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Request Summary</VCardTitle></VCardItem>
         <VDivider />
+
         <VCardText class="pa-4">
           <VRow dense>
             <VCol cols="12" md="3"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Request Type</div><VChip variant="outlined" color="primary" size="small" class="mt-1">Business Trip - Individual</VChip></VCardText></VCard></VCol>
@@ -527,6 +561,7 @@ onMounted(loadDepartmentInfo)
       <VCard rounded="lg" elevation="1" class="mb-4">
         <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Ticket, Accommodation & Travel Advance</VCardTitle></VCardItem>
         <VDivider />
+
         <VCardText class="pa-4">
           <VRow dense>
             <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg" class="h-100"><VCardText class="pa-3"><div class="d-flex align-center justify-space-between mb-2"><div class="text-subtitle-2 font-weight-bold">{{ form.ferryTicketType === 'Airplane' ? 'Airplane Ticket' : 'Ferry Ticket' }}</div><VChip variant="tonal" size="small" :color="isFerryReimbursable ? 'success' : 'error'">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></div><div class="text-body-2 font-weight-bold">{{ form.ferryArrangement || '-' }}</div></VCardText></VCard></VCol>
@@ -539,12 +574,19 @@ onMounted(loadDepartmentInfo)
       <VCard rounded="lg" elevation="1">
         <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Submission Declaration</VCardTitle></VCardItem>
         <VDivider />
+
         <VCardText class="pa-4">
-          <VCard color="grey-lighten-4" rounded="lg" class="mb-3"><VCardText class="d-flex align-center ga-2 pa-3"><input v-model="confirmInfo" type="checkbox" class="mr-2"><div class="text-body-2">I confirm that the Travel Order information is correct and ready to enter the approval process.</div></VCardText></VCard>
-          <VCard color="amber-lighten-5" rounded="lg"><VCardText class="d-flex align-center ga-2 pa-3"><input v-model="acknowledgeTer" type="checkbox" class="mr-2"><div class="text-body-2">I acknowledge and commit to submit the <strong>TER (Travel Expense Report) no later than 7 calendar days</strong> after the Return Date.</div></VCardText></VCard>
+          <VCard color="grey-lighten-4" rounded="lg" class="mb-3">
+            <VCardText class="d-flex align-center ga-2 pa-3"><input v-model="confirmInfo" type="checkbox" class="mr-2"><div class="text-body-2">I confirm that the Travel Order information is correct and ready to enter the approval process.</div></VCardText>
+          </VCard>
+
+          <VCard color="amber-lighten-5" rounded="lg">
+            <VCardText class="d-flex align-center ga-2 pa-3"><input v-model="acknowledgeTer" type="checkbox" class="mr-2"><div class="text-body-2">I acknowledge and commit to submit the <strong>TER (Travel Expense Report) no later than 7 calendar days</strong> after the Return Date.</div></VCardText>
+          </VCard>
         </VCardText>
 
         <VDivider />
+
         <VCardActions class="pa-3 justify-end">
           <VBtn variant="text" :disabled="props.loading" @click="backToEdit">Back</VBtn>
           <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit Travel Order</VBtn>
@@ -553,7 +595,8 @@ onMounted(loadDepartmentInfo)
     </div>
   </div>
 </template>
-
 <style scoped>
-.text-right-input :deep(input) { text-align: right; }
+.text-right-input :deep(input) {
+  text-align: right;
+}
 </style>

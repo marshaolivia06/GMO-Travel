@@ -4,16 +4,17 @@ import { useRoute, useRouter } from 'vue-router'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
 import IndividualTripForm from '../components/modal/IndividualTripForm.vue'
 import { getTravelOrders, createTravelOrder } from '../services/travelOrderService'
+import { useConfirm } from '../../../composables/useConfirm'
+import { useToastStore } from '../../../stores/toast'
 
 const route = useRoute()
 const router = useRouter()
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const orders = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
-const snackbar = ref(false)
-const snackbarText = ref('')
-const snackbarColor = ref('success')
 const detailDialog = ref(false)
 const requestDialog = ref(false)
 const businessDialog = ref(false)
@@ -24,15 +25,28 @@ const submitting = ref(false)
 
 const filters = reactive({ search: '', status: null })
 
-const statusOptions = ['Awaiting Approval Manager', 'Awaiting GMO Processing', 'Awaiting GMO Booking Preparation', 'Awaiting GMO Document Issuance', 'Processed by GMO']
+const statusOptions = [
+  'Awaiting Approval Manager',
+  'Awaiting Approval Director',
+  'Awaiting GMO Processing',
+  'Awaiting GMO Booking Preparation',
+  'Awaiting GMO Document Issuance',
+  'Processed by GMO',
+]
 
 const statusColor = {
   'Processed by GMO': 'success',
   'Awaiting Approval Manager': 'warning',
+  'Awaiting Approval Director': 'warning',
+  'Revision Required': 'warning',
+  'Cancelled': 'error',
 }
 
 const statusLabel = {
   awaiting_approval_manager: 'Awaiting Approval Manager',
+  awaiting_approval_director: 'Awaiting Approval Director',
+  revision_required: 'Revision Required',
+  cancelled: 'Cancelled',
   awaiting_gmo_processing: 'Awaiting GMO Processing',
   awaiting_gmo_booking_preparation: 'Awaiting GMO Booking Preparation',
   awaiting_gmo_document_issuance: 'Awaiting GMO Document Issuance',
@@ -53,17 +67,16 @@ const typeLabel = {
 
 const headerClass = 'px-3 py-3 text-caption font-weight-bold text-medium-emphasis bg-grey-lighten-4 text-no-wrap'
 const cellClass = 'px-3 py-3'
-
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
 
 const headers = [
+  col('ACTION', 'action', { align: 'center', width: 120 }),
   col('ID', 'id'),
   col('REQUEST TYPE', 'type'),
   col('SUBJECT', 'subject'),
   col('PERIOD', 'period'),
   col('ARRANGEMENT', 'arrangement'),
   col('STATUS', 'status'),
-  col('ACTION', 'action', { align: 'center', width: 100 }),
 ]
 
 const requestTypes = [
@@ -76,15 +89,16 @@ const businessTypes = [
   { key: 'group', badge: 'GT', title: 'Group Trip', desc: 'Business trip for multiple people.', points: ['Traveler list', 'Route and travel dates', 'Ticket and accommodation'] },
 ]
 
-function showMessage(text, color = 'success') {
-  snackbarText.value = text
-  snackbarColor.value = color
-  snackbar.value = true
+function showMessage(text, type = 'success') {
+  toast[type]?.(text)
 }
 
 function toStatusLabel(status) {
   return status ? statusLabel[status] || status : 'Awaiting Approval Manager'
 }
+
+// Approve/Reject hanya muncul kalau status masih menunggu Manager
+const canDecide = computed(() => toStatusLabel(selected.value?.status) === 'Awaiting Approval Manager')
 
 function formatDate(value) {
   if (!value) return '-'
@@ -92,23 +106,27 @@ function formatDate(value) {
   return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function money(amount, currency) {
+  const n = Number(amount)
+  if (!n) return 'Not Applicable'
+  return `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${currency || ''}`.trim()
+}
+
 function resolveArrangement(order) {
   const a = order.ferry_arrangement ?? order.ticket_arrangement
   const b = order.accommodation_arrangement
-
   if (!a && !b) return '-'
   if (!b || a === b) return a || b
   if (!a) return b
   if (b === 'Not Required') return a
-
   return 'Mixed'
 }
 
 function normalize(order) {
   return {
     raw: order,
-    id: order.order_number,
-    type: typeLabel[order.request_type] || 'Business Trip - Individual',
+    id: order.id,
+    type: typeLabel[order.trip_type] || 'Business Trip - Individual',
     subject: order.subject || order.user?.name || '-',
     department: order.department?.name || order.department_name || '',
     period: `${formatDate(order.departure_date)} – ${formatDate(order.return_date)}`,
@@ -153,6 +171,12 @@ function backToRequest() {
   requestDialog.value = true
 }
 
+function backToBusiness() {
+  dialog.value = false
+  dialogType.value = null
+  businessDialog.value = true
+}
+
 function selectBusinessType(type) {
   businessDialog.value = false
   dialogType.value = type
@@ -169,6 +193,51 @@ function openDetail(row) {
   detailDialog.value = true
 }
 
+function updateStatus(status, message, type = 'success') {
+  const orderNumber = selected.value?.order_number
+  const index = orders.value.findIndex(order => order.order_number === orderNumber)
+
+  if (index !== -1) orders.value[index] = { ...orders.value[index], status }
+
+  detailDialog.value = false
+  showMessage(message, type)
+}
+
+async function handleApprove() {
+  const ok = await confirm({
+    title: 'Approve Travel Order',
+    message: `Are you sure you want to approve ${selected.value?.order_number}?`,
+  })
+
+  if (!ok) return
+
+  updateStatus('awaiting_approval_director', 'Travel order approved and sent to Director approval.')
+}
+
+// Reject: Yes -> Cancelled | Cancel -> tidak ada perubahan
+async function handleReject() {
+  const ok = await confirm({
+    title: 'Reject Travel Order',
+    message: `Are you sure you want to reject ${selected.value?.order_number}? This order will be cancelled.`,
+  })
+
+  if (!ok) return
+
+  updateStatus('cancelled', 'Travel order has been cancelled.')
+}
+
+// Revision: Yes -> Revision Required | Cancel -> tidak ada perubahan
+async function handleRevision() {
+  const ok = await confirm({
+    title: 'Return for Revision',
+    message: `Are you sure you want to return ${selected.value?.order_number} for revision?`,
+  })
+
+  if (!ok) return
+
+  updateStatus('revision_required', 'Travel order has been returned for revision.', 'warning')
+}
+
 const detailSections = computed(() => {
   const order = selected.value
   if (!order) return []
@@ -182,7 +251,7 @@ const detailSections = computed(() => {
     {
       title: 'Request Summary',
       items: [
-        { label: 'Request Type', value: typeLabel[order.request_type] || 'Business Trip - Individual' },
+        { label: 'Request Type', value: typeLabel[order.trip_type] || 'Business Trip - Individual' },
         { label: 'Employee', value: val(order.user?.name) },
         { label: 'Department', value: val(order.department?.name) },
         { label: 'Travel Region', value: val(order.travel_region) },
@@ -200,8 +269,8 @@ const detailSections = computed(() => {
         { label: 'Ticket Type', value: val(ticket.ticket_type ?? order.ferry_ticket_type) },
         { label: 'Ticket Arrangement', value: val(ticket.arrangement ?? order.ferry_arrangement) },
         { label: 'Accommodation', value: val(accommodation.arrangement ?? order.accommodation_arrangement) },
-        { label: 'Meal Allowance', value: advance.meal_allowance ? `${advance.meal_allowance} ${advance.meal_currency || ''}` : 'Not Applicable' },
-        { label: 'Pocket Money', value: advance.pocket_money ? `${advance.pocket_money} ${advance.pocket_currency || ''}` : 'Not Applicable' },
+        { label: 'Meal Allowance', value: money(advance.meal_allowance, advance.currency) },
+        { label: 'Pocket Money', value: money(advance.pocket_money, advance.currency) },
       ],
     },
   ]
@@ -230,12 +299,13 @@ async function submitOrder(payload) {
   try {
     await createTravelOrder(payload)
     closeDialog()
-    router.push({ name: 'my-travel-order', query: { submitted: '1' } })
+    await loadOrders()
+    showMessage('Travel order submitted successfully.')
   } catch (error) {
     console.error('Submit error:', error?.response?.data || error)
 
     const errors = error?.response?.data?.errors
-    const firstError = errors ? Object.values(errors)[0][0] : null
+    const firstError = errors ? Object.values(errors).flat()[0] : null
 
     showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
   } finally {
@@ -247,9 +317,7 @@ onMounted(() => {
   loadOrders()
 
   if (route.query.submitted) {
-    snackbar.value = true
-    snackbarText.value = 'Travel order submitted successfully.'
-    snackbarColor.value = 'success'
+    showMessage('Travel order submitted successfully.')
     router.replace({ query: {} })
   }
 })
@@ -264,7 +332,6 @@ onMounted(() => {
           <div class="text-h4 font-weight-bold mb-1">My Travel Orders</div>
           <div class="text-body-1 text-medium-emphasis">Track approval and GMO operational status using one current Travel Order status.</div>
         </div>
-
         <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
       </div>
     </div>
@@ -272,10 +339,7 @@ onMounted(() => {
     <VCard rounded="lg" elevation="1">
       <VCardItem class="px-6 py-4">
         <VCardTitle class="text-subtitle-1 font-weight-bold">Travel Order Inquiry</VCardTitle>
-
-        <template #append>
-          <VChip size="small" variant="tonal" color="primary">{{ filteredRows.length }} requests</VChip>
-        </template>
+        <template #append><VChip size="small" variant="tonal" color="primary">{{ filteredRows.length }} requests</VChip></template>
       </VCardItem>
 
       <VDivider />
@@ -303,9 +367,7 @@ onMounted(() => {
       <VDivider />
 
       <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" :items-per-page="10" item-value="id" hover no-data-text="No travel orders found.">
-        <template #item.id="{ item }">
-          <span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span>
-        </template>
+        <template #item.id="{ item }"><span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span></template>
 
         <template #item.type="{ item }">
           <VChip size="small" variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip>
@@ -316,13 +378,8 @@ onMounted(() => {
           <div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div>
         </template>
 
-        <template #item.period="{ item }">
-          <span class="text-body-2 text-no-wrap">{{ item.period }}</span>
-        </template>
-
-        <template #item.arrangement="{ item }">
-          <span class="text-body-2 text-no-wrap">{{ item.arrangement }}</span>
-        </template>
+        <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.period }}</span></template>
+        <template #item.arrangement="{ item }"><span class="text-body-2 text-no-wrap">{{ item.arrangement }}</span></template>
 
         <template #item.status="{ item }">
           <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap">
@@ -331,22 +388,19 @@ onMounted(() => {
           </VChip>
         </template>
 
+        <!-- Action: hanya tombol View -->
         <template #item.action="{ item }">
-          <VBtn size="small" variant="tonal" color="primary" prepend-icon="ri-eye-line" @click="openDetail(item)">View</VBtn>
+          <VBtn size="small" variant="tonal" color="primary" @click="openDetail(item)">View</VBtn>
         </template>
       </VDataTable>
     </VCard>
 
-    <!-- Modal 1: pilih Annual Leave / Business Trip -->
     <VDialog v-model="requestDialog" max-width="720">
       <VCard rounded="xl">
         <VCardItem class="px-6 py-5">
           <VCardTitle class="text-h6 font-weight-bold">New Travel Request</VCardTitle>
           <VCardSubtitle>Select the type of request you want to submit.</VCardSubtitle>
-
-          <template #append>
-            <VBtn icon="ri-close-line" variant="text" size="small" @click="requestDialog = false" />
-          </template>
+          <template #append><VBtn icon="ri-close-line" variant="text" size="small" @click="requestDialog = false" /></template>
         </VCardItem>
 
         <VDivider />
@@ -359,9 +413,7 @@ onMounted(() => {
                   <VAvatar color="primary" rounded="lg" size="56" class="mb-4"><span class="text-h6 font-weight-bold">{{ item.badge }}</span></VAvatar>
                   <div class="text-h6 font-weight-bold mb-1">{{ item.title }}</div>
                   <div class="text-body-2 text-medium-emphasis">{{ item.desc }}</div>
-                  <ul class="text-body-2 text-medium-emphasis ps-5 mt-4">
-                    <li v-for="point in item.points" :key="point">{{ point }}</li>
-                  </ul>
+                  <ul class="text-body-2 text-medium-emphasis ps-5 mt-4"><li v-for="point in item.points" :key="point">{{ point }}</li></ul>
                 </VCardText>
               </VCard>
             </VCol>
@@ -370,20 +422,13 @@ onMounted(() => {
       </VCard>
     </VDialog>
 
-    <!-- Modal 2: pilih Individual / Group -->
     <VDialog v-model="businessDialog" max-width="720">
       <VCard rounded="xl">
         <VCardItem class="px-6 py-5">
-          <template #prepend>
-            <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" @click="backToRequest" />
-          </template>
-
+          <template #prepend><VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" @click="backToRequest" /></template>
           <VCardTitle class="text-h6 font-weight-bold">Business Trip</VCardTitle>
           <VCardSubtitle>How many people are traveling?</VCardSubtitle>
-
-          <template #append>
-            <VBtn icon="ri-close-line" variant="text" size="small" @click="businessDialog = false" />
-          </template>
+          <template #append><VBtn icon="ri-close-line" variant="text" size="small" @click="businessDialog = false" /></template>
         </VCardItem>
 
         <VDivider />
@@ -396,9 +441,7 @@ onMounted(() => {
                   <VAvatar color="primary" rounded="lg" size="56" class="mb-4"><span class="text-h6 font-weight-bold">{{ item.badge }}</span></VAvatar>
                   <div class="text-h6 font-weight-bold mb-1">{{ item.title }}</div>
                   <div class="text-body-2 text-medium-emphasis">{{ item.desc }}</div>
-                  <ul class="text-body-2 text-medium-emphasis ps-5 mt-4">
-                    <li v-for="point in item.points" :key="point">{{ point }}</li>
-                  </ul>
+                  <ul class="text-body-2 text-medium-emphasis ps-5 mt-4"><li v-for="point in item.points" :key="point">{{ point }}</li></ul>
                 </VCardText>
               </VCard>
             </VCol>
@@ -410,17 +453,16 @@ onMounted(() => {
     <VDialog v-model="dialog" max-width="1200" scrollable>
       <VCard rounded="lg">
         <VCardTitle class="d-flex align-center justify-space-between pa-5">
-          <div class="d-flex align-center ga-3">
-            <VAvatar color="primary" variant="tonal" size="42"><VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" /></VAvatar>
-
-            <div>
-              <div class="text-subtitle-1 font-weight-bold">{{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}</div>
-              <div class="text-caption text-medium-emphasis">{{ dialogType === 'individual' ? 'Create an individual business trip request.' : 'Create a group business trip request.' }}</div>
-            </div>
-          </div>
-
-          <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
-        </VCardTitle>
+  <div class="d-flex align-center ga-3">
+    <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="submitting" @click="backToBusiness" />
+    <VAvatar color="primary" variant="tonal" size="42"><VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" /></VAvatar>
+    <div>
+      <div class="text-subtitle-1 font-weight-bold">{{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}</div>
+      <div class="text-caption text-medium-emphasis">{{ dialogType === 'individual' ? 'Create an individual business trip request.' : 'Create a group business trip request.' }}</div>
+    </div>
+  </div>
+  <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
+</VCardTitle>
 
         <VDivider />
 
@@ -431,6 +473,7 @@ onMounted(() => {
       </VCard>
     </VDialog>
 
+    <!-- Detail dialog -->
     <VDialog v-model="detailDialog" max-width="800" scrollable>
       <VCard rounded="lg">
         <VCardItem class="px-6 py-4">
@@ -461,13 +504,13 @@ onMounted(() => {
 
         <VDivider />
 
-        <VCardActions class="px-6 py-3 justify-end">
-          <VBtn variant="tonal" color="primary" @click="detailDialog = false">Close</VBtn>
-        </VCardActions>
+        <VCardActions v-if="canDecide" class="px-6 py-3 justify-end ga-2">
+  <VBtn variant="tonal" color="error" @click="handleReject">Reject</VBtn>
+  <VBtn variant="tonal" color="warning" @click="handleRevision">Revision</VBtn>
+  <VBtn variant="flat" color="success" @click="handleApprove">Approve</VBtn>
+</VCardActions>
       </VCard>
     </VDialog>
-
-    <VSnackbar v-model="snackbar" :color="snackbarColor" :timeout="4000" location="top end">{{ snackbarText }}</VSnackbar>
   </div>
 </template>
 

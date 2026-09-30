@@ -26,7 +26,14 @@ class TravelOrderService
         array $filters = [],
         int $perPage = 10
     ): LengthAwarePaginator {
-        $filters['user_id'] = $user->id;
+        $department = Department::where('dept_head_id', $user->id)->first();
+
+        if ($department) {
+            $filters['manager_id'] = $user->id;
+            $filters['department_id'] = $department->id;
+        } else {
+            $filters['user_id'] = $user->id;
+        }
 
         return $this->repository->paginate($filters, $perPage);
     }
@@ -113,23 +120,20 @@ class TravelOrderService
             'Department wajib dipilih.'
         );
 
-        // Jumlah hari perjalanan
-        // Tanggal berangkat dan pulang sama-sama dihitung
         $days = max(
             1,
             (int) Carbon::parse($data['departure_date'])
                 ->startOfDay()
                 ->diffInDays(
-                    Carbon::parse($data['return_date'])->startOfDay(),
+                    Carbon::parse($data['return_date'])
+                        ->startOfDay(),
                     true
                 ) + 1
         );
 
         $validation = $this->advanceService->validateAdvance(
             $data['travel_region'],
-            $data['meal_currency']
-                ?? $data['pocket_currency']
-                ?? null,
+            $data['currency'] ?? null,
             (float) ($data['pocket_money'] ?? 0),
             (float) ($data['meal_allowance'] ?? 0),
             (int) $user->grade,
@@ -151,7 +155,7 @@ class TravelOrderService
             $data['trip_type'] = 'individual';
             $data['status'] = 'awaiting_approval_manager';
 
-            // Travel Order selalu menjadi milik user yang sedang login
+            // Travel Order selalu menjadi milik user yang sedang login.
             $data['user_id'] = $user->id;
             $data['department_id'] = $departmentId;
             $data['created_by'] = $user->id;
@@ -159,16 +163,13 @@ class TravelOrderService
             $advanceData = [
                 'meal_allowance' => $data['meal_allowance'] ?? null,
                 'pocket_money' => $data['pocket_money'] ?? null,
-                'currency' => $data['meal_currency']
-                    ?? $data['pocket_currency']
-                    ?? null,
+                'currency' => $data['currency'] ?? null,
             ];
 
             unset(
                 $data['meal_allowance'],
-                $data['meal_currency'],
                 $data['pocket_money'],
-                $data['pocket_currency']
+                $data['currency']
             );
 
             $travelOrder = $this->repository->create($data);

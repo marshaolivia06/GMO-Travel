@@ -14,10 +14,31 @@ class TravelOrderRepository
         return TravelOrder::with([
             'user:id,name',
             'department:id,name',
+            'advance',
         ])
-            ->when($filters['user_id'] ?? null, function ($query, $userId) {
-                $query->where('user_id', $userId);
-            })
+            ->when(
+                $filters['manager_id'] ?? null,
+                function ($query, $managerId) use ($filters) {
+                    $query->where(function ($q) use ($managerId, $filters) {
+    
+                        // 1. Request milik Manager sendiri
+                        $q->where('user_id', $managerId)
+    
+                            // 2. Request staff dalam department Manager
+                            ->orWhere(function ($staffQuery) use ($filters) {
+                                $staffQuery
+                                    ->where('department_id', $filters['department_id'])
+                                    ->where('status', 'awaiting_approval_manager');
+                            });
+                    });
+                }
+            )
+            ->when(
+                $filters['user_id'] ?? null,
+                function ($query, $userId) {
+                    $query->where('user_id', $userId);
+                }
+            )
             ->when($filters['search'] ?? null, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('order_number', 'like', "%{$search}%")
@@ -35,7 +56,7 @@ class TravelOrderRepository
             )
             ->latest()
             ->paginate($perPage);
-    }
+    }    
 
     public function findById(int $id): TravelOrder
     {
@@ -43,6 +64,7 @@ class TravelOrderRepository
             'user:id,name',
             'department:id,name',
             'creator:id,name',
+            'advance',
         ])->findOrFail($id);
     }
 
