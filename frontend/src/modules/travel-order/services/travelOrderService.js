@@ -10,6 +10,8 @@ const toPayload = form => {
   ].includes(form.travelRegion)
 
   const payload = {
+    status: form.status,
+
     department_id: form.departmentId || undefined,
 
     travel_from: form.travelFrom,
@@ -117,3 +119,9 @@ export const createTravelOrder = form =>
   http
     .post(BASE, toPayload(form))
     .then(res => res.data)
+  
+    export const updateTravelOrder = (id, form) =>
+      http
+        .put(`${BASE}/${id}`, toPayload(form))
+        .then(res => res.data)
+    

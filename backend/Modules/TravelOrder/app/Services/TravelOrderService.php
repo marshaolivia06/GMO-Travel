@@ -17,7 +17,8 @@ class TravelOrderService
     public function __construct(
         private TravelOrderRepository $repository,
         private TravelOrderAdvanceRepository $advanceRepository,
-        private TravelAdvanceService $advanceService
+        private TravelAdvanceService $advanceService,
+        private TravelOrderApprovalService $approvalService
     ) {
     }
 
@@ -26,46 +27,55 @@ class TravelOrderService
         array $filters = [],
         int $perPage = 10
     ): LengthAwarePaginator {
-        $department = Department::where('dept_head_id', $user->id)->first();
-
-        if ($department) {
-            $filters['manager_id'] = $user->id;
-            $filters['department_id'] = $department->id;
+        $roleNames = $user->getRoleNames();
+    
+        $isDeptHead = $roleNames->contains('Dept Head');
+        $isDirector = $roleNames->contains('Director');
+        $isPresidentDirector = $roleNames->contains('President Director');
+    
+        if ($isDeptHead) {
+            $department = Department::where('dept_head_id', $user->id)->first();
+    
+            if ($department) {
+                $filters['manager_id'] = $user->id;
+                $filters['department_id'] = $department->id;
+            } else {
+                $filters['user_id'] = $user->id;
+            }
+        } elseif ($isDirector) {
+            $filters['approval_role'] = 'Director';
+        } elseif ($isPresidentDirector) {
+            $filters['approval_role'] = 'President Director';
         } else {
             $filters['user_id'] = $user->id;
         }
-
+    
         return $this->repository->paginate($filters, $perPage);
     }
 
-    public function find(int $id): TravelOrder
+    public function find(int $id, ?User $user = null): TravelOrder
     {
-        return $this->repository->findById($id);
+        $order = $this->repository->findById($id);
+
+        // Data approval untuk timeline di frontend
+        $order->load(['approvals.role', 'approvals.user']);
+
+        // Frontend memakai flag ini untuk memutuskan tombol Approve tampil atau tidak
+        $order->setAttribute(
+            'can_approve',
+            $user ? $this->approvalService->canApprove($order, $user) : false
+        );
+
+        return $order;
     }
 
-    public function approve(int $id): TravelOrder
+    public function approve(int $id, User $user, ?string $note = null): TravelOrder
     {
         $travelOrder = $this->repository->findById($id);
 
-        $nextStatus = match ($travelOrder->status) {
-            'awaiting_approval_manager' => 'awaiting_approval_director',
-            'awaiting_approval_director' => 'awaiting_approval_predir',
-            'awaiting_approval_predir' => 'awaiting_approval_gmo',
-            'awaiting_approval_gmo' => 'approved',
-            default => null,
-        };
+        $this->approvalService->approve($travelOrder, $user, $note);
 
-        abort_if(
-            ! $nextStatus,
-            422,
-            'Travel Order tidak dapat diproses pada status saat ini.'
-        );
-
-        $travelOrder->update([
-            'status' => $nextStatus,
-        ]);
-
-        return $travelOrder->fresh();
+        return $this->find($id, $user);
     }
 
     public function getDepartmentLockInfo(User $user): array
@@ -120,31 +130,37 @@ class TravelOrderService
             'Department wajib dipilih.'
         );
 
-        $days = max(
-            1,
-            (int) Carbon::parse($data['departure_date'])
-                ->startOfDay()
-                ->diffInDays(
-                    Carbon::parse($data['return_date'])
-                        ->startOfDay(),
-                    true
-                ) + 1
-        );
+        /*
+         * Advance validation hanya dilakukan ketika Submit.
+         * Draft boleh disimpan walaupun data belum lengkap.
+         */
+        if (($data['status'] ?? 'draft') === 'submitted') {
+            $days = max(
+                1,
+                (int) Carbon::parse($data['departure_date'])
+                    ->startOfDay()
+                    ->diffInDays(
+                        Carbon::parse($data['return_date'])
+                            ->startOfDay(),
+                        true
+                    ) + 1
+            );
 
-        $validation = $this->advanceService->validateAdvance(
-            $data['travel_region'],
-            $data['currency'] ?? null,
-            (float) ($data['pocket_money'] ?? 0),
-            (float) ($data['meal_allowance'] ?? 0),
-            (int) $user->grade,
-            $days
-        );
+            $validation = $this->advanceService->validateAdvance(
+                $data['travel_region'],
+                $data['currency'] ?? null,
+                (float) ($data['pocket_money'] ?? 0),
+                (float) ($data['meal_allowance'] ?? 0),
+                (int) $user->grade,
+                $days
+            );
 
-        abort_if(
-            ! $validation['valid'],
-            422,
-            $validation['message']
-        );
+            abort_if(
+                ! $validation['valid'],
+                422,
+                $validation['message']
+            );
+        }
 
         return DB::transaction(function () use (
             $data,
@@ -153,9 +169,6 @@ class TravelOrderService
         ) {
             $data['order_number'] = $this->generateOrderNumber();
             $data['trip_type'] = 'individual';
-            $data['status'] = 'awaiting_approval_manager';
-
-            // Travel Order selalu menjadi milik user yang sedang login.
             $data['user_id'] = $user->id;
             $data['department_id'] = $departmentId;
             $data['created_by'] = $user->id;
@@ -178,7 +191,116 @@ class TravelOrderService
 
             $this->advanceRepository->create($advanceData);
 
-            return $travelOrder;
+            // Hanya order yang disubmit yang punya alur approval, draft tidak
+            if (($data['status'] ?? 'draft') === 'submitted') {
+                $this->approvalService->initFlow($travelOrder);
+            }
+
+            return $travelOrder->fresh();
+        });
+    }
+
+    public function update(int $id, array $data, User $user): TravelOrder
+    {
+        $travelOrder = $this->repository->findById($id);
+
+        abort_if(
+            $travelOrder->user_id !== $user->id,
+            403,
+            'Anda tidak memiliki akses untuk mengubah Travel Order ini.'
+        );
+
+        abort_if(
+            $travelOrder->status !== 'draft',
+            422,
+            'Hanya Travel Order dengan status draft yang dapat diubah.'
+        );
+
+        $lockInfo = $this->getDepartmentLockInfo($user);
+
+        $departmentId = $lockInfo['locked']
+            ? $lockInfo['department']['id']
+            : ($data['department_id'] ?? $travelOrder->department_id);
+
+        abort_if(
+            ! $departmentId,
+            422,
+            'Department wajib dipilih.'
+        );
+
+        if (($data['status'] ?? 'draft') === 'submitted') {
+            $days = max(
+                1,
+                (int) Carbon::parse($data['departure_date'])
+                    ->startOfDay()
+                    ->diffInDays(
+                        Carbon::parse($data['return_date'])
+                            ->startOfDay(),
+                        true
+                    ) + 1
+            );
+
+            $validation = $this->advanceService->validateAdvance(
+                $data['travel_region'],
+                $data['currency'] ?? null,
+                (float) ($data['pocket_money'] ?? 0),
+                (float) ($data['meal_allowance'] ?? 0),
+                (int) $user->grade,
+                $days
+            );
+
+            abort_if(
+                ! $validation['valid'],
+                422,
+                $validation['message']
+            );
+        }
+
+        return DB::transaction(function () use (
+            $travelOrder,
+            $data,
+            $departmentId
+        ) {
+            $advanceData = [
+                'meal_allowance' => $data['meal_allowance'] ?? null,
+                'pocket_money' => $data['pocket_money'] ?? null,
+                'currency' => $data['currency'] ?? null,
+            ];
+
+            unset(
+                $data['meal_allowance'],
+                $data['pocket_money'],
+                $data['currency']
+            );
+
+            $data['department_id'] = $departmentId;
+
+            unset(
+                $data['user_id'],
+                $data['created_by'],
+                $data['order_number'],
+                $data['trip_type']
+            );
+
+            $travelOrder->update($data);
+
+            $advance = $this->advanceRepository
+                ->findByTravelOrderId($travelOrder->id);
+
+            if ($advance) {
+                $advance->update($advanceData);
+            } else {
+                $advanceData['travel_order_id'] = $travelOrder->id;
+
+                $this->advanceRepository->create($advanceData);
+            }
+
+            // Draft yang diedit lalu disubmit = alur approval dimulai
+            if (($data['status'] ?? 'draft') === 'submitted') {
+                $this->approvalService->initFlow($travelOrder);
+            }
+
+            return $travelOrder->fresh();
         });
     }
 

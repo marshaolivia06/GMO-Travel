@@ -14,7 +14,10 @@ class StoreTravelOrderRequest extends FormRequest
 
     public function rules(): array
     {
+        $status = $this->input('status');
         $travelRegion = $this->input('travel_region');
+
+        $isSubmitted = $status === 'submitted';
 
         $isAdvanceRequired = in_array(
             $travelRegion,
@@ -30,6 +33,14 @@ class StoreTravelOrderRequest extends FormRequest
         };
 
         return [
+            'status' => [
+                'required',
+                Rule::in([
+                    'draft',
+                    'submitted',
+                ]),
+            ],
+
             'department_id' => [
                 'nullable',
                 'integer',
@@ -37,40 +48,47 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'travel_from' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'string',
                 'max:255',
             ],
 
             'travel_to' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'string',
                 'max:255',
             ],
 
             'departure_date' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'date',
             ],
 
             'departure_time' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'date_format:H:i',
             ],
 
             'return_date' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'date',
                 'after_or_equal:departure_date',
             ],
 
             'return_time' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'date_format:H:i',
             ],
 
             'purpose' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 'string',
             ],
 
@@ -80,7 +98,8 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'travel_region' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 Rule::in([
                     'Indonesia',
                     'Singapore',
@@ -89,7 +108,8 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'ferry_ticket_type' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 Rule::in([
                     'Ferry',
                     'Airplane',
@@ -97,7 +117,8 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'ferry_arrangement' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 Rule::in([
                     'Direct Payment',
                     'Booked by Company',
@@ -105,7 +126,8 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'accommodation_arrangement' => [
-                'required',
+                'required_if:status,submitted',
+                'nullable',
                 Rule::in([
                     'Direct Payment',
                     'Booked by Company',
@@ -114,21 +136,27 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'meal_allowance' => [
-                Rule::requiredIf($isAdvanceRequired),
+                Rule::requiredIf(
+                    $isSubmitted && $isAdvanceRequired
+                ),
                 'nullable',
                 'numeric',
                 'min:0',
             ],
 
             'pocket_money' => [
-                Rule::requiredIf($isAdvanceRequired),
+                Rule::requiredIf(
+                    $isSubmitted && $isAdvanceRequired
+                ),
                 'nullable',
                 'numeric',
                 'min:0',
             ],
 
             'currency' => [
-                Rule::requiredIf($isAdvanceRequired),
+                Rule::requiredIf(
+                    $isSubmitted && $isAdvanceRequired
+                ),
                 'nullable',
                 Rule::in($allowedCurrencies),
             ],

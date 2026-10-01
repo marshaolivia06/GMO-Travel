@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
 import IndividualTripForm from '../components/modal/IndividualTripForm.vue'
-import { getTravelOrders, createTravelOrder } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, createTravelOrder, updateTravelOrder, approveTravelOrder } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 
@@ -22,22 +22,31 @@ const dialog = ref(false)
 const selected = ref(null)
 const dialogType = ref(null)
 const submitting = ref(false)
+const approving = ref(false)
+const editingDraft = ref(false)
+const draftLoading = ref(false)
 
 const filters = reactive({ search: '', status: null })
 
 const statusOptions = [
   'Awaiting Approval Manager',
   'Awaiting Approval Director',
+  'Awaiting Approval President Director',
+  'Awaiting Approval GMO',
   'Awaiting GMO Processing',
   'Awaiting GMO Booking Preparation',
   'Awaiting GMO Document Issuance',
   'Processed by GMO',
+  'Approved',
 ]
 
 const statusColor = {
   'Processed by GMO': 'success',
+  'Approved': 'success',
   'Awaiting Approval Manager': 'warning',
   'Awaiting Approval Director': 'warning',
+  'Awaiting Approval President Director': 'warning',
+  'Awaiting Approval GMO': 'warning',
   'Revision Required': 'warning',
   'Cancelled': 'error',
 }
@@ -45,6 +54,9 @@ const statusColor = {
 const statusLabel = {
   awaiting_approval_manager: 'Awaiting Approval Manager',
   awaiting_approval_director: 'Awaiting Approval Director',
+  awaiting_approval_predir: 'Awaiting Approval President Director',
+  awaiting_approval_gmo: 'Awaiting Approval GMO',
+  approved: 'Approved',
   revision_required: 'Revision Required',
   cancelled: 'Cancelled',
   awaiting_gmo_processing: 'Awaiting GMO Processing',
@@ -63,6 +75,22 @@ const typeLabel = {
   individual: 'Business Trip - Individual',
   group: 'Business Trip - Group Trip',
   annual: 'Annual Trip',
+}
+
+const approvalColor = {
+  submitted: 'success',
+  approved: 'success',
+  pending: 'warning',
+  rejected: 'error',
+  revision: 'warning',
+}
+
+const approvalLabel = {
+  submitted: 'Submitted',
+  approved: 'Approved',
+  pending: 'Awaiting Approval',
+  rejected: 'Rejected',
+  revision: 'Revision Required',
 }
 
 const headerClass = 'px-3 py-3 text-caption font-weight-bold text-medium-emphasis bg-grey-lighten-4 text-no-wrap'
@@ -89,6 +117,26 @@ const businessTypes = [
   { key: 'group', badge: 'GT', title: 'Group Trip', desc: 'Business trip for multiple people.', points: ['Traveler list', 'Route and travel dates', 'Ticket and accommodation'] },
 ]
 
+async function continueDraft(row) {
+  if (draftLoading.value) return
+  draftLoading.value = true
+
+  try {
+    const response = await getTravelOrder(row.id)
+    const order = response?.data?.data ?? response?.data ?? response
+
+    selected.value = order
+    dialogType.value = order.trip_type || 'individual'
+    editingDraft.value = true
+    dialog.value = true
+  } catch (error) {
+    console.error('Load draft error:', error)
+    showMessage(error?.response?.data?.message || 'Failed to load draft Travel Order.', 'error')
+  } finally {
+    draftLoading.value = false
+  }
+}
+
 function showMessage(text, type = 'success') {
   toast[type]?.(text)
 }
@@ -97,13 +145,23 @@ function toStatusLabel(status) {
   return status ? statusLabel[status] || status : 'Awaiting Approval Manager'
 }
 
-// Approve/Reject hanya muncul kalau status masih menunggu Manager
-const canDecide = computed(() => toStatusLabel(selected.value?.status) === 'Awaiting Approval Manager')
+// Tombol Approve/Reject/Revision hanya muncul kalau backend bilang user ini berhak
+const canDecide = computed(() => selected.value?.can_approve === true)
 
 function formatDate(value) {
   if (!value) return '-'
   const date = new Date(value)
   return isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function formatDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return ''
+
+  return date
+    .toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+    .replace(',', '')
 }
 
 function money(amount, currency) {
@@ -188,11 +246,23 @@ function closeDialog() {
   dialogType.value = null
 }
 
-function openDetail(row) {
-  selected.value = row.raw
-  detailDialog.value = true
+// Ambil detail lengkap dari backend (daftar tidak membawa approvals dan can_approve)
+async function refreshDetail(id) {
+  try {
+    const response = await getTravelOrder(id)
+    selected.value = response?.data?.data ?? response?.data ?? response
+  } catch (error) {
+    console.error('Load detail error:', error)
+  }
 }
 
+async function openDetail(row) {
+  selected.value = row.raw
+  detailDialog.value = true
+  await refreshDetail(row.id)
+}
+
+// Dipakai Reject dan Revision (masih lokal, belum terhubung ke backend)
 function updateStatus(status, message, type = 'success') {
   const orderNumber = selected.value?.order_number
   const index = orders.value.findIndex(order => order.order_number === orderNumber)
@@ -204,6 +274,8 @@ function updateStatus(status, message, type = 'success') {
 }
 
 async function handleApprove() {
+  if (approving.value) return
+
   const ok = await confirm({
     title: 'Approve Travel Order',
     message: `Are you sure you want to approve ${selected.value?.order_number}?`,
@@ -211,10 +283,21 @@ async function handleApprove() {
 
   if (!ok) return
 
-  updateStatus('awaiting_approval_director', 'Travel order approved and sent to Director approval.')
+  approving.value = true
+
+  try {
+    await approveTravelOrder(selected.value.id)
+    await loadOrders()
+    await refreshDetail(selected.value.id)
+    showMessage('Travel order approved.')
+  } catch (error) {
+    showMessage(error?.response?.data?.message || 'Failed to approve travel order.', 'error')
+  } finally {
+    approving.value = false
+  }
 }
 
-// Reject: Yes -> Cancelled | Cancel -> tidak ada perubahan
+// Reject: Yes -> Cancelled | Cancel -> tidak ada perubahan (belum ke backend)
 async function handleReject() {
   const ok = await confirm({
     title: 'Reject Travel Order',
@@ -226,7 +309,7 @@ async function handleReject() {
   updateStatus('cancelled', 'Travel order has been cancelled.')
 }
 
-// Revision: Yes -> Revision Required | Cancel -> tidak ada perubahan
+// Revision: Yes -> Revision Required | Cancel -> tidak ada perubahan (belum ke backend)
 async function handleRevision() {
   const ok = await confirm({
     title: 'Return for Revision',
@@ -276,6 +359,38 @@ const detailSections = computed(() => {
   ]
 })
 
+// Susun item jadi baris: item biasa berpasangan 2 per baris, item "full" sebaris sendiri
+function toRows(items) {
+  const result = []
+  let pending = null
+
+  for (const item of items) {
+    if (item.full) {
+      if (pending) { result.push([pending]); pending = null }
+      result.push([item])
+    } else if (pending) {
+      result.push([pending, item])
+      pending = null
+    } else {
+      pending = item
+    }
+  }
+
+  if (pending) result.push([pending])
+  return result
+}
+
+// Data timeline asli dari backend (order.approvals)
+const approvalSteps = computed(() =>
+  (selected.value?.approvals || []).map(step => ({
+    key: step.id,
+    title: `${step.role_name || '-'} - ${step.name || '-'}`,
+    status: step.status,
+    time: formatDateTime(step.acted_at),
+    note: step.note || '',
+  })),
+)
+
 async function loadOrders() {
   loading.value = true
   errorMessage.value = ''
@@ -297,17 +412,37 @@ async function submitOrder(payload) {
   submitting.value = true
 
   try {
-    await createTravelOrder(payload)
+    const requestPayload = {
+      ...payload,
+      status: payload.status || 'submitted',
+    }
+
+    if (editingDraft.value && selected.value?.id) {
+      await updateTravelOrder(selected.value.id, requestPayload)
+    } else {
+      await createTravelOrder(requestPayload)
+    }
+
     closeDialog()
+    editingDraft.value = false
+    selected.value = null
     await loadOrders()
-    showMessage('Travel order submitted successfully.')
+
+    if (requestPayload.status === 'draft') {
+      showMessage('Travel order saved as draft.')
+    } else {
+      showMessage('Travel order submitted successfully.')
+    }
   } catch (error) {
     console.error('Submit error:', error?.response?.data || error)
 
     const errors = error?.response?.data?.errors
     const firstError = errors ? Object.values(errors).flat()[0] : null
 
-    showMessage(firstError || error?.response?.data?.message || 'Failed to submit travel order.', 'error')
+    showMessage(
+      firstError || error?.response?.data?.message || 'Failed to save travel order.',
+      'error',
+    )
   } finally {
     submitting.value = false
   }
@@ -388,9 +523,11 @@ onMounted(() => {
           </VChip>
         </template>
 
-        <!-- Action: hanya tombol View -->
         <template #item.action="{ item }">
-          <VBtn size="small" variant="tonal" color="primary" @click="openDetail(item)">View</VBtn>
+          <div class="d-flex align-center justify-center ga-1">
+            <VBtn icon="ri-eye-line" size="small" variant="text" color="primary" @click="openDetail(item)" />
+            <VBtn v-if="item.raw.status === 'draft'" icon="ri-edit-line" size="small" variant="text" color="success" :loading="draftLoading" @click="continueDraft(item)" />
+          </div>
         </template>
       </VDataTable>
     </VCard>
@@ -453,62 +590,120 @@ onMounted(() => {
     <VDialog v-model="dialog" max-width="1200" scrollable>
       <VCard rounded="lg">
         <VCardTitle class="d-flex align-center justify-space-between pa-5">
-  <div class="d-flex align-center ga-3">
-    <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="submitting" @click="backToBusiness" />
-    <VAvatar color="primary" variant="tonal" size="42"><VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" /></VAvatar>
-    <div>
-      <div class="text-subtitle-1 font-weight-bold">{{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}</div>
-      <div class="text-caption text-medium-emphasis">{{ dialogType === 'individual' ? 'Create an individual business trip request.' : 'Create a group business trip request.' }}</div>
-    </div>
-  </div>
-  <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
-</VCardTitle>
+          <div class="d-flex align-center ga-3">
+            <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="submitting" @click="backToBusiness" />
+            <VAvatar color="primary" variant="tonal" size="42"><VIcon :icon="dialogType === 'individual' ? 'ri-user-line' : 'ri-group-line'" size="22" /></VAvatar>
+            <div>
+              <div class="text-subtitle-1 font-weight-bold">{{ dialogType === 'individual' ? 'Individual Trip' : 'Group Trip' }}</div>
+              <div class="text-caption text-medium-emphasis">{{ dialogType === 'individual' ? 'Create an individual business trip request.' : 'Create a group business trip request.' }}</div>
+            </div>
+          </div>
+          <VBtn icon="ri-close-line" variant="text" @click="closeDialog" />
+        </VCardTitle>
 
         <VDivider />
 
         <VCardText class="pa-6">
-          <IndividualTripForm v-if="dialogType === 'individual'" :loading="submitting" @cancel="closeDialog" @submit="submitOrder" />
-          <GroupTripForm v-else-if="dialogType === 'group'" :loading="submitting" @cancel="closeDialog" @review="submitOrder" />
+          <IndividualTripForm v-if="dialogType === 'individual'" :loading="submitting" :initial-data="editingDraft ? selected : null" @cancel="closeDialog" @submit="submitOrder" />
+          <GroupTripForm v-else-if="dialogType === 'group'" :loading="submitting" :initial-data="editingDraft ? selected : null" @cancel="closeDialog" @review="submitOrder" />
         </VCardText>
       </VCard>
     </VDialog>
 
     <!-- Detail dialog -->
-    <VDialog v-model="detailDialog" max-width="800" scrollable>
+    <VDialog v-model="detailDialog" max-width="900" scrollable>
       <VCard rounded="lg">
-        <VCardItem class="px-6 py-4">
-          <div class="text-caption text-primary font-weight-bold">TRAVEL ORDER</div>
-          <VCardTitle class="pa-0 text-h6 font-weight-bold">{{ selected?.order_number || '-' }}</VCardTitle>
-
+        <VCardItem class="px-6 py-3">
+          <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">Travel Order Detail</VCardTitle>
           <template #append>
-            <VChip size="small" variant="tonal" :color="statusColor[toStatusLabel(selected?.status)] || 'primary'" class="me-2">{{ toStatusLabel(selected?.status) }}</VChip>
             <VBtn icon="ri-close-line" variant="text" @click="detailDialog = false" />
           </template>
         </VCardItem>
 
         <VDivider />
 
-        <VCardText class="px-6 py-2">
-          <template v-for="(section, index) in detailSections" :key="section.title">
-            <VDivider v-if="index > 0" class="my-4" />
-            <div class="text-subtitle-2 font-weight-bold text-primary mt-4 mb-4">{{ section.title }}</div>
+        <!-- Latar abu-abu seperti viewer PDF -->
+        <VCardText class="bg-grey-lighten-3 pa-6">
 
-            <VRow dense>
-              <VCol v-for="item in section.items" :key="item.label" cols="12" :md="item.full ? 12 : 4" class="pb-4">
-                <div class="text-caption text-medium-emphasis">{{ item.label }}</div>
-                <div class="text-body-2 font-weight-medium">{{ item.value }}</div>
-              </VCol>
-            </VRow>
-          </template>
+          <!-- Halaman 1: dokumen -->
+          <VSheet elevation="3" max-width="780" class="mx-auto pa-10">
+
+            <!-- Kop dokumen -->
+            <div class="d-flex align-start justify-space-between pb-4 mb-6 border-b-lg border-opacity-100 border-primary">
+              <div>
+                <div class="text-h5 font-weight-bold">TRAVEL ORDER</div>
+                <div class="text-caption text-medium-emphasis">Business Trip Request Form</div>
+              </div>
+
+              <div class="text-end">
+                <div class="text-caption text-medium-emphasis">Order Number</div>
+                <div class="text-subtitle-1 font-weight-bold mb-1">{{ selected?.order_number || '-' }}</div>
+                <VChip size="small" variant="tonal" :color="statusColor[toStatusLabel(selected?.status)] || 'primary'">
+                  {{ toStatusLabel(selected?.status) }}
+                </VChip>
+              </div>
+            </div>
+
+            <!-- Section -->
+            <div v-for="section in detailSections" :key="section.title" class="mb-6">
+              <div class="bg-grey-lighten-4 border px-3 py-2 text-caption font-weight-bold text-uppercase">
+                {{ section.title }}
+              </div>
+
+              <VTable density="compact" class="border-s border-e border-b">
+                <tbody>
+                  <tr v-for="(row, i) in toRows(section.items)" :key="i">
+                    <template v-for="item in row" :key="item.label">
+                      <td width="18%" class="text-caption text-medium-emphasis bg-grey-lighten-5 align-top py-2">{{ item.label }}</td>
+                      <td :width="row.length === 1 ? undefined : '32%'" :colspan="row.length === 1 ? 3 : 1" class="text-body-2 font-weight-medium align-top py-2">{{ item.value }}</td>
+                    </template>
+                  </tr>
+                </tbody>
+              </VTable>
+            </div>
+          </VSheet>
+
+          <!-- Halaman 2: Approval Progress -->
+          <VSheet elevation="3" max-width="780" class="mx-auto mt-6">
+            <div class="px-6 py-3 text-subtitle-2 font-weight-bold">Approval Progress</div>
+            <VDivider />
+
+            <VTimeline v-if="approvalSteps.length" side="end" align="start" density="compact" truncate-line="both" line-thickness="1" class="px-6 py-4">
+              <VTimelineItem
+                v-for="step in approvalSteps"
+                :key="step.key"
+                :dot-color="approvalColor[step.status] || 'grey'"
+                size="x-small"
+                class="pb-1"
+              >
+                <div class="d-flex align-center ga-2 flex-wrap">
+                  <span class="text-body-2 font-weight-bold">{{ step.title }}</span>
+                  <VChip size="x-small" variant="tonal" border label :color="approvalColor[step.status] || 'grey'" class="font-weight-bold">
+                    {{ approvalLabel[step.status] || step.status }}
+                  </VChip>
+                </div>
+
+                <div class="text-caption text-medium-emphasis">
+                  <template v-if="step.time">{{ step.time }}</template>
+                  <template v-else-if="step.status === 'pending'">Current stage</template>
+                </div>
+
+                <div v-if="step.note" class="text-caption">Note: {{ step.note }}</div>
+              </VTimelineItem>
+            </VTimeline>
+
+            <div v-else class="px-6 py-4 text-caption text-medium-emphasis">No approval data yet.</div>
+          </VSheet>
         </VCardText>
 
-        <VDivider />
-
-        <VCardActions v-if="canDecide" class="px-6 py-3 justify-end ga-2">
-  <VBtn variant="tonal" color="error" @click="handleReject">Reject</VBtn>
-  <VBtn variant="tonal" color="warning" @click="handleRevision">Revision</VBtn>
-  <VBtn variant="flat" color="success" @click="handleApprove">Approve</VBtn>
-</VCardActions>
+        <template v-if="canDecide">
+          <VDivider />
+          <VCardActions class="px-6 py-3 justify-end ga-2">
+            <VBtn variant="tonal" color="error" :disabled="approving" @click="handleReject">Reject</VBtn>
+            <VBtn variant="tonal" color="warning" :disabled="approving" @click="handleRevision">Revision</VBtn>
+            <VBtn variant="flat" color="success" :loading="approving" @click="handleApprove">Approve</VBtn>
+          </VCardActions>
+        </template>
       </VCard>
     </VDialog>
   </div>

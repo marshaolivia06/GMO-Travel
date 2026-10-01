@@ -26,16 +26,20 @@ class TravelOrderController extends Controller
         return response()->json($orders);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
         return response()->json([
-            'data' => $this->service->find($id),
+            'data' => $this->service->find($id, $request->user()),
         ]);
     }
 
-    public function approve(int $id): JsonResponse
+    public function approve(Request $request, int $id): JsonResponse
     {
-        $order = $this->service->approve($id);
+        $order = $this->service->approve(
+            $id,
+            $request->user(),
+            $request->input('note')
+        );
 
         return response()->json([
             'message' => 'Travel Order has been successfully approved.',
@@ -57,9 +61,33 @@ class TravelOrderController extends Controller
             $request->user()
         );
 
+        $message = $order->status === 'draft'
+            ? 'Travel Order has been saved as draft.'
+            : 'Travel Order has been successfully submitted.';
+
         return response()->json([
-            'message' => 'The travel order has been successfully submitted.',
+            'message' => $message,
             'data' => $order,
         ], 201);
+    }
+
+    public function update(
+        StoreTravelOrderRequest $request,
+        int $id
+    ): JsonResponse {
+        $order = $this->service->update(
+            $id,
+            $request->validated(),
+            $request->user()
+        );
+
+        $message = $order->status === 'draft'
+            ? 'Travel Order draft has been updated.'
+            : 'Travel Order has been successfully submitted.';
+
+        return response()->json([
+            'message' => $message,
+            'data' => $order,
+        ]);
     }
 }

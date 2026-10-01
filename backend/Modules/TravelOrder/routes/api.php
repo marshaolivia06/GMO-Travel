@@ -17,6 +17,9 @@ Route::middleware(['auth:sanctum'])
 
             Route::get('/{id}', [TravelOrderController::class, 'show'])
                 ->middleware('permission:travel-order.view');
+            
+            Route::put('/{id}', [TravelOrderController::class, 'update'])
+                 ->middleware('permission:travel-order.create');
 
                 Route::post('/{id}/approve', [TravelOrderController::class, 'approve'])
                 ->middleware('permission:travel-order.approve');

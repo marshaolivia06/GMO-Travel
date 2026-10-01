@@ -20,15 +20,28 @@ class TravelOrderRepository
                 $filters['manager_id'] ?? null,
                 function ($query, $managerId) use ($filters) {
                     $query->where(function ($q) use ($managerId, $filters) {
-    
+
                         // 1. Request milik Manager sendiri
                         $q->where('user_id', $managerId)
-    
+
                             // 2. Request staff dalam department Manager
+                            //    yang sedang menunggu approval Dept Head
                             ->orWhere(function ($staffQuery) use ($filters) {
                                 $staffQuery
-                                    ->where('department_id', $filters['department_id'])
-                                    ->where('status', 'awaiting_approval_manager');
+                                    ->where(
+                                        'department_id',
+                                        $filters['department_id']
+                                    )
+                                    ->whereHas('approvals', function ($approvalQuery) {
+                                        $approvalQuery
+                                            ->where('status', 'pending')
+                                            ->whereHas('role', function ($roleQuery) {
+                                                $roleQuery->where(
+                                                    'name',
+                                                    'Dept Head'
+                                                );
+                                            });
+                                    });
                             });
                     });
                 }
@@ -39,24 +52,57 @@ class TravelOrderRepository
                     $query->where('user_id', $userId);
                 }
             )
-            ->when($filters['search'] ?? null, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('order_number', 'like', "%{$search}%")
-                        ->orWhere('travel_from', 'like', "%{$search}%")
-                        ->orWhere('travel_to', 'like', "%{$search}%");
-                });
-            })
+            ->when(
+                $filters['search'] ?? null,
+                function ($query, $search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where(
+                            'order_number',
+                            'like',
+                            "%{$search}%"
+                        )
+                            ->orWhere(
+                                'travel_from',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'travel_to',
+                                'like',
+                                "%{$search}%"
+                            );
+                    });
+                }
+            )
             ->when(
                 $filters['status'] ?? null,
-                fn ($query, $status) => $query->where('status', $status)
+                fn ($query, $status) => $query->where(
+                    'status',
+                    $status
+                )
             )
             ->when(
                 $filters['travel_region'] ?? null,
-                fn ($query, $region) => $query->where('travel_region', $region)
+                fn ($query, $region) => $query->where(
+                    'travel_region',
+                    $region
+                )
+            )
+            ->when(
+                $filters['approval_role'] ?? null,
+                function ($query, $roleName) {
+                    $query->whereHas('approvals', function ($approvalQuery) use ($roleName) {
+                        $approvalQuery
+                            ->where('status', 'pending')
+                            ->whereHas('role', function ($roleQuery) use ($roleName) {
+                                $roleQuery->where('name', $roleName);
+                            });
+                    });
+                }
             )
             ->latest()
             ->paginate($perPage);
-    }    
+    }
 
     public function findById(int $id): TravelOrder
     {

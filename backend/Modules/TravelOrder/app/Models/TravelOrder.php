@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\MasterManagement\Models\Department;
 use Modules\TravelOrder\Models\TravelOrderAdvance;
+use Modules\TravelOrder\Models\TravelOrderApproval;
 use Modules\UserManagement\Models\User;
-
 class TravelOrder extends Model
 {
     use HasFactory, SoftDeletes;
@@ -59,5 +60,10 @@ class TravelOrder extends Model
     public function advance(): HasOne
     {
         return $this->hasOne(TravelOrderAdvance::class);
+    }
+
+    public function approvals(): HasMany
+    {
+    return $this->hasMany(TravelOrderApproval::class)->orderBy('sequence');
     }
 }

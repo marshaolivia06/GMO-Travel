@@ -6,7 +6,10 @@ import { getDepartmentOptions } from '../../../master-management/services/depart
 import { useConfirm } from '../../../../composables/useConfirm'
 
 const emit = defineEmits(['cancel', 'submit'])
-const props = defineProps({ loading: { type: Boolean, default: false } })
+const props = defineProps({
+  loading: { type: Boolean, default: false },
+  initialData: { type: Object, default: null },
+})
 const authStore = useAuthStore()
 const { confirm } = useConfirm()
 
@@ -48,6 +51,111 @@ const form = reactive({
   travelRegion: '', country: '', customCountry: '', pocketMoney: '', mealAllowance: '',
   ferryTicketType: '', ferryArrangement: '', accommodationArrangement: ''
 })
+function normalizeDate(value) {
+  if (!value) return ''
+
+  const str = String(value)
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str
+  }
+
+  const date = new Date(str)
+
+  if (isNaN(date.getTime())) return ''
+
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+
+  return `${yyyy}-${mm}-${dd}`
+}
+function normalizeTime(value) {
+  if (!value) return ''
+
+  const str = String(value)
+
+  // Sudah HH:mm
+  if (/^\d{2}:\d{2}$/.test(str)) {
+    return str
+  }
+
+  // HH:mm:ss → HH:mm
+  const match = str.match(/^(\d{2}):(\d{2})(?::\d{2})?$/)
+
+  if (!match) return ''
+
+  return `${match[1]}:${match[2]}`
+}
+
+function fillInitialData(order) {
+  if (!order) return
+
+  const ticket = order.ticket || {}
+  const accommodation = order.accommodation || {}
+  const advance = order.advance || {}
+
+  Object.assign(form, {
+  employee: order.user?.name || authStore.user?.name || '',
+  department: order.department?.name || order.department_name || '',
+  departmentId: order.department_id || order.department?.id || null,
+
+  travelFrom: order.travel_from || '',
+  travelTo: order.travel_to || '',
+
+  departureDate: normalizeDate(order.departure_date),
+  departureTime: normalizeTime(order.departure_time),
+
+  returnDate: normalizeDate(order.return_date),
+  returnTime: normalizeTime(order.return_time),
+
+  purpose: order.purpose || '',
+  remarks: order.remarks || '',
+
+  travelRegion: order.travel_region || '',
+  country: order.country || '',
+  customCountry: '',
+
+  pocketMoney: advance.pocket_money ?? order.pocket_money ?? '',
+  mealAllowance: advance.meal_allowance ?? order.meal_allowance ?? '',
+
+  ferryTicketType:
+    ticket.ticket_type ||
+    order.ferry_ticket_type ||
+    '',
+
+  ferryArrangement:
+    ticket.arrangement ||
+    order.ferry_arrangement ||
+    '',
+
+  accommodationArrangement:
+    accommodation.arrangement ||
+    order.accommodation_arrangement ||
+    '',
+})
+
+  if (form.travelRegion === 'Indonesia') {
+    mealCurrency.value = 'IDR'
+    pocketCurrency.value = 'IDR'
+  } else if (form.travelRegion === 'Singapore') {
+    mealCurrency.value = 'SGD'
+    pocketCurrency.value = 'SGD'
+  } else {
+    const currency =
+      advance.currency ||
+      order.currency ||
+      ''
+
+    mealCurrency.value = currency
+    pocketCurrency.value = currency
+    manualCurrency.value = currency
+  }
+
+  if (form.travelRegion) {
+    loadCountries(form.travelRegion)
+  }
+}
 
 const hasAdvance = computed(() => travelRegions.includes(form.travelRegion))
 const showCountry = computed(() => form.travelRegion === 'Non Singapore')
@@ -275,16 +383,15 @@ function clearErrors() {
   generalError.value = ''
 }
 
-function validate() {
+function validate(isSubmit = true) {
   clearErrors()
   let valid = true
 
-  const required = [
-    'employee', 'department', 'travelFrom', 'travelTo', 'departureDate', 'departureTime',
-    'returnDate', 'returnTime', 'purpose', 'travelRegion', 'ferryTicketType',
-    'ferryArrangement', 'accommodationArrangement'
-  ]
+  // Draft boleh disimpan walaupun belum lengkap
+  if (!isSubmit) return true
 
+  const required = [
+    'employee', 'department', 'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate', 'returnTime', 'purpose', 'travelRegion', 'ferryTicketType', 'ferryArrangement', 'accommodationArrangement' ]
   required.forEach(key => {
     if (!String(form[key] ?? '').trim()) {
       errors[key] = 'This field is required.'
@@ -321,9 +428,34 @@ function validate() {
 
   return valid
 }
+function saveDraft() {
+  if (props.loading) return
+
+  let currency = null
+
+  if (form.travelRegion === 'Indonesia') {
+    currency = 'IDR'
+  } else if (form.travelRegion === 'Singapore') {
+    currency = 'SGD'
+  } else {
+    currency =
+      manualCurrency.value ||
+      selectedCountryCurrency.value ||
+      mealCurrency.value ||
+      pocketCurrency.value ||
+      null
+  }
+
+  emit('submit', {
+    ...form,
+    status: 'draft',
+    currency,
+  })
+}
 
 function submitForm() {
-  if (props.loading || !validate()) return
+  if (props.loading || !validate(true)) return
+
   reviewDialog.value = true
 }
 
@@ -348,12 +480,15 @@ async function confirmSubmit() {
   else if (form.travelRegion === 'Singapore') currency = 'SGD'
   else currency = manualCurrency.value || selectedCountryCurrency.value || mealCurrency.value || pocketCurrency.value || null
 
-  emit('submit', { ...form, currency })
+  emit('submit', { ...form,   status: 'submitted', currency })
 }
 
 function cancel() {
   if (!props.loading) emit('cancel')
 }
+watch(() => props.initialData, data => {
+  if (data) fillInitialData(data)
+}, { immediate: true })
 
 watch([() => form.travelRegion, mealCurrency], ([region, currency]) => loadTravelAdvanceLimit(region, currency), { immediate: true })
 watch([() => form.travelRegion, pocketCurrency], ([region, currency]) => loadTravelAdvanceLimit(region, currency), { immediate: true })
@@ -524,9 +659,11 @@ onMounted(loadDepartmentInfo)
         <VDivider />
 
         <VCardActions class="pa-4 justify-end">
-          <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
-          <VBtn type="submit" color="primary" variant="flat" :disabled="props.loading || mealExceeded || pocketExceeded">Continue</VBtn>
-        </VCardActions>
+  <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
+  <VBtn type="button" variant="flat" color="success" :loading="props.loading" :disabled="props.loading" @click="saveDraft"> Draft </VBtn>
+
+  <VBtn type="submit" color="primary" variant="flat" :disabled="props.loading || mealExceeded || pocketExceeded">Continue</VBtn>
+</VCardActions>
       </VForm>
     </VCard>
 
@@ -589,7 +726,7 @@ onMounted(loadDepartmentInfo)
 
         <VCardActions class="pa-3 justify-end">
           <VBtn variant="text" :disabled="props.loading" @click="backToEdit">Back</VBtn>
-          <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit Travel Order</VBtn>
+          <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit</VBtn>
         </VCardActions>
       </VCard>
     </div>
