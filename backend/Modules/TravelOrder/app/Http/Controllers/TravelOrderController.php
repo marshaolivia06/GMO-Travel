@@ -5,6 +5,7 @@ namespace Modules\TravelOrder\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Modules\TravelOrder\Http\Requests\StoreTravelOrderRequest;
 use Modules\TravelOrder\Services\TravelOrderService;
 
@@ -31,6 +32,14 @@ class TravelOrderController extends Controller
         return response()->json([
             'data' => $this->service->find($id, $request->user()),
         ]);
+    }
+
+    public function pdf(Request $request, int $id): Response
+    {
+        $pdf = $this->service->pdf($id, $request->user());
+
+        // stream = ditampilkan langsung (cocok untuk iframe), bukan dipaksa download
+        return $pdf->stream('travel-order.pdf');
     }
 
     public function approve(Request $request, int $id): JsonResponse

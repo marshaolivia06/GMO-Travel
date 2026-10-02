@@ -4,6 +4,7 @@ namespace Modules\TravelOrder\Repositories;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Modules\TravelOrder\Models\TravelOrder;
+use Illuminate\Support\Facades\DB;
 
 class TravelOrderRepository
 {
@@ -24,8 +25,6 @@ class TravelOrderRepository
                         // 1. Request milik Manager sendiri
                         $q->where('user_id', $managerId)
 
-                            // 2. Request staff dalam department Manager
-                            //    yang sedang menunggu approval Dept Head
                             ->orWhere(function ($staffQuery) use ($filters) {
                                 $staffQuery
                                     ->where(
@@ -51,6 +50,10 @@ class TravelOrderRepository
                 function ($query, $userId) {
                     $query->where('user_id', $userId);
                 }
+            )
+            ->when(
+                $filters['exclude_draft'] ?? null,
+                fn ($query) => $query->where('status', '!=', 'draft')
             )
             ->when(
                 $filters['search'] ?? null,
@@ -96,6 +99,14 @@ class TravelOrderRepository
                             ->where('status', 'pending')
                             ->whereHas('role', function ($roleQuery) use ($roleName) {
                                 $roleQuery->where('name', $roleName);
+                            })
+
+                            ->whereNotExists(function ($sub) {
+                                $sub->select(DB::raw(1))
+                                    ->from('travel_order_approvals as prev')
+                                    ->whereColumn('prev.travel_order_id', 'travel_order_approvals.travel_order_id')
+                                    ->where('prev.status', 'pending')
+                                    ->whereColumn('prev.sequence', '<', 'travel_order_approvals.sequence');
                             });
                     });
                 }

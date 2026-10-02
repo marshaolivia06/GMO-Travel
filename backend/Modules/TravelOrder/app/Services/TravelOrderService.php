@@ -2,6 +2,7 @@
 
 namespace Modules\TravelOrder\Services;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -28,14 +29,18 @@ class TravelOrderService
         int $perPage = 10
     ): LengthAwarePaginator {
         $roleNames = $user->getRoleNames();
-    
+
+        $isAdmin = $roleNames->contains('Admin');
         $isDeptHead = $roleNames->contains('Dept Head');
         $isDirector = $roleNames->contains('Director');
         $isPresidentDirector = $roleNames->contains('President Director');
-    
-        if ($isDeptHead) {
+
+        if ($isAdmin) {
+            // Admin melihat semua pengajuan, kecuali draft
+            $filters['exclude_draft'] = true;
+        } elseif ($isDeptHead) {
             $department = Department::where('dept_head_id', $user->id)->first();
-    
+
             if ($department) {
                 $filters['manager_id'] = $user->id;
                 $filters['department_id'] = $department->id;
@@ -49,8 +54,18 @@ class TravelOrderService
         } else {
             $filters['user_id'] = $user->id;
         }
-    
-        return $this->repository->paginate($filters, $perPage);
+
+        $orders = $this->repository->paginate($filters, $perPage);
+
+        // Tandai baris mana yang boleh di-approve oleh user ini
+        $orders->getCollection()->each(function ($order) use ($user) {
+            $order->setAttribute(
+                'can_approve',
+                $this->approvalService->canApprove($order, $user)
+            );
+        });
+
+        return $orders;
     }
 
     public function find(int $id, ?User $user = null): TravelOrder
@@ -67,6 +82,16 @@ class TravelOrderService
         );
 
         return $order;
+    }
+
+    public function pdf(int $id, ?User $user = null)
+    {
+        // find() sudah memuat user, department, advance, dan approvals
+        $order = $this->find($id, $user);
+
+        return Pdf::loadView('travelorder::pdf.travel_order', [
+            'order' => $order,
+        ])->setPaper('a4');
     }
 
     public function approve(int $id, User $user, ?string $note = null): TravelOrder

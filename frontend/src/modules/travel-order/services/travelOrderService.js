@@ -55,12 +55,17 @@ export const getTravelOrders = params =>
     .get(BASE, { params })
     .then(res => res.data)
 
-export const getTravelOrder = id =>
-  http
-    .get(`${BASE}/${id}`)
-    .then(res => res.data)
-
-export const getDepartmentLock = () =>
+    export const getTravelOrder = id =>
+      http
+        .get(`${BASE}/${id}`)
+        .then(res => res.data)
+    
+    export const getTravelOrderPdf = id =>
+      http
+        .get(`${BASE}/${id}/pdf`, { responseType: 'blob' })
+        .then(res => res.data)
+    
+    export const getDepartmentLock = () =>
   http
     .get(`${BASE}/department-lock`)
     .then(res => res.data)

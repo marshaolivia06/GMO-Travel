@@ -15,9 +15,12 @@ Route::middleware(['auth:sanctum'])
             Route::get('/department-lock', [TravelOrderController::class, 'departmentLock'])
                 ->middleware('permission:travel-order.create');
 
-            Route::get('/{id}', [TravelOrderController::class, 'show'])
+                Route::get('/{id}', [TravelOrderController::class, 'show'])
                 ->middleware('permission:travel-order.view');
-            
+
+            Route::get('/{id}/pdf', [TravelOrderController::class, 'pdf'])
+                ->middleware('permission:travel-order.view');
+
             Route::put('/{id}', [TravelOrderController::class, 'update'])
                  ->middleware('permission:travel-order.create');
 

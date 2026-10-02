@@ -8,6 +8,8 @@ use Modules\MasterManagement\Models\MasterDivision;
 use Modules\TravelOrder\Models\TravelOrder;
 use Modules\UserManagement\Models\User;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Mail;
+use Modules\TravelOrder\Emails\TravelOrderAwaitingApprovalMail;
 
 class TravelOrderApprovalService
 {
@@ -72,7 +74,9 @@ class TravelOrderApprovalService
                     'status'   => 'pending',
                 ]);
             }
+            $order->update(['status' => 'awaiting_approval']);
 
+            DB::afterCommit(fn () => $this->notifyCurrentApprovers($order));
         });
     }
 
@@ -84,7 +88,51 @@ class TravelOrderApprovalService
             ->orderBy('sequence')
             ->first();
     }
+    public function notifyCurrentApprovers(TravelOrder $order): void
+    {
+        $stage = $this->currentStage($order);
 
+        // Tidak ada tahap pending = tidak ada yang perlu diberi tahu
+        if (! $stage) {
+            return;
+        }
+
+        $order->loadMissing('user');
+
+        foreach ($this->approversOf($order, $stage) as $approver) {
+            if ($approver->email) {
+                Mail::to($approver->email)->queue(
+                    new TravelOrderAwaitingApprovalMail($order, $stage->role->name)
+                );
+            }
+        }
+    }
+
+    private function approversOf(TravelOrder $order, $stage)
+    {
+        $roleName = $stage->role->name;
+
+        if ($roleName === 'Dept Head') {
+            $id = Department::where('id', $order->department_id)
+                ->value('dept_head_id');
+
+            return User::whereKey($id)->get();
+        }
+
+        if ($roleName === 'Director') {
+            // Logikanya sama dengan canApprove()
+            $department = Department::find($order->department_id);
+
+            $division = $department?->division_head_id
+                ? MasterDivision::find($department->division_head_id)
+                : null;
+
+            return User::whereKey($division?->division_head_id)->get();
+        }
+
+        // President Director dan role lain: semua user dengan role itu
+        return User::role($roleName)->get();
+    }
 
     public function canApprove(
         TravelOrder $order,

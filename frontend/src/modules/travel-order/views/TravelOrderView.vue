@@ -1,9 +1,9 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
 import IndividualTripForm from '../components/modal/IndividualTripForm.vue'
-import { getTravelOrders, getTravelOrder, createTravelOrder, updateTravelOrder, approveTravelOrder } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, getTravelOrderPdf, createTravelOrder, updateTravelOrder, approveTravelOrder } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 
@@ -25,10 +25,14 @@ const submitting = ref(false)
 const approving = ref(false)
 const editingDraft = ref(false)
 const draftLoading = ref(false)
-
+const detailMode = ref('view') 
+const pdfUrl = ref('')
+const pdfLoading = ref(false)
+const pdfFrame = ref(null)
 const filters = reactive({ search: '', status: null })
 
 const statusOptions = [
+  'Awaiting Approval',
   'Awaiting Approval Manager',
   'Awaiting Approval Director',
   'Awaiting Approval President Director',
@@ -41,6 +45,7 @@ const statusOptions = [
 ]
 
 const statusColor = {
+  'Awaiting Approval': 'warning',
   'Processed by GMO': 'success',
   'Approved': 'success',
   'Awaiting Approval Manager': 'warning',
@@ -52,6 +57,7 @@ const statusColor = {
 }
 
 const statusLabel = {
+  awaiting_approval: 'Awaiting Approval',
   awaiting_approval_manager: 'Awaiting Approval Manager',
   awaiting_approval_director: 'Awaiting Approval Director',
   awaiting_approval_predir: 'Awaiting Approval President Director',
@@ -98,7 +104,7 @@ const cellClass = 'px-3 py-3'
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
 
 const headers = [
-  col('ACTION', 'action', { align: 'center', width: 120 }),
+  col('ACTION', 'action', { align: 'center', width: 160 }),
   col('ID', 'id'),
   col('REQUEST TYPE', 'type'),
   col('SUBJECT', 'subject'),
@@ -145,8 +151,10 @@ function toStatusLabel(status) {
   return status ? statusLabel[status] || status : 'Awaiting Approval Manager'
 }
 
-// Tombol Approve/Reject/Revision hanya muncul kalau backend bilang user ini berhak
-const canDecide = computed(() => selected.value?.can_approve === true)
+// Tombol Approve/Reject/Revision hanya di mode review DAN backend bilang user berhak
+const canDecide = computed(() =>
+  detailMode.value === 'review' && selected.value?.can_approve === true,
+)
 
 function formatDate(value) {
   if (!value) return '-'
@@ -256,13 +264,52 @@ async function refreshDetail(id) {
   }
 }
 
-async function openDetail(row) {
+async function openDetail(row, mode = 'view') {
+  detailMode.value = mode
   selected.value = row.raw
   detailDialog.value = true
-  await refreshDetail(row.id)
+  await Promise.all([refreshDetail(row.id), loadPdf(row.id)])
 }
 
-// Dipakai Reject dan Revision (masih lokal, belum terhubung ke backend)
+async function loadPdf(id) {
+  pdfLoading.value = true
+
+  try {
+    const blob = await getTravelOrderPdf(id)
+    revokePdf()
+    pdfUrl.value = URL.createObjectURL(blob)
+  } catch (error) {
+    console.error('Load PDF error:', error)
+    showMessage('Failed to load PDF.', 'error')
+  } finally {
+    pdfLoading.value = false
+  }
+}
+
+function revokePdf() {
+  if (pdfUrl.value) {
+    URL.revokeObjectURL(pdfUrl.value)
+    pdfUrl.value = ''
+  }
+}
+
+function downloadPdf() {
+  if (!pdfUrl.value) return
+
+  const link = document.createElement('a')
+  link.href = pdfUrl.value
+  link.download = `${selected.value?.order_number || 'travel-order'}.pdf`
+  link.click()
+}
+
+function printPdf() {
+  pdfFrame.value?.contentWindow?.print()
+}
+
+watch(detailDialog, open => {
+  if (!open) revokePdf()
+})
+
 function updateStatus(status, message, type = 'success') {
   const orderNumber = selected.value?.order_number
   const index = orders.value.findIndex(order => order.order_number === orderNumber)
@@ -288,7 +335,7 @@ async function handleApprove() {
   try {
     await approveTravelOrder(selected.value.id)
     await loadOrders()
-    await refreshDetail(selected.value.id)
+    detailDialog.value = false
     showMessage('Travel order approved.')
   } catch (error) {
     showMessage(error?.response?.data?.message || 'Failed to approve travel order.', 'error')
@@ -434,7 +481,7 @@ async function submitOrder(payload) {
       showMessage('Travel order submitted successfully.')
     }
   } catch (error) {
-    console.error('Submit error:', error?.response?.data || error)
+    console.log('Submit error:', error.response?.data)
 
     const errors = error?.response?.data?.errors
     const firstError = errors ? Object.values(errors).flat()[0] : null
@@ -524,11 +571,12 @@ onMounted(() => {
         </template>
 
         <template #item.action="{ item }">
-          <div class="d-flex align-center justify-center ga-1">
-            <VBtn icon="ri-eye-line" size="small" variant="text" color="primary" @click="openDetail(item)" />
-            <VBtn v-if="item.raw.status === 'draft'" icon="ri-edit-line" size="small" variant="text" color="success" :loading="draftLoading" @click="continueDraft(item)" />
-          </div>
-        </template>
+  <div class="d-flex align-center justify-center ga-2">
+    <VBtn v-if="item.raw.status === 'draft'" size="small" variant="flat" color="success" :loading="draftLoading" @click="continueDraft(item)">Edit</VBtn>
+    <VBtn v-else-if="item.raw.can_approve" size="small" variant="flat" color="primary" @click="openDetail(item, 'review')">Review</VBtn>
+    <VBtn v-else size="small" variant="flat" color="primary" @click="openDetail(item)">View</VBtn>
+  </div>
+</template>
       </VDataTable>
     </VCard>
 
@@ -610,92 +658,45 @@ onMounted(() => {
       </VCard>
     </VDialog>
 
-    <!-- Detail dialog -->
-    <VDialog v-model="detailDialog" max-width="900" scrollable>
+       <!-- Detail dialog -->
+       <VDialog v-model="detailDialog" max-width="1000" scrollable>
       <VCard rounded="lg">
-        <VCardItem class="px-6 py-3">
-          <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">Travel Order Detail</VCardTitle>
+        <!-- Toolbar -->
+        <VCardItem class="px-4 py-2">
+          <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">
+            {{ detailMode === 'review' ? 'Review Travel Order' : 'Travel Order Detail' }}
+          </VCardTitle>
+
           <template #append>
-            <VBtn icon="ri-close-line" variant="text" @click="detailDialog = false" />
+            <div class="d-flex align-center ga-1">
+              <VBtn size="small" variant="text" prepend-icon="ri-download-2-line" :disabled="!pdfUrl" @click="downloadPdf">PDF</VBtn>
+              <VBtn size="small" variant="text" prepend-icon="ri-printer-line" :disabled="!pdfUrl" @click="printPdf">Print</VBtn>
+              <VBtn icon="ri-close-line" size="small" variant="text" @click="detailDialog = false" />
+            </div>
           </template>
         </VCardItem>
 
         <VDivider />
 
-        <!-- Latar abu-abu seperti viewer PDF -->
-        <VCardText class="bg-grey-lighten-3 pa-6">
+        <!-- Dokumen PDF -->
+        <VCardText class="bg-grey-lighten-3 pa-0">
+          <VProgressLinear v-if="pdfLoading" indeterminate />
 
-          <!-- Halaman 1: dokumen -->
-          <VSheet elevation="3" max-width="780" class="mx-auto pa-10">
+          <iframe
+            v-if="pdfUrl"
+            ref="pdfFrame"
+            :src="pdfUrl"
+            title="Travel Order PDF"
+            height="650"
+            class="d-block w-100 border-0"
+          />
 
-            <!-- Kop dokumen -->
-            <div class="d-flex align-start justify-space-between pb-4 mb-6 border-b-lg border-opacity-100 border-primary">
-              <div>
-                <div class="text-h5 font-weight-bold">TRAVEL ORDER</div>
-                <div class="text-caption text-medium-emphasis">Business Trip Request Form</div>
-              </div>
-
-              <div class="text-end">
-                <div class="text-caption text-medium-emphasis">Order Number</div>
-                <div class="text-subtitle-1 font-weight-bold mb-1">{{ selected?.order_number || '-' }}</div>
-                <VChip size="small" variant="tonal" :color="statusColor[toStatusLabel(selected?.status)] || 'primary'">
-                  {{ toStatusLabel(selected?.status) }}
-                </VChip>
-              </div>
-            </div>
-
-            <!-- Section -->
-            <div v-for="section in detailSections" :key="section.title" class="mb-6">
-              <div class="bg-grey-lighten-4 border px-3 py-2 text-caption font-weight-bold text-uppercase">
-                {{ section.title }}
-              </div>
-
-              <VTable density="compact" class="border-s border-e border-b">
-                <tbody>
-                  <tr v-for="(row, i) in toRows(section.items)" :key="i">
-                    <template v-for="item in row" :key="item.label">
-                      <td width="18%" class="text-caption text-medium-emphasis bg-grey-lighten-5 align-top py-2">{{ item.label }}</td>
-                      <td :width="row.length === 1 ? undefined : '32%'" :colspan="row.length === 1 ? 3 : 1" class="text-body-2 font-weight-medium align-top py-2">{{ item.value }}</td>
-                    </template>
-                  </tr>
-                </tbody>
-              </VTable>
-            </div>
-          </VSheet>
-
-          <!-- Halaman 2: Approval Progress -->
-          <VSheet elevation="3" max-width="780" class="mx-auto mt-6">
-            <div class="px-6 py-3 text-subtitle-2 font-weight-bold">Approval Progress</div>
-            <VDivider />
-
-            <VTimeline v-if="approvalSteps.length" side="end" align="start" density="compact" truncate-line="both" line-thickness="1" class="px-6 py-4">
-              <VTimelineItem
-                v-for="step in approvalSteps"
-                :key="step.key"
-                :dot-color="approvalColor[step.status] || 'grey'"
-                size="x-small"
-                class="pb-1"
-              >
-                <div class="d-flex align-center ga-2 flex-wrap">
-                  <span class="text-body-2 font-weight-bold">{{ step.title }}</span>
-                  <VChip size="x-small" variant="tonal" border label :color="approvalColor[step.status] || 'grey'" class="font-weight-bold">
-                    {{ approvalLabel[step.status] || step.status }}
-                  </VChip>
-                </div>
-
-                <div class="text-caption text-medium-emphasis">
-                  <template v-if="step.time">{{ step.time }}</template>
-                  <template v-else-if="step.status === 'pending'">Current stage</template>
-                </div>
-
-                <div v-if="step.note" class="text-caption">Note: {{ step.note }}</div>
-              </VTimelineItem>
-            </VTimeline>
-
-            <div v-else class="px-6 py-4 text-caption text-medium-emphasis">No approval data yet.</div>
-          </VSheet>
+          <div v-else-if="!pdfLoading" class="pa-6 text-center text-medium-emphasis">
+            PDF is not available.
+          </div>
         </VCardText>
 
+        <!-- Tombol aksi: hanya di mode Review -->
         <template v-if="canDecide">
           <VDivider />
           <VCardActions class="px-6 py-3 justify-end ga-2">
