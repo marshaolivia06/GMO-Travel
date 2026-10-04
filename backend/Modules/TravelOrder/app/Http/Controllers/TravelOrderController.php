@@ -36,10 +36,8 @@ class TravelOrderController extends Controller
 
     public function pdf(Request $request, int $id): Response
     {
-        $pdf = $this->service->pdf($id, $request->user());
-
-        // stream = ditampilkan langsung (cocok untuk iframe), bukan dipaksa download
-        return $pdf->stream('travel-order.pdf');
+    $pdf = $this->service->pdf($id, $request->user());
+    return $pdf->stream("TO-{$id}.pdf");
     }
 
     public function approve(Request $request, int $id): JsonResponse

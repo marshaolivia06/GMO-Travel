@@ -61,9 +61,9 @@ export const getTravelOrders = params =>
         .then(res => res.data)
     
     export const getTravelOrderPdf = id =>
-      http
-        .get(`${BASE}/${id}/pdf`, { responseType: 'blob' })
-        .then(res => res.data)
+  http
+    .get(`${BASE}/${id}/pdf`, { responseType: 'blob' })
+    .then(res => res.data)
     
     export const getDepartmentLock = () =>
   http

@@ -103,20 +103,20 @@ async function logout() {
       <VAppBarTitle>{{ pageTitle }}</VAppBarTitle>
 
       <template #append>
-        <VMenu>
-          <template #activator="{ props }">
-            <VBtn icon variant="text" color="white" v-bind="props">
-              <VAvatar color="white" size="36">
-                <span class="text-primary text-caption font-weight-bold">{{ userInitial }}</span>
-              </VAvatar>
-            </VBtn>
-          </template>
+  <VMenu>
+    <template #activator="{ props }">
+      <VBtn icon variant="text" color="white" class="mr-2" v-bind="props">
+        <VAvatar color="white" size="36">
+          <span class="text-primary text-caption font-weight-bold">{{ userInitial }}</span>
+        </VAvatar>
+      </VBtn>
+    </template>
 
-          <VList>
-            <VListItem title="Logout" prepend-icon="ri-logout-box-line" @click="logout" />
-          </VList>
-        </VMenu>
-      </template>
+    <VList>
+      <VListItem title="Logout" class="logout-item" @click="logout" />
+    </VList>
+  </VMenu>
+</template>
     </VAppBar>
 
     <VMain style="min-width: 0">
@@ -134,5 +134,9 @@ async function logout() {
 :deep(.v-list-item--active) {
   background: rgb(var(--v-theme-primary)) !important;
   color: white !important;
+}
+.logout-item:hover {
+  color: rgb(var(--v-theme-error)) !important;
+  background: rgba(var(--v-theme-error), .08) !important;
 }
 </style>
