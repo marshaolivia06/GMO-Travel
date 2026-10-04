@@ -10,7 +10,6 @@ const toast = useToastStore()
 const sectionStore = useSectionStore()
 
 const loading = ref(false)
-const generalError = ref('')
 
 const errors = reactive({ name: '', section_head_id: '', department_id: '' })
 const form = reactive({ name: '', section_head_id: '', department_id: '' })
@@ -19,7 +18,6 @@ function clearErrors() {
   errors.name = ''
   errors.section_head_id = ''
   errors.department_id = ''
-  generalError.value = ''
 }
 
 async function submitSection() {
@@ -59,8 +57,21 @@ async function submitSection() {
     toast.success('Section has been added successfully.')
     emit('close')
   } catch (err) {
-    generalError.value = err.response?.data?.message || err.message || 'Failed to create section.'
-  } finally {
+  const validationErrors = err?.response?.data?.errors
+
+  errors.name = validationErrors?.name?.[0] || ''
+  errors.section_head_id = validationErrors?.section_head_id?.[0] || ''
+  errors.department_id = validationErrors?.department_id?.[0] || ''
+
+  const message =
+    err?.response?.data?.message ||
+    err?.message ||
+    'Failed to create section.'
+
+  if (!Object.values(errors).some(Boolean)) {
+    errors.name = message
+  }
+} finally {
     loading.value = false
   }
 }
@@ -78,7 +89,6 @@ function close() {
 
       <VForm @submit.prevent="submitSection">
         <VCardText>
-          <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
 
           <VTextField
             v-model="form.name"

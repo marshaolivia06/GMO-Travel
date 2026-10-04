@@ -11,7 +11,6 @@ const categoryStore = useCategoryStore()
 
 const form = reactive({ name: '' })
 const errors = reactive({ name: '' })
-const generalError = ref('')
 const loading = ref(false)
 
 function closeModal() {
@@ -23,7 +22,6 @@ async function submitCategory() {
   if (loading.value) return
 
   errors.name = ''
-  generalError.value = ''
 
   if (!form.name.trim()) {
     errors.name = 'Category name is required.'
@@ -43,10 +41,13 @@ async function submitCategory() {
     await categoryStore.addCategory({ name: form.name.trim() })
     toast.success('Category has been added successfully.')
     emit('close')
-  } catch (err) {
-    errors.name = err.response?.data?.errors?.name?.[0] || ''
-    generalError.value = err.response?.data?.message || err.message || 'Failed to create category.'
-  } finally {
+ } catch (err) {
+  errors.name =
+    err.response?.data?.errors?.name?.[0] ||
+    err.response?.data?.message ||
+    err.message ||
+    'Failed to create category.'
+} finally {
     loading.value = false
   }
 }
@@ -60,15 +61,13 @@ async function submitCategory() {
 
       <VForm @submit.prevent="submitCategory">
         <VCardText>
-          <VAlert v-if="generalError" type="error" class="mb-4">{{ generalError }}</VAlert>
-
-          <VTextField
-            v-model="form.name"
-            label="Category Name"
-            :disabled="loading"
-            :error-messages="errors.name ? [errors.name] : []"
-          />
-        </VCardText>
+  <VTextField
+    v-model="form.name"
+    label="Category Name"
+    :disabled="loading"
+    :error-messages="errors.name ? [errors.name] : []"
+  />
+</VCardText>
 
         <VCardActions class="justify-end gap-2 pa-4">
   <VBtn variant="tonal" :disabled="loading" @click="closeModal">

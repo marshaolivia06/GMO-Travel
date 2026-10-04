@@ -10,7 +10,6 @@ const toast = useToastStore()
 const departmentStore = useDepartmentStore()
 
 const loading = ref(false)
-const generalError = ref('')
 
 const errors = reactive({
   name: '',
@@ -34,7 +33,6 @@ function clearErrors() {
   errors.dept_head_id = ''
   errors.dept_admin_id = ''
   errors.division_head_id = ''
-  generalError.value = ''
 }
 
 function handleValidationError(err) {
@@ -95,9 +93,17 @@ async function submitDepartment() {
     toast.success('Department has been added successfully.')
     emit('close')
   } catch (err) {
-    handleValidationError(err)
-    generalError.value = err.response?.data?.message || err.message || 'Failed to create department.'
-  } finally {
+  handleValidationError(err)
+
+  const message =
+    err?.response?.data?.message ||
+    err?.message ||
+    'Failed to create department.'
+
+  if (!Object.values(errors).some(Boolean)) {
+    errors.name = message
+  }
+} finally {
     loading.value = false
   }
 }
@@ -115,9 +121,6 @@ function close() {
 
       <VForm @submit.prevent="submitDepartment">
         <VCardText>
-          <VAlert v-if="generalError" type="error" class="mb-4">
-            {{ generalError }}
-          </VAlert>
 
           <VTextField
             v-model="form.name"
