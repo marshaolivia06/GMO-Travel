@@ -1,14 +1,17 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { createUser, getRoles } from '../../../services/userService'
-import swal from '../../../../../plugins/swal'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
 const emit = defineEmits(['close', 'created'])
 
 const loading = ref(false)
 const rolesLoading = ref(false)
-const generalError = ref('')
 const roles = ref([])
+const { confirm } = useConfirm()
+const toast = useToastStore()
+const rolesError = ref('')
 
 const errors = reactive({
   name: '',
@@ -35,7 +38,6 @@ function clearErrors() {
   errors.confirmPassword = ''
   errors.role = ''
   errors.grade = ''
-  generalError.value = ''
 }
 
 function handleValidationError(err) {
@@ -53,12 +55,12 @@ function handleValidationError(err) {
 
 async function fetchRoles() {
   rolesLoading.value = true
-  generalError.value = ''
+  rolesError.value = ''
 
   try {
     roles.value = await getRoles()
   } catch (err) {
-    generalError.value =
+    rolesError.value =
       err?.response?.data?.message ||
       err?.message ||
       'Failed to fetch roles.'
@@ -112,9 +114,12 @@ async function submitUser() {
     return
   }
 
-  const confirmed = await swal.confirm('Are you sure you want to add this user?')
+  const confirmed = await confirm({
+    title: 'Add User',
+    text: 'Are you sure you want to add this user?',
+  })
 
-  if (!confirmed.isConfirmed) return
+  if (!confirmed) return
 
   loading.value = true
 
@@ -127,21 +132,22 @@ async function submitUser() {
       grade: form.grade,
     })
 
-    await swal.success(
-      'User Added',
-      `User ${form.name} has been added successfully.`
-    )
+    toast.success(`User ${form.name} has been added successfully.`)
 
     emit('created')
     emit('close')
   } catch (err) {
-    handleValidationError(err)
+  handleValidationError(err)
 
-    generalError.value =
-      err?.response?.data?.message ||
-      err?.message ||
-      'Failed to create user.'
-  } finally {
+  const message =
+    err?.response?.data?.message ||
+    err?.message ||
+    'Failed to create user.'
+
+  if (!Object.values(errors).some(Boolean)) {
+    errors.email = message
+  }
+} finally {
     loading.value = false
   }
 }
@@ -162,9 +168,6 @@ onMounted(fetchRoles)
 
       <VForm @submit.prevent="submitUser">
         <VCardText>
-          <VAlert v-if="generalError" type="error" class="mb-4">
-            {{ generalError }}
-          </VAlert>
 
           <VTextField
             v-model="form.name"

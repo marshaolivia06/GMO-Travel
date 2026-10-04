@@ -1,9 +1,8 @@
 <script setup>
 import { ref, watch } from 'vue'
-import {
-  updatePermissionsByModule,
-} from '../../../services/permissionService'
-import swal from '../../../../../plugins/swal'
+import { updatePermissionsByModule } from '../../../services/permissionService'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
 const props = defineProps({
   permission: {
@@ -43,7 +42,11 @@ const form = ref({
 })
 
 const loading = ref(false)
-const error = ref('')
+const moduleError = ref('')
+const actionsError = ref('')
+
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 function loadPermission(permission) {
   if (!permission) return
@@ -94,25 +97,27 @@ function handleClose() {
 async function openConfirmation() {
   if (loading.value) return
 
-  error.value = ''
+  moduleError.value = ''
+  actionsError.value = ''
 
   form.value.module = form.value.module.trim()
 
   if (!form.value.module) {
-    error.value = 'Module is required.'
+    moduleError.value = 'Module is required.'
     return
   }
 
   if (!form.value.actions.length) {
-    error.value = 'Please select at least one action.'
+    actionsError.value = 'Please select at least one action.'
     return
   }
 
-  const result = await swal.confirm(
-    'Are you sure you want to update this permission?'
-  )
+  const confirmed = await confirm({
+    title: 'Update Permission',
+    text: 'Are you sure you want to update this permission?',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   await handleSubmit()
 }
@@ -126,7 +131,8 @@ async function handleSubmit() {
   }
 
   loading.value = true
-  error.value = ''
+  moduleError.value = ''
+  actionsError.value = ''
 
   const oldModule = props.permission.module
   const newModule = form.value.module.trim()
@@ -142,23 +148,29 @@ async function handleSubmit() {
       actions
     )
 
-    await swal.success(
-      'Permission Updated',
-      'Permission has been updated successfully.'
-    )
+    toast.success('Permission has been updated successfully.')
 
     emit('updated')
     emit('close')
   } catch (err) {
-    error.value =
+    const message =
       err?.response?.data?.message ||
       err?.message ||
       'Failed to update permission.'
 
-    await swal.error(
-      'Action Failed',
-      error.value
-    )
+    const validationErrors = err?.response?.data?.errors
+
+    moduleError.value =
+      validationErrors?.module?.[0] ||
+      ''
+
+    actionsError.value =
+      validationErrors?.actions?.[0] ||
+      ''
+
+    if (!moduleError.value && !actionsError.value) {
+      moduleError.value = message
+    }
   } finally {
     loading.value = false
   }
@@ -183,17 +195,13 @@ async function handleSubmit() {
       <VForm @submit.prevent="openConfirmation">
         <VCardText class="pt-3 pb-2">
           <VTextField
-            v-model="form.module"
-            label="Module"
-            placeholder="Example: User Management"
-            density="compact"
-            :disabled="loading"
-            :error-messages="
-              error === 'Module is required.'
-                ? [error]
-                : []
-            "
-          />
+  v-model="form.module"
+  label="Module"
+  placeholder="Example: User Management"
+  density="compact"
+  :disabled="loading"
+  :error-messages="moduleError ? [moduleError] : []"
+/>
 
           <div class="mb-2">
             <div class="text-subtitle-2 font-weight-semibold">
@@ -206,42 +214,37 @@ async function handleSubmit() {
           </div>
 
           <VRow
-            class="mt-0"
-            no-gutters
-          >
-            <VCol
-              v-for="action in ACTIONS"
-              :key="action.value"
-              cols="4"
-              class="py-1"
-            >
-              <div class="d-flex align-center ga-2">
-                <input
-                  v-model="form.actions"
-                  type="checkbox"
-                  :value="action.value"
-                  :disabled="loading"
-                  class="flex-shrink-0"
-                />
+  class="mt-0"
+  no-gutters
+>
+  <VCol
+    v-for="action in ACTIONS"
+    :key="action.value"
+    cols="4"
+    class="py-1"
+  >
+    <div class="d-flex align-center ga-2">
+      <input
+        v-model="form.actions"
+        type="checkbox"
+        :value="action.value"
+        :disabled="loading"
+        class="flex-shrink-0"
+      />
 
-                <span class="text-body-2">
-                  {{ action.label }}
-                </span>
-              </div>
-            </VCol>
-          </VRow>
+      <span class="text-body-2">
+        {{ action.label }}
+      </span>
+    </div>
+  </VCol>
+</VRow>
 
-          <VAlert
-            v-if="
-              error &&
-              error !== 'Module is required.'
-            "
-            type="error"
-            variant="tonal"
-            class="mt-3"
-          >
-            {{ error }}
-          </VAlert>
+<div
+  v-if="actionsError"
+  class="text-error text-caption mt-1"
+>
+  {{ actionsError }}
+</div>
         </VCardText>
 
         <VCardActions class="justify-end gap-2 px-4 pt-2 pb-4">

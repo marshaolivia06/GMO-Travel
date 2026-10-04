@@ -88,78 +88,82 @@ class PermissionRepository
     }
 
     public function syncPermissions(array $data): array
-    {
-        $oldModule = trim($data['old_module']);
-        $newModule = trim($data['module']);
+{
+    $oldModule = trim($data['old_module']);
+    $newModule = trim($data['module']);
 
-        $actions = array_values(
-            array_unique($data['actions'])
+    $actions = array_values(
+        array_unique($data['actions'])
+    );
+
+    return DB::transaction(function () use (
+        $oldModule,
+        $newModule,
+        $actions
+    ) {
+        $moduleName = strtolower(
+            preg_replace('/\s+/', '-', $newModule)
         );
 
-        return DB::transaction(function () use (
-            $oldModule,
-            $newModule,
-            $actions
-        ) {
-            $moduleName = strtolower(
-                preg_replace('/\s+/', '-', $newModule)
+        $permissions = DB::table('permissions')
+            ->where('module', $oldModule)
+            ->where('guard_name', 'web')
+            ->get();
+
+        if ($permissions->isEmpty()) {
+            return [
+                'message' => 'Permission tidak ditemukan.',
+            ];
+        }
+
+        $existingByAction = [];
+
+        foreach ($permissions as $permission) {
+            $action = strtolower(
+                last(explode('.', $permission->name))
             );
 
-            $permissions = $this->getByModule($oldModule);
+            $existingByAction[$action] = $permission;
+        }
 
-            if ($permissions->isEmpty()) {
-                return [
-                    'message' => 'Permission tidak ditemukan.',
-                ];
-            }
+        foreach ($actions as $action) {
+            if (isset($existingByAction[$action])) {
+                $permission = $existingByAction[$action];
 
-            $existingByAction = [];
-
-            foreach ($permissions as $permission) {
-                $action = strtolower(
-                    last(explode('.', $permission->name))
-                );
-
-                $existingByAction[$action] = $permission;
-            }
-
-            foreach ($actions as $action) {
-                if (isset($existingByAction[$action])) {
-                    $permission = $existingByAction[$action];
-
-                    $this->update(
-                        $permission->id,
-                        [
-                            'name' => "{$moduleName}.{$action}",
-                            'module' => $newModule,
-                            'guard_name' => 'web',
-                            'status' => 1,
-                        ]
-                    );
-                } else {
-                    $this->create([
+                $this->update(
+                    $permission->id,
+                    [
                         'name' => "{$moduleName}.{$action}",
                         'module' => $newModule,
                         'guard_name' => 'web',
                         'status' => 1,
+                    ]
+                );
+            } else {
+                $this->create([
+                    'name' => "{$moduleName}.{$action}",
+                    'module' => $newModule,
+                    'guard_name' => 'web',
+                    'status' => 1,
+                ]);
+            }
+        }
+
+        foreach ($existingByAction as $action => $permission) {
+            if (!in_array($action, $actions, true)) {
+                DB::table('permissions')
+                    ->where('id', $permission->id)
+                    ->update([
+                        'status' => 0,
+                        'updated_at' => now(),
                     ]);
-                }
             }
+        }
 
-            foreach ($existingByAction as $action => $permission) {
-                if (!in_array($action, $actions, true)) {
-                    DB::table('permissions')
-                        ->where('id', $permission->id)
-                        ->update([
-                            'status' => 0,
-                        ]);
-                }
-            }
-
-            return [
-                'message' => 'Permission updated successfully.',
-                'data' => $this->getByModule($newModule),
-            ];
-        });
-    }
+        return [
+            'message' => 'Permission updated successfully.',
+            'data' => $this->getByModule($newModule),
+        ];
+    });
+}
 }

@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { createRole } from '../../../services/roleService'
 import { getPermissions } from '../../../services/permissionService'
-import swal from '../../../../../plugins/swal'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
 const emit = defineEmits(['close', 'created'])
 
@@ -15,8 +16,9 @@ const permissions = ref([])
 const loadingPermissions = ref(false)
 const permissionError = ref('')
 const saving = ref(false)
-const error = ref('')
 const nameError = ref('')
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const headerActions = [
   'view',
@@ -115,7 +117,6 @@ const toggleAll = () => {
 }
 
 function clearErrors() {
-  error.value = ''
   nameError.value = ''
 }
 
@@ -149,20 +150,21 @@ async function openConfirmation() {
     return
   }
 
-  const confirmed = await swal.confirm(
-    'Are you sure you want to add this role?'
-  )
+  const confirmed = await confirm({
+  title: 'Add Role',
+  text: 'Are you sure you want to add this role?',
+})
 
-  if (!confirmed.isConfirmed) return
+if (!confirmed) return
 
-  await submitRole()
+await submitRole()
 }
 
 async function submitRole() {
   if (saving.value) return
 
   saving.value = true
-  error.value = ''
+  nameError.value = ''
 
   try {
     await createRole({
@@ -170,23 +172,16 @@ async function submitRole() {
       permissions: form.value.permissions,
     })
 
-    await swal.success(
-      'Role Added',
-      'Role has been added successfully.'
-    )
+    toast.success('Role has been added successfully.')
 
     emit('created')
     emit('close')
   } catch (err) {
-    error.value =
+    nameError.value =
+      err?.response?.data?.errors?.name?.[0] ||
       err?.response?.data?.message ||
       err?.message ||
-      'Role already exists or failed to create role.'
-
-    await swal.error(
-      'Action Failed',
-      error.value
-    )
+      'Failed to create role.'
   } finally {
     saving.value = false
   }
@@ -218,13 +213,6 @@ onMounted(fetchPermissions)
 
       <VForm @submit.prevent="openConfirmation">
         <VCardText>
-          <VAlert
-            v-if="error"
-            type="error"
-            class="mb-4"
-          >
-            {{ error }}
-          </VAlert>
 
           <VTextField
             v-model="form.name"

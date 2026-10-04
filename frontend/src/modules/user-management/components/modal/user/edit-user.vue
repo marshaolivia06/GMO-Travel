@@ -1,7 +1,8 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { updateUser, getRoles } from '../../../services/userService'
-import swal from '../../../../../plugins/swal'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
 const props = defineProps({
   user: { type: Object, required: true },
@@ -13,6 +14,8 @@ const loading = ref(false)
 const rolesLoading = ref(false)
 const generalError = ref('')
 const roles = ref([])
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const errors = reactive({
   name: '',
@@ -99,8 +102,12 @@ async function submitUser() {
     }
   }
 
-  const confirmed = await swal.confirm('Are you sure you want to update this user?')
-  if (!confirmed.isConfirmed) return
+  const confirmed = await confirm({
+  title: 'Update User',
+  text: 'Are you sure you want to update this user?',
+})
+
+if (!confirmed) return
 
   loading.value = true
 
@@ -120,7 +127,7 @@ async function submitUser() {
 
     await updateUser(props.user.id, data)
 
-    await swal.success('User Updated', `User ${form.name} has been updated successfully.`)
+    toast.success(`User ${form.name} has been updated successfully.`)
 
     emit('updated')
     emit('close')
@@ -129,7 +136,6 @@ async function submitUser() {
 
     generalError.value = err?.response?.data?.message || err?.message || 'Failed to update user.'
 
-    await swal.error('Action Failed', generalError.value)
   } finally {
     loading.value = false
   }

@@ -2,7 +2,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { updateRole } from '../../../services/roleService'
 import { getPermissions } from '../../../services/permissionService'
-import swal from '../../../../../plugins/swal'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 
 const props = defineProps({
   role: {
@@ -12,10 +13,11 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'updated'])
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const loading = ref(false)
 const permissionsLoading = ref(false)
-const generalError = ref('')
 const permissionError = ref('')
 const permissions = ref([])
 
@@ -40,7 +42,6 @@ const headerActions = [
 
 function clearErrors() {
   errors.name = ''
-  generalError.value = ''
   permissionError.value = ''
 }
 
@@ -167,11 +168,12 @@ async function submitRole() {
     return
   }
 
-  const confirmed = await swal.confirm(
-    'Are you sure you want to update this role?'
-  )
+  const confirmed = await confirm({
+    title: 'Update Role',
+    text: 'Are you sure you want to update this role?',
+  })
 
-  if (!confirmed.isConfirmed) return
+  if (!confirmed) return
 
   loading.value = true
 
@@ -181,25 +183,20 @@ async function submitRole() {
       permissions: form.permissions,
     })
 
-    await swal.success(
-      'Role Updated',
-      'Role has been updated successfully.'
-    )
+    toast.success('Role has been updated successfully.')
 
     emit('updated')
     emit('close')
   } catch (err) {
     handleValidationError(err)
 
-    generalError.value =
-      err?.response?.data?.message ||
-      err?.message ||
-      'Failed to update role.'
-
-    await swal.error(
-      'Action Failed',
-      generalError.value
-    )
+    if (!errors.name) {
+      errors.name =
+        err?.response?.data?.errors?.name?.[0] ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to update role.'
+    }
   } finally {
     loading.value = false
   }
@@ -231,13 +228,6 @@ onMounted(fetchPermissions)
 
       <VForm @submit.prevent="submitRole">
         <VCardText>
-          <VAlert
-            v-if="generalError"
-            type="error"
-            class="mb-4"
-          >
-            {{ generalError }}
-          </VAlert>
 
           <VTextField
             v-model="form.name"

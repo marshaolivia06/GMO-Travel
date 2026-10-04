@@ -1,9 +1,12 @@
 <script setup>
 import { ref } from 'vue'
-import swal from '../../../../../plugins/swal'
+import { useConfirm } from '../../../../../composables/useConfirm'
+import { useToastStore } from '../../../../../stores/toast'
 import { createPermission } from '../../../services/permissionService'
 
 const emit = defineEmits(['close', 'created'])
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const availableActions = [
   {
@@ -40,7 +43,8 @@ const form = ref({
 })
 
 const loading = ref(false)
-const error = ref('')
+const moduleError = ref('')
+const actionsError = ref('')
 
 function handleClose() {
   if (!loading.value) {
@@ -51,25 +55,27 @@ function handleClose() {
 async function handleSubmit() {
   if (loading.value) return
 
-  error.value = ''
+  moduleError.value = ''
+  actionsError.value = ''
 
   form.value.module = form.value.module.trim()
 
   if (!form.value.module) {
-    error.value = 'Module is required.'
+    moduleError.value = 'Module is required.'
     return
   }
 
   if (!form.value.actions.length) {
-    error.value = 'Please select at least one action.'
+    actionsError.value = 'Please select at least one action.'
     return
   }
 
-  const result = await swal.confirm(
-    'Are you sure you want to add this permission?'
-  )
+  const confirmed = await confirm({
+    title: 'Add Permission',
+    text: 'Are you sure you want to add this permission?',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   loading.value = true
 
@@ -85,23 +91,15 @@ async function handleSubmit() {
       })
     }
 
-    await swal.success(
-      'Permission Added',
-      'Permission has been added successfully.'
-    )
+    toast.success('Permission has been added successfully.')
 
     emit('created')
     emit('close')
   } catch (err) {
-    error.value =
+    moduleError.value =
       err?.response?.data?.message ||
       err?.message ||
       'Failed to add permission.'
-
-    await swal.error(
-      'Action Failed',
-      error.value
-    )
   } finally {
     loading.value = false
   }
@@ -126,14 +124,13 @@ async function handleSubmit() {
       <VForm @submit.prevent="handleSubmit">
         <VCardText class="pt-3 pb-2">
           <VTextField
-            v-model="form.module"
-            label="Module"
-            placeholder="Example: User Management"
-            density="compact"
-            :disabled="loading"
-            :error-messages="error === 'Module is required.' ? [error] : []"
-          />
-
+  v-model="form.module"
+  label="Module"
+  placeholder="Example: User Management"
+  density="compact"
+  :disabled="loading"
+  :error-messages="moduleError ? [moduleError] : []"
+/>
           <div class="mb-2">
             <div class="text-subtitle-2 font-weight-semibold">
               Actions
@@ -169,14 +166,12 @@ async function handleSubmit() {
     </div>
   </VCol>
 </VRow>
-          <VAlert
-            v-if="error && error !== 'Module is required.'"
-            type="error"
-            variant="tonal"
-            class="mt-3"
-          >
-            {{ error }}
-          </VAlert>
+          <div
+  v-if="actionsError"
+  class="text-error text-caption mt-1"
+>
+  {{ actionsError }}
+</div>
         </VCardText>
 
         <VCardActions class="justify-end gap-2 px-4 pt-2 pb-4">

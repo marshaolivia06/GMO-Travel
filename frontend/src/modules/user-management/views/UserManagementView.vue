@@ -4,7 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../../../stores/auth'
 import { useUserStore } from '../stores/userStore'
-import swal from '../../../plugins/swal'
+import { useConfirm } from '../../../composables/useConfirm'
+import { useToastStore } from '../../../stores/toast'
 
 import AddUser from '../components/modal/user/add-user.vue'
 import EditUser from '../components/modal/user/edit-user.vue'
@@ -21,6 +22,8 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { users, loading, error, fetchUsers } = useUserStore()
+const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const PERMISSION_ACTION_ORDER = ['view', 'create', 'update', 'delete', 'approve']
 
@@ -247,74 +250,64 @@ const openEditPermission = permission => {
   showEditPermission.value = true
 }
 
-// DELETE USER
 const deleteSelectedUser = async user => {
-  const result = await swal.confirm(
-    'Are you sure you want to delete this user?',
-    'delete'
-  )
+  const confirmed = await confirm({
+    title: 'Delete User',
+    text: `Are you sure you want to delete "${user.name}"?`,
+    color: 'error',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   try {
     await deleteUser(user.id)
     await fetchUsers()
 
-    await swal.success(
-      'User Deleted',
-      `"${user.name}" has been deleted successfully.`
-    )
+    toast.success(`"${user.name}" has been deleted successfully.`)
   } catch (err) {
     if (err.status === 403) {
       router.push('/error/403')
       return
     }
 
-    await swal.error(
-      'Delete Failed',
+    toast.error(
       err.message || 'Failed to delete user.'
     )
   }
 }
-
-// DELETE ROLE
 const deleteSelectedRole = async role => {
-  const result = await swal.confirm(
-    'Are you sure you want to delete this role?',
-    'delete'
-  )
+  const confirmed = await confirm({
+    title: 'Delete Role',
+    text: `Are you sure you want to delete "${role.name}"?`,
+    color: 'error',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   try {
     await deleteRole(role.id)
     await fetchRoles()
 
-    await swal.success(
-      'Role Deleted',
-      `"${role.name}" has been deleted successfully.`
-    )
+    toast.success(`"${role.name}" has been deleted successfully.`)
   } catch (err) {
     if (err.status === 403) {
       router.push('/error/403')
       return
     }
 
-    await swal.error(
-      'Delete Failed',
+    toast.error(
       err.message || 'Failed to delete role.'
     )
   }
 }
-
-// DELETE PERMISSION
 const deleteSelectedPermission = async permission => {
-  const result = await swal.confirm(
-    'Are you sure you want to delete this permission?',
-    'delete'
-  )
+  const confirmed = await confirm({
+    title: 'Delete Permission',
+    text: `Are you sure you want to delete "${permission.module}"?`,
+    color: 'error',
+  })
 
-  if (!result.isConfirmed) return
+  if (!confirmed) return
 
   try {
     await Promise.all(
@@ -323,8 +316,7 @@ const deleteSelectedPermission = async permission => {
 
     await fetchPermissions()
 
-    await swal.success(
-      'Permission Deleted',
+    toast.success(
       `"${permission.module}" has been deleted successfully.`
     )
   } catch (err) {
@@ -333,8 +325,7 @@ const deleteSelectedPermission = async permission => {
       return
     }
 
-    await swal.error(
-      'Delete Failed',
+    toast.error(
       err.message || 'Failed to delete permission.'
     )
   }
