@@ -123,11 +123,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import logo from '../assets/logo.png'
 
 const auth = useAuthStore()
-
+const router = useRouter()
 const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
@@ -147,11 +148,11 @@ const handleLogin = async () => {
 
   try {
     const result = await auth.login(email.value, password.value)
-
-    if (!result.success) {
-      errorMessage.value =
-        result.message || 'Invalid email or password.'
-    }
+if (!result.success) {
+  errorMessage.value = result.message || 'Invalid email or password.'
+} else {
+  router.push({ name: 'user-management' })
+}
   } catch (error) {
     errorMessage.value =
       'An error occurred while signing in.'

@@ -32,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
         JSON.stringify(data.user)
       )
 
-      await router.push('/dashboard')
+      await router.push({ name: 'user-management' })
 
       swal.success(
         'Login Successful',

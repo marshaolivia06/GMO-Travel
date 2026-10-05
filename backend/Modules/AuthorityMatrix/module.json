@@ -1,0 +1,11 @@
+{
+    "name": "AuthorityMatrix",
+    "alias": "authoritymatrix",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\AuthorityMatrix\\Providers\\AuthorityMatrixServiceProvider"
+    ],
+    "files": []
+}
