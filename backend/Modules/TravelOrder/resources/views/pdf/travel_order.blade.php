@@ -1,32 +1,28 @@
 @php
     $val = fn ($v) => ($v === null || $v === '') ? '-' : $v;
-
     $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y') : '-';
-
     $dateTime = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y H:i') : '-';
+    $money = fn ($amount, $currency) => ((float) $amount) ? number_format((float) $amount, 2) . ' ' . ($currency ?? '') : 'Not Applicable';
 
-    $money = function ($amount, $currency) {
-        $n = (float) $amount;
-
-        return $n ? number_format($n, 2) . ' ' . ($currency ?? '') : 'Not Applicable';
-    };
-
-    $approvalLabels = [
-        'submitted' => 'Requested',
-        'pending'   => 'Awaiting Approval',
-        'approved'  => 'Approved',
-        'rejected'  => 'Rejected',
-        'cancelled' => 'Cancelled',
-        'revision'  => 'Revision Required',
-    ];
-
-    $tripTypes = [
-        'individual' => 'Business Trip - Individual',
-        'group'      => 'Business Trip - Group Trip',
-        'annual'     => 'Annual Trip',
-    ];
+    $approvalLabels = ['submitted' => 'Requested', 'pending' => 'Awaiting Approval', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled', 'revision' => 'Revision Required'];
+    $tripTypes = ['individual' => 'Business Trip - Individual', 'group' => 'Business Trip - Group Trip', 'annual' => 'Annual Trip'];
 
     $advance = $order->advance;
+
+    // Tiap baris = 1 atau 2 item [label, nilai]. 2 item => kiri-kanan (50:50), 1 item => selebar penuh.
+    $summary = [
+    [['Request Type', $tripTypes[$order->trip_type] ?? 'Business Trip - Individual'], ['Travel Region', $val($order->travel_region)]],
+    [['Employee', $val($order->user?->name)], ['Country', $val($order->country)]],
+    [['Department', $val($order->department?->name)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
+    [['Purpose', $val($order->purpose)], ['Departure', $date($order->departure_date) . ' ' . $order->departure_time]],
+    [['Remarks', $val($order->remarks)], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
+];
+
+    $ticket = [
+        [['Ticket Type', $val($order->ferry_ticket_type)], ['Ticket Arrangement', $val($order->ferry_arrangement)]],
+        [['Accommodation', $val($order->accommodation_arrangement)], ['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)]],
+        [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
+    ];
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -34,154 +30,66 @@
     <meta charset="utf-8">
     <title>Travel Order {{ $order->order_number }}</title>
     <style>
-        @page { margin: 28px 36px 64px 36px; }
-
-        body {
-            font-family: DejaVu Sans, sans-serif;
-            font-size: 11px;
-            color: #222;
-        }
-
+        @page { margin: 40px 50px 70px 50px; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #000; line-height: 1.4; }
         table { width: 100%; border-collapse: collapse; }
-
-        .header { border-bottom: 2px solid #1565c0; margin-bottom: 16px; }
-        .header td { padding-bottom: 8px; vertical-align: top; }
-        .title { font-size: 22px; font-weight: bold; }
-        .subtitle { font-size: 9px; color: #777; }
-        .right { text-align: right; }
-        .order-number { font-size: 12px; font-weight: bold; }
-
-        .section-title {
-            background: #f1f1f1;
-            border: 1px solid #ccc;
-            padding: 5px 8px;
-            font-size: 9px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        .section { margin-bottom: 24px; }
-
-        .grid td, .grid th {
-            border: 1px solid #ccc;
-            padding: 9px 10px;
-            vertical-align: top;
-        }
-
-        .label { width: 17%; background: #fafafa; color: #666; }
-        .value { width: 33%; font-weight: bold; }
-
-        .grid th {
-            background: #f1f1f1;
-            text-align: left;
-            font-size: 9px;
-            text-transform: uppercase;
-        }
-
         .center { text-align: center; }
+        .right { text-align: right; }
 
-        .footer {
-            position: fixed;
-            bottom: -44px;
-            left: 0;
-            right: 0;
-            border-top: 2px solid #9e9e9e;
-            padding-top: 6px;
-            font-size: 9px;
-            color: #777;
-        }
+        /* Kop dokumen */
+        .doc-head { text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 22px; }
+        .doc-title { font-size: 20px; font-weight: bold; letter-spacing: 3px; }
+        .doc-sub { font-size: 10px; margin-top: 2px; }
+        .doc-no { font-size: 11px; font-weight: bold; margin-top: 8px; }
+
+        /* Judul section: tengah, bold, tanpa kotak */
+        .section { margin-bottom: 22px; }
+        .section-title { text-align: center; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
+
+        /* Info 2 kolom: label & nilai sejajar rapi */
+        .info { padding: 0 32px; }
+        .row { margin-bottom: 7px; }
+        .cell { float: left; width: 47%; }
+        .cell.r { width: 53%; }
+        .cell.full { width: 100%; }
+        .lbl { float: left; width: 105px; }
+        .val { margin-left: 105px; font-weight: bold; padding-right: 8px; }
+        .clr { clear: both; }
+
+        /* Tabel hanya untuk approval */
+        .grid td, .grid th { border: 1px solid #000; padding: 7px 8px; vertical-align: top; }
+        .grid th { text-align: center; font-size: 10px; background: #d9d9d9; }
+
+        .footer { position: fixed; bottom: -48px; left: 0; right: 0; border-top: 1px solid #000; padding-top: 5px; font-size: 9px; }
     </style>
 </head>
 <body>
 
     {{-- Kop dokumen --}}
-    <table class="header">
-        <tr>
-            <td>
-                <div class="title">TRAVEL ORDER</div>
-                <div class="subtitle">Business Trip Request Form</div>
-            </td>
-            <td class="right">
-                <div class="subtitle">Order Number</div>
-                <div class="order-number">{{ $val($order->order_number) }}</div>
-            </td>
-        </tr>
-    </table>
-
-    {{-- Request Summary --}}
-    <div class="section">
-        <div class="section-title">Request Summary</div>
-        <table class="grid">
-            <tr>
-                <td class="label">Request Type</td>
-                <td class="value">{{ $tripTypes[$order->trip_type] ?? 'Business Trip - Individual' }}</td>
-                <td class="label">Travel Region</td>
-                <td class="value">{{ $val($order->travel_region) }}</td>
-            </tr>
-            <tr>
-                <td class="label">Employee</td>
-                <td class="value">{{ $val($order->user?->name) }}</td>
-                <td class="label">Route</td>
-                <td class="value">{{ $val($order->travel_from) }} &rarr; {{ $val($order->travel_to) }}</td>
-            </tr>
-            <tr>
-                <td class="label">Department</td>
-                <td class="value">{{ $val($order->department?->name) }}</td>
-                <td class="label">Departure</td>
-                <td class="value">{{ $date($order->departure_date) }} {{ $order->departure_time }}</td>
-            </tr>
-            <tr>
-                <td class="label">Country</td>
-                <td class="value">{{ $val($order->country) }}</td>
-                <td class="label">Return</td>
-                <td class="value">{{ $date($order->return_date) }} {{ $order->return_time }}</td>
-            </tr>
-            <tr>
-                <td class="label">Purpose</td>
-                <td class="value" colspan="3">{{ $val($order->purpose) }}</td>
-            </tr>
-            <tr>
-                <td class="label">Remarks</td>
-                <td class="value" colspan="3">{{ $val($order->remarks) }}</td>
-            </tr>
-        </table>
+    <div class="doc-head">
+        <div class="doc-title">TRAVEL ORDER</div>
+        <div class="doc-sub">Business Trip Request Form</div>
+        <div class="doc-no">No. {{ $val($order->order_number) }}</div>
     </div>
 
-    {{-- Ticket, Accommodation & Travel Advance --}}
-    <div class="section">
-        <div class="section-title">Ticket, Accommodation &amp; Travel Advance</div>
-        <table class="grid">
-            <tr>
-                <td class="label">Ticket Type</td>
-                <td class="value">{{ $val($order->ferry_ticket_type) }}</td>
-                <td class="label">Ticket Arrangement</td>
-                <td class="value">{{ $val($order->ferry_arrangement) }}</td>
-            </tr>
-            <tr>
-                <td class="label">Accommodation</td>
-                <td class="value">{{ $val($order->accommodation_arrangement) }}</td>
-                <td class="label">Meal Allowance</td>
-                <td class="value">{{ $money($advance?->meal_allowance, $advance?->currency) }}</td>
-            </tr>
-            <tr>
-                <td class="label">Pocket Money</td>
-                <td class="value" colspan="3">{{ $money($advance?->pocket_money, $advance?->currency) }}</td>
-            </tr>
-        </table>
-    </div>
+    {{-- Request Summary & Ticket (teks, 2 kolom) --}}
+    @foreach ([['Request Summary', $summary], ['Ticket, Accommodation & Travel Advance', $ticket]] as [$title, $rows])
+        <div class="section">
+            <div class="section-title">{{ $title }}</div>
+            <div class="info">
+            @foreach ($rows as $row)
+    <div class="row">@foreach ($row as [$l, $v])<div class="cell {{ count($row) === 1 ? 'full' : ($loop->last ? 'r' : '') }}"><div class="lbl">{{ $l }}</div><div class="val">{{ $v }}</div></div>@endforeach<div class="clr"></div></div>
+@endforeach
+            </div>
+        </div>
+    @endforeach
 
-    {{-- Reviewed & Approved By (tabel) --}}
+    {{-- Reviewed & Approved By (tetap tabel) --}}
     <div class="section">
         <div class="section-title">Reviewed &amp; Approved By</div>
         <table class="grid">
-        <thead>
-                <tr>
-                    <th class="center" style="width: 6%">No</th>
-                    <th style="width: 24%">Role</th>
-                    <th style="width: 28%">Name</th>
-                    <th style="width: 22%">Date &amp; Time</th>
-                    <th>Status</th>
-                </tr>
+            <thead>
+                <tr><th style="width: 6%">No</th><th style="width: 24%">Role</th><th style="width: 28%">Name</th><th style="width: 22%">Date &amp; Time</th><th>Status</th></tr>
             </thead>
             <tbody>
                 @forelse ($order->approvals->sortBy('sequence') as $step)
@@ -193,22 +101,15 @@
                         <td>{{ $approvalLabels[$step->status] ?? $step->status }}</td>
                     </tr>
                 @empty
-                    <tr>
-                        <td colspan="5" class="center">No approval data yet.</td>
-                    </tr>
+                    <tr><td colspan="5" class="center">No approval data yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
 
-    {{-- Footer: garis abu-abu, nama aplikasi di kiri, waktu cetak di kanan --}}
+    {{-- Footer --}}
     <div class="footer">
-        <table>
-            <tr>
-                <td>GMO - Travel</td>
-                <td class="right">Generated: {{ now()->format('d M Y H:i') }}</td>
-            </tr>
-        </table>
+        <table><tr><td>GMO - Travel</td><td class="right">Generated: {{ now()->format('d M Y H:i') }}</td></tr></table>
     </div>
 
 </body>
