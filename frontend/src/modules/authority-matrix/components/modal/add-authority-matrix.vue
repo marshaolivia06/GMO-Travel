@@ -10,13 +10,13 @@ import { useConfirm } from '../../../../composables/useConfirm'
 const emit = defineEmits(['close'])
 const store = useAuthorityMatrixStore()
 const toast = useToastStore()
-const confirm = useConfirm()
+const { confirm } = useConfirm()
 
 const roles = ref([])
 const departments = ref([])
 const sections = ref([])
+const optionsLoading = ref(false)
 const loading = ref(false)
-const formRef = ref(null)
 
 const form = reactive({ document_type: '', status: true, steps: [createStep(1)] })
 const errors = reactive({ document_type: '', steps: '' })
@@ -46,8 +46,13 @@ function changeRole(item) {
   }
 }
 
+function closeModal() {
+  if (loading.value) return
+  emit('close')
+}
+
 async function fetchOptions() {
-  loading.value = true
+  optionsLoading.value = true
   try {
     const [roleRes, departmentRes, sectionRes] = await Promise.all([getRoles(), getDepartments(), getSections()])
     roles.value = roleRes.data ?? roleRes
@@ -56,7 +61,7 @@ async function fetchOptions() {
   } catch (err) {
     toast.error(err.response?.data?.message || err.message || 'Failed to load options.')
   } finally {
-    loading.value = false
+    optionsLoading.value = false
   }
 }
 
@@ -71,21 +76,39 @@ function removeStep(index) {
 }
 
 function validate() {
-  errors.document_type = form.document_type ? '' : 'Document type is required.'
+  errors.document_type = form.document_type.trim() ? '' : 'Document type is required.'
   errors.steps = form.steps.every(item => item.role_id && item.label && (!item.is_specific_section || item.section_id) && (!item.is_specific_department || item.department_id)) ? '' : 'Please complete all step fields.'
   return !errors.document_type && !errors.steps
 }
 
 async function submit() {
+  if (loading.value) return
   if (!validate()) return
-  const confirmed = await confirm({ title: 'Add Authority Matrix', text: 'Are you sure you want to add this authority matrix?', confirmButtonText: 'Save' })
+
+  const confirmed = await confirm({
+    title: 'Add Authority Matrix',
+    text: 'Are you sure you want to add this authority matrix?',
+  })
+
   if (!confirmed) return
+
+  loading.value = true
+
   try {
-    await store.addAuthorityMatrix({ document_type: form.document_type, status: form.status, steps: form.steps })
-    toast.success('Authority matrix added successfully.')
+    await store.addAuthorityMatrix({
+      document_type: form.document_type.trim(),
+      status: form.status,
+      steps: form.steps,
+    })
+    toast.success('Authority matrix has been added successfully.')
     emit('close')
   } catch (err) {
-    toast.error(err.response?.data?.message || err.message || 'Failed to add authority matrix.')
+    errors.document_type = err.response?.data?.errors?.document_type?.[0] || ''
+    if (!errors.document_type) {
+      errors.steps = err.response?.data?.message || err.message || 'Failed to create authority matrix.'
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -95,14 +118,17 @@ onMounted(fetchOptions)
 <template>
   <VDialog :model-value="true" max-width="1000" persistent>
     <VCard>
-      <VCardTitle class="d-flex align-center justify-space-between">
-        Add Authority Matrix
-        <VBtn icon="ri-close-line" variant="text" @click="emit('close')" />
-      </VCardTitle>
+      <VCardTitle class="pa-4">Add Authority Matrix</VCardTitle>
+      <VCardSubtitle class="px-4">Create a new authority matrix.</VCardSubtitle>
 
-      <VCardText>
-        <VForm ref="formRef" @submit.prevent="submit">
-          <VTextField v-model="form.document_type" label="Document Type" :error-messages="errors.document_type" />
+      <VForm @submit.prevent="submit">
+        <VCardText>
+          <VTextField
+            v-model="form.document_type"
+            label="Document Type"
+            :disabled="loading"
+            :error-messages="errors.document_type ? [errors.document_type] : []"
+          />
 
           <div class="d-flex align-center justify-space-between mb-4">
             <div class="text-subtitle-1 font-weight-medium">Approval Step</div>
@@ -110,57 +136,61 @@ onMounted(fetchOptions)
           </div>
 
           <div class="steps-container">
-  <div v-for="(item, index) in form.steps" :key="index" class="mb-4">
-    <VCard rounded="lg" elevation="2">
-      <VCardText>
-        <div class="d-flex align-center justify-space-between mb-4">
-          <VChip size="small" color="success" variant="tonal">Step {{ item.step }}</VChip>
-          <VBtn v-if="form.steps.length > 1" icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="removeStep(index)" />
-        </div>
+            <div v-for="(item, index) in form.steps" :key="index" class="mb-4">
+              <VCard rounded="lg" elevation="2">
+                <VCardText>
+                  <div class="d-flex align-center justify-space-between mb-4">
+                    <VChip size="small" color="success" variant="tonal">Step {{ item.step }}</VChip>
+                    <VBtn v-if="form.steps.length > 1" icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="loading" @click="removeStep(index)" />
+                  </div>
 
-        <VRow>
-          <VCol cols="12" md="3">
-            <VAutocomplete v-model="item.role_id" :items="roles" item-title="name" item-value="id" label="Role" placeholder="Search role..." :loading="loading" @update:model-value="changeRole(item)" />
-          </VCol>
-          <VCol cols="12" md="3">
-            <VTextField v-model="item.label" label="Label" />
-          </VCol>
-          <VCol cols="12" md="3">
-            <VTextField v-model="item.role_level" label="Role Level" type="number" min="1" />
-          </VCol>
-          <VCol v-if="isSectionRole(item)" cols="12" md="3">
-            <VSwitch :model-value="item.is_specific_section" label="Specific Section" color="success" hide-details @update:model-value="item.is_specific_section = !!$event" />
-          </VCol>
-          <VCol v-if="isDepartmentRole(item)" cols="12" md="3">
-            <VSwitch :model-value="item.is_specific_department" label="Specific Department" color="success" hide-details @update:model-value="item.is_specific_department = !!$event" />
-          </VCol>
-          <VCol v-if="item.is_specific_section" cols="12" md="4">
-            <VAutocomplete v-model="item.section_id" :items="sections" item-title="name" item-value="id" label="Section" />
-          </VCol>
-          <VCol v-if="item.is_specific_department" cols="12" md="4">
-            <VAutocomplete v-model="item.department_id" :items="departments" item-title="name" item-value="id" label="Department" />
-          </VCol>
-        </VRow>
-      </VCardText>
-    </VCard>
-  </div>
-</div>
+                  <VRow>
+                    <VCol cols="12" md="3">
+                      <VAutocomplete v-model="item.role_id" :items="roles" item-title="name" item-value="id" label="Role" placeholder="Search role..." :loading="optionsLoading" :disabled="loading" @update:model-value="changeRole(item)" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VTextField v-model="item.label" label="Label" :disabled="loading" />
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <VTextField v-model="item.role_level" label="Role Level" type="number" min="1" :disabled="loading" />
+                    </VCol>
+                    <VCol v-if="isSectionRole(item)" cols="12" md="3">
+                      <VSwitch :model-value="item.is_specific_section" label="Specific Section" color="success" hide-details :disabled="loading" @update:model-value="item.is_specific_section = !!$event" />
+                    </VCol>
+                    <VCol v-if="isDepartmentRole(item)" cols="12" md="3">
+                      <VSwitch :model-value="item.is_specific_department" label="Specific Department" color="success" hide-details :disabled="loading" @update:model-value="item.is_specific_department = !!$event" />
+                    </VCol>
+                    <VCol v-if="item.is_specific_section" cols="12" md="4">
+                      <VAutocomplete v-model="item.section_id" :items="sections" item-title="name" item-value="id" label="Section" :disabled="loading" />
+                    </VCol>
+                    <VCol v-if="item.is_specific_department" cols="12" md="4">
+                      <VAutocomplete v-model="item.department_id" :items="departments" item-title="name" item-value="id" label="Department" :disabled="loading" />
+                    </VCol>
+                  </VRow>
+                </VCardText>
+              </VCard>
+            </div>
+          </div>
 
           <div v-if="errors.steps" class="text-error text-caption mb-3">{{ errors.steps }}</div>
 
-          <VBtn color="success" prepend-icon="ri-add-line" @click="addStep">Add Step</VBtn>
-        </VForm>
-      </VCardText>
+          <VBtn color="success" prepend-icon="ri-add-line" :disabled="loading" @click="addStep">Add Step</VBtn>
+        </VCardText>
 
-      <VCardActions class="justify-end">
-  <VBtn variant="tonal" :disabled="loading" @click="closeModal"> Cancel </VBtn>
-  <VBtn variant="flat" color="success" :loading="loading" @click="submit">Save</VBtn>
-</VCardActions>
+        <VCardActions class="justify-end gap-2 pa-4">
+          <VBtn variant="tonal" :disabled="loading" @click="closeModal">
+            Cancel
+          </VBtn>
+
+          <VBtn type="submit" color="success" variant="flat" :loading="loading">
+            Add
+          </VBtn>
+        </VCardActions>
+      </VForm>
     </VCard>
   </VDialog>
 </template>
 
 <style>
-.authority-role-menu { z-index: 9999 !important; }
 .steps-container { max-height: 450px; overflow-y: auto; }
 </style>

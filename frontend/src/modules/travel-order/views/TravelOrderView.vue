@@ -6,14 +6,17 @@ import NoteModal from '../components/modal/NoteModal.vue'
 import PdfViewerModal from '../components/modal/PdfViewerModal.vue'
 import PickTypeModal from '../components/modal/PickTypeModal.vue'
 import TripFormModal from '../components/modal/TripFormModal.vue'
-import { getTravelOrders, getTravelOrder, getTravelOrderPdf, createTravelOrder, updateTravelOrder, approveTravelOrder } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, getTravelOrderPdf, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const { confirm } = useConfirm()
 const toast = useToastStore()
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.user?.role?.name === 'Admin')
 
 const orders = ref([])
 const loading = ref(false)
@@ -43,14 +46,15 @@ const statusColor = {
   'Awaiting Approval': 'warning', 'Processed by GMO': 'success', 'Approved': 'success',
   'Awaiting Approval Manager': 'warning', 'Awaiting Approval Director': 'warning',
   'Awaiting Approval President Director': 'warning', 'Awaiting Approval GMO': 'warning',
-  'Revision Required': 'warning', 'Cancelled': 'error',
+ 'Revision Required': 'warning', 'Cancelled': 'error',
 }
 
 const statusLabel = {
   awaiting_approval: 'Awaiting Approval', awaiting_approval_manager: 'Awaiting Approval Manager',
   awaiting_approval_director: 'Awaiting Approval Director', awaiting_approval_predir: 'Awaiting Approval President Director',
   awaiting_approval_gmo: 'Awaiting Approval GMO', approved: 'Approved', revision_required: 'Revision Required',
-  cancelled: 'Cancelled', awaiting_gmo_processing: 'Awaiting GMO Processing',
+  draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required',
+  awaiting_gmo_processing: 'Awaiting GMO Processing',
   awaiting_gmo_booking_preparation: 'Awaiting GMO Booking Preparation',
   awaiting_gmo_document_issuance: 'Awaiting GMO Document Issuance', processed_by_gmo: 'Processed by GMO',
 }
@@ -61,10 +65,15 @@ const headerClass = 'px-3 py-3 text-caption font-weight-bold text-medium-emphasi
 const cellClass = 'px-3 py-3'
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
 
-const headers = [
-  col('ACTION', 'action', { align: 'center', width: 160 }), col('ID', 'id'), col('REQUEST TYPE', 'type'),
-  col('SUBJECT', 'subject'), col('PERIOD', 'period'), col('ARRANGEMENT', 'arrangement'), col('STATUS', 'status'),
-]
+const headers = computed(() => [
+  col('ACTION', 'action', { align: 'center', width: 240 }),
+  col('STATUS', 'status', { align: 'center' }),
+  ...(authStore.user?.name === 'Admin' ? [col('ID', 'id')] : []),
+  col('REQUEST TYPE', 'type', { align: 'center' }),
+  col('SUBJECT', 'subject'),
+  col('PERIOD', 'period', { align: 'center' }),
+  col('ARRANGEMENT', 'arrangement'),
+])
 
 const requestTypes = [
   { key: 'annual', badge: 'AL', title: 'Annual Leave', desc: 'Submit your annual leave request.', points: ['Leave period selection', 'Leave balance check'] },
@@ -197,15 +206,6 @@ function revokePdf() {
 
 watch(detailDialog, open => { if (!open) revokePdf() })
 
-function updateStatus(status, message, type = 'success') {
-  const orderNumber = selected.value?.order_number
-  const index = orders.value.findIndex(order => order.order_number === orderNumber)
-  if (index !== -1) orders.value[index] = { ...orders.value[index], status }
-  detailDialog.value = false
-  approvalDialog.value = false
-  showMessage(message, type)
-}
-
 async function openApproval(row) {
   selected.value = row.raw
   approvalDialog.value = true
@@ -239,13 +239,13 @@ async function handleApprove() {
 const noteMeta = {
   reject: {
     title: 'Reject Travel Order', label: 'Reason for rejection', button: 'Reject', color: 'error',
-    status: 'cancelled', message: 'Travel order has been cancelled.', type: 'success',
+    message: 'Travel order has been rejected.', type: 'success',
     confirmTitle: 'Reject Travel Order',
-    confirmMessage: order => `Are you sure you want to reject ${order}? This order will be cancelled.`,
+    confirmMessage: order => `Are you sure you want to reject ${order}?`,
   },
   revision: {
     title: 'Return for Revision', label: 'What needs to be revised', button: 'Revision', color: 'warning',
-    status: 'revision_required', message: 'Travel order has been returned for revision.', type: 'warning',
+    message: 'Travel order has been returned for revision.', type: 'warning',
     confirmTitle: 'Return for Revision', confirmMessage: order => `Are you sure you want to return ${order} for revision?`,
   },
 }
@@ -256,11 +256,25 @@ const handleReject = () => openNote('reject')
 const handleRevision = () => openNote('revision')
 
 async function handleNoteSubmit(text) {
+  if (approving.value) return
   const meta = currentNoteMeta.value
   const ok = await confirm({ title: meta.confirmTitle, message: meta.confirmMessage(selected.value?.order_number) })
   if (!ok) return
-  noteDialog.value = false
-  updateStatus(meta.status, meta.message, meta.type)
+
+  approving.value = true
+  try {
+    const call = noteAction.value === 'reject' ? rejectTravelOrder : revisionTravelOrder
+    await call(selected.value.id, text)
+    noteDialog.value = false
+    detailDialog.value = false
+    approvalDialog.value = false
+    await loadOrders()
+    showMessage(meta.message, meta.type)
+  } catch (error) {
+    showMessage(error?.response?.data?.errors?.remark?.[0] || error?.response?.data?.message || 'Failed to process travel order.', 'error')
+  } finally {
+    approving.value = false
+  }
 }
 
 const approvalChip = {
@@ -269,20 +283,27 @@ const approvalChip = {
   rejected: { text: 'Rejected', color: 'error', caption: 'Rejected by' },
   revision: { text: 'Revision', color: 'warning', caption: 'Revision requested by' },
   pending: { text: 'Waiting', color: 'grey', caption: 'Awaiting approval' },
+  cancelled: { text: 'Cancelled', color: 'grey', caption: 'Not processed' },
 }
 
 const approvalCards = computed(() => {
-  const steps = selected.value?.approvals || []
+  const all = selected.value?.approvals || []
+  // Hanya tampilkan putaran terakhir (mulai dari baris 'submitted' terbaru)
+  const lastRound = all.map(step => step.status).lastIndexOf('submitted')
+  const steps = lastRound > 0 ? all.slice(lastRound) : all
   const currentIndex = steps.findIndex(step => step.status === 'pending')
+
   return steps.map((step, index) => {
     const meta = approvalChip[step.status] || approvalChip.pending
     const isPending = step.status === 'pending'
-    const isCurrent = isPending && index === currentIndex
+
     return {
       key: step.id, title: step.role_name || '-', chipText: meta.text, chipColor: meta.color,
-      caption: meta.caption, name: isPending ? '' : (step.name || '-'), time: formatDateTime(step.acted_at),
-      isCurrent, hint: isPending ? (isCurrent ? `Awaiting ${step.name || '-'}` : 'Previous step pending') : '',
-      hintClass: isCurrent ? 'text-info font-weight-bold' : 'text-medium-emphasis',
+      caption: meta.caption,
+      name: ['pending', 'cancelled'].includes(step.status) ? '' : (step.name || '-'),
+      time: formatDateTime(step.acted_at),
+      note: ['rejected', 'revision'].includes(step.status) ? (step.note || '') : '',
+      isCurrent: isPending && index === currentIndex,
     }
   })
 })
@@ -379,14 +400,14 @@ onMounted(() => {
           <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip>
         </template>
         <template #item.action="{ item }">
-          <div class="d-flex align-center justify-center ga-2">
-            <VBtn v-if="item.raw.status === 'draft'" size="small" variant="flat" color="success" :loading="draftLoading" @click="continueDraft(item)">Edit</VBtn>
-            <template v-else>
-              <VBtn size="small" variant="flat" color="primary" @click="openDetail(item)">View</VBtn>
-             <VBtn v-if="item.raw.can_approve" size="small" variant="flat" color="success" @click="openApproval(item)">Approval</VBtn>
-            </template>
-          </div>
-        </template>
+          <VBtnGroup density="comfortable" variant="tonal">
+  <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
+  <template v-if="item.raw.status !== 'draft'">
+    <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+    <VBtn color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+  </template>
+</VBtnGroup>
+</template>
       </VDataTable>
     </VCard>
 

@@ -41,18 +41,52 @@ class TravelOrderController extends Controller
     }
 
     public function approve(Request $request, int $id): JsonResponse
-    {
-        $order = $this->service->approve(
-            $id,
-            $request->user(),
-            $request->input('note')
-        );
+{
+    $order = $this->service->approve(
+        $id,
+        $request->user(),
+        $request->input('note')
+    );
 
-        return response()->json([
-            'message' => 'Travel Order has been successfully approved.',
-            'data' => $order,
-        ]);
-    }
+    return response()->json([
+        'message' => 'Travel Order has been successfully approved.',
+        'data' => $order,
+    ]);
+}
+
+public function reject(Request $request, int $id): JsonResponse
+{
+    $request->validate([
+        'remark' => ['required', 'string'],
+    ]);
+
+    $this->service->reject(
+        $id,
+        $request->user(),
+        $request->input('remark')
+    );
+
+    return response()->json([
+        'message' => 'Travel Order has been rejected.',
+    ]);
+}
+
+public function revision(Request $request, int $id): JsonResponse
+{
+    $request->validate([
+        'remark' => ['required', 'string'],
+    ]);
+
+    $this->service->revision(
+        $id,
+        $request->user(),
+        $request->input('remark')
+    );
+
+    return response()->json([
+        'message' => 'Travel Order has been sent for revision.',
+    ]);
+}
 
     public function departmentLock(Request $request): JsonResponse
     {

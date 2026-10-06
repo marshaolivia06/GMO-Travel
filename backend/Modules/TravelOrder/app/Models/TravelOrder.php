@@ -35,6 +35,7 @@ class TravelOrder extends Model
         'ferry_arrangement',
         'accommodation_arrangement',
         'created_by',
+        'approval_remark',
     ];
 
     protected $casts = [

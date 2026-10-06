@@ -70,20 +70,25 @@ export const getTravelOrders = params =>
     .get(`${BASE}/department-lock`)
     .then(res => res.data)
 
-export const approveTravelOrder = id =>
-  http
-    .post(`${BASE}/${id}/approve`)
-    .then(res => res.data)
-
-export const cancelTravelOrder = id =>
-  http
-    .post(`${BASE}/${id}/cancel`)
-    .then(res => res.data)
-
-export const revisionTravelOrder = id =>
-  http
-    .post(`${BASE}/${id}/revision`)
-    .then(res => res.data)
+    export const approveTravelOrder = id =>
+      http
+        .post(`${BASE}/${id}/approve`)
+        .then(res => res.data)
+    
+    export const rejectTravelOrder = (id, remark) =>
+      http
+        .post(`${BASE}/${id}/reject`, { remark })
+        .then(res => res.data)
+    
+    export const cancelTravelOrder = id =>
+      http
+        .post(`${BASE}/${id}/cancel`)
+        .then(res => res.data)
+    
+    export const revisionTravelOrder = (id, remark) =>
+      http
+        .post(`${BASE}/${id}/revision`, { remark })
+        .then(res => res.data)
 
 export const getTravelAdvanceLimit = (
   travelRegion,

@@ -3,45 +3,22 @@
 namespace Modules\AuthorityMatrix\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\DB;
 use Modules\AuthorityMatrix\Http\Requests\StoreAuthorityMatrixRequest;
 use Modules\AuthorityMatrix\Http\Requests\UpdateAuthorityMatrixRequest;
-use Modules\AuthorityMatrix\Models\AuthorityMatrix;
+use Modules\AuthorityMatrix\Services\AuthorityMatrixService;
 
 class AuthorityMatrixController extends Controller
 {
+    public function __construct(protected AuthorityMatrixService $service) {}
+
     public function index()
     {
-        return response()->json(
-            AuthorityMatrix::with('steps.role', 'steps.section', 'steps.department')->get()
-        );
-    }
-
-    public function create()
-    {
-        return view('authoritymatrix::create');
+        return response()->json($this->service->getAll());
     }
 
     public function store(StoreAuthorityMatrixRequest $request)
     {
-        $data = $request->validated();
-
-        $matrix = DB::transaction(function () use ($data) {
-            $matrix = AuthorityMatrix::create([
-                'document_type' => $data['document_type'],
-                'status' => $data['status'] ?? true,
-            ]);
-
-            foreach ($data['steps'] as $step) {
-                $matrix->steps()->create($step);
-            }
-
-            return $matrix->load(
-                'steps.role',
-                'steps.section',
-                'steps.department'
-            );
-        });
+        $matrix = $this->service->create($request->validated());
 
         return response()->json([
             'message' => 'Authority Matrix berhasil dibuat.',
@@ -51,46 +28,14 @@ class AuthorityMatrixController extends Controller
 
     public function show($id)
     {
-        $matrix = AuthorityMatrix::with(
-            'steps.role',
-            'steps.section',
-            'steps.department'
-        )->findOrFail($id);
-
         return response()->json([
-            'data' => $matrix,
+            'data' => $this->service->getById($id),
         ]);
-    }
-
-    public function edit($id)
-    {
-        return view('authoritymatrix::edit');
     }
 
     public function update(UpdateAuthorityMatrixRequest $request, $id)
     {
-        $data = $request->validated();
-
-        $matrix = DB::transaction(function () use ($data, $id) {
-            $matrix = AuthorityMatrix::findOrFail($id);
-
-            $matrix->update([
-                'document_type' => $data['document_type'],
-                'status' => $data['status'] ?? true,
-            ]);
-
-            $matrix->steps()->delete();
-
-            foreach ($data['steps'] as $step) {
-                $matrix->steps()->create($step);
-            }
-
-            return $matrix->load(
-                'steps.role',
-                'steps.section',
-                'steps.department'
-            );
-        });
+        $matrix = $this->service->update($id, $request->validated());
 
         return response()->json([
             'message' => 'Authority Matrix berhasil diperbarui.',
@@ -99,12 +44,11 @@ class AuthorityMatrixController extends Controller
     }
 
     public function destroy($id)
-{
-    $matrix = AuthorityMatrix::findOrFail($id);
-    $matrix->delete();
+    {
+        $this->service->delete($id);
 
-    return response()->json([
-        'message' => 'Authority Matrix berhasil dihapus.',
-    ]);
-}
+        return response()->json([
+            'message' => 'Authority Matrix berhasil dihapus.',
+        ]);
+    }
 }

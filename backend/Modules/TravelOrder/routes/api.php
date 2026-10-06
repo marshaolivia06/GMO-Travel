@@ -24,12 +24,15 @@ Route::middleware(['auth:sanctum'])
             Route::put('/{id}', [TravelOrderController::class, 'update'])
                 ->middleware('permission:travel-order.create');
 
-            Route::post('/{id}/approve', [TravelOrderController::class, 'approve'])
+                Route::post('/{id}/approve', [TravelOrderController::class, 'approve'])
                 ->middleware('permission:travel-order.approve');
-
+            
+            Route::post('/{id}/reject', [TravelOrderController::class, 'reject'])
+                ->middleware('permission:travel-order.approve');
+            
             Route::post('/{id}/cancel', [TravelOrderController::class, 'cancel'])
                 ->middleware('permission:travel-order.approve');
-
+            
             Route::post('/{id}/revision', [TravelOrderController::class, 'revision'])
                 ->middleware('permission:travel-order.approve');
 

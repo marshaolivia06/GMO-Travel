@@ -12,7 +12,7 @@
     };
 
     $approvalLabels = [
-        'submitted' => 'Submitted',
+        'submitted' => 'Requested',
         'pending'   => 'Awaiting Approval',
         'approved'  => 'Approved',
         'rejected'  => 'Rejected',
