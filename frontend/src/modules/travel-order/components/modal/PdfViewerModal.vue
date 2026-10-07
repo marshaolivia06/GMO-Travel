@@ -11,7 +11,7 @@ const emit = defineEmits(['update:modelValue', 'back', 'reject', 'revision', 'ap
 </script>
 
 <template>
-  <VDialog :model-value="modelValue" max-width="1000" scrollable @update:model-value="emit('update:modelValue', $event)">
+  <VDialog :model-value="modelValue" max-width="1100" scrollable @update:model-value="emit('update:modelValue', $event)">
     <VCard rounded="lg">
       <VCardItem class="px-4 py-2">
         <div class="d-flex align-center ga-1">
@@ -27,7 +27,7 @@ const emit = defineEmits(['update:modelValue', 'back', 'reject', 'revision', 'ap
 
       <VCardText class="bg-grey-lighten-3 pa-0">
         <VProgressLinear v-if="loading" indeterminate />
-        <iframe v-if="pdfUrl" :src="pdfUrl" title="Travel Order PDF" height="550" class="d-block w-100 border-0" />
+        <iframe v-if="pdfUrl" :src="pdfUrl" title="Travel Order PDF" height="750" class="d-block w-100 border-0" />
         <div v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
       </VCardText>
 

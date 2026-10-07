@@ -60,15 +60,20 @@ export const getTravelOrders = params =>
         .get(`${BASE}/${id}`)
         .then(res => res.data)
     
-    export const getTravelOrderPdf = id =>
-  http
-    .get(`${BASE}/${id}/pdf`, { responseType: 'blob' })
-    .then(res => res.data)
-    
-    export const getDepartmentLock = () =>
-  http
-    .get(`${BASE}/department-lock`)
-    .then(res => res.data)
+        export const getTravelOrderPdf = id =>
+          http
+            .get(`${BASE}/${id}/pdf`, { responseType: 'blob' })
+            .then(res => res.data)
+        
+        export const getTravelOrderHistory = id =>
+          http
+            .get(`${BASE}/${id}/history`)
+            .then(res => res.data)
+            
+        export const getDepartmentLock = () =>
+          http
+          .get(`${BASE}/department-lock`)
+          .then(res => res.data)
 
     export const approveTravelOrder = id =>
       http

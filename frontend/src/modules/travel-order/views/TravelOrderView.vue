@@ -2,11 +2,12 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ApprovalFlowModal from '../components/modal/ApprovalFlowModal.vue'
+import HistoryLogModal from '../components/modal/HistoryLogModal.vue'
 import NoteModal from '../components/modal/NoteModal.vue'
 import PdfViewerModal from '../components/modal/PdfViewerModal.vue'
 import PickTypeModal from '../components/modal/PickTypeModal.vue'
 import TripFormModal from '../components/modal/TripFormModal.vue'
-import { getTravelOrders, getTravelOrder, getTravelOrderPdf, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
@@ -17,7 +18,7 @@ const { confirm } = useConfirm()
 const toast = useToastStore()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.role?.name === 'Admin')
-
+const page = ref(1)
 const orders = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
@@ -38,6 +39,9 @@ const approvalDialog = ref(false)
 const approvalLoading = ref(false)
 const noteDialog = ref(false)
 const noteAction = ref('reject')
+const historyDialog = ref(false)
+const historyLoading = ref(false)
+const historyLogs = ref([])
 const filters = reactive({ search: '', status: null })
 
 const statusOptions = ['Awaiting Approval', 'Awaiting Approval Manager', 'Awaiting Approval Director', 'Awaiting Approval President Director', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking Preparation', 'Awaiting GMO Document Issuance', 'Processed by GMO', 'Approved']
@@ -213,6 +217,22 @@ async function openApproval(row) {
   try { await refreshDetail(row.id) } finally { approvalLoading.value = false }
 }
 
+async function openHistory(row) {
+  selected.value = row.raw
+  historyLogs.value = []
+  historyDialog.value = true
+  historyLoading.value = true
+  try {
+    const response = await getTravelOrderHistory(row.id)
+    historyLogs.value = response?.data ?? []
+  } catch (error) {
+    console.error('Load history error:', error)
+    showMessage(error?.response?.data?.message || 'Failed to load history log.', 'error')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
 function openReview() {
   approvalDialog.value = false
   openDetail({ id: selected.value.id, raw: selected.value }, 'review')
@@ -308,11 +328,43 @@ const approvalCards = computed(() => {
   })
 })
 
+const historyChip = {
+  submitted: { text: 'Requested', color: 'primary' },
+  approved: { text: 'Approved', color: 'success' },
+  rejected: { text: 'Rejected', color: 'error' },
+  revision: { text: 'Revision', color: 'warning' },
+}
+
+const historyRounds = computed(() => {
+  const groups = new Map()
+
+  for (const log of historyLogs.value) {
+    const round = log.round ?? 1
+    const meta = historyChip[log.event] || { text: log.event, color: 'grey' }
+
+    if (!groups.has(round)) groups.set(round, [])
+
+    groups.get(round).push({
+      key: log.id,
+      chipText: log.final ? 'Fully Approved' : meta.text,
+      chipColor: meta.color,
+      role: log.role || '-',
+      name: log.causer || '-',
+      time: formatDateTime(log.created_at),
+      note: log.remark || log.note || '',
+    })
+  }
+
+  return [...groups.entries()]
+  .sort((a, b) => a[0] - b[0])
+    .map(([round, items]) => ({ round, items }))
+})
+
 async function loadOrders() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const response = await getTravelOrders()
+    const response = await getTravelOrders({ per_page: 1000 })
     const data = response.data ?? response
     orders.value = Array.isArray(data) ? data : data.data || []
   } catch (error) {
@@ -390,7 +442,7 @@ onMounted(() => {
       </VCardText>
       <VDivider />
 
-      <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" :items-per-page="10" item-value="id" hover no-data-text="No travel orders found.">
+      <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No travel orders found.">
         <template #item.id="{ item }"><span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span></template>
         <template #item.type="{ item }"><VChip size="small" variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip></template>
         <template #item.subject="{ item }"><div class="font-weight-bold text-body-2">{{ item.subject }}</div><div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div></template>
@@ -400,13 +452,14 @@ onMounted(() => {
           <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip>
         </template>
         <template #item.action="{ item }">
-          <VBtnGroup density="comfortable" variant="tonal">
-  <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
-  <template v-if="item.raw.status !== 'draft'">
-    <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-    <VBtn color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
-  </template>
-</VBtnGroup>
+  <VBtnGroup density="comfortable" variant="tonal">
+    <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
+    <template v-if="item.raw.status !== 'draft'">
+      <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+      <VBtn color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+      <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
+    </template>
+  </VBtnGroup>
 </template>
       </VDataTable>
     </VCard>
@@ -416,6 +469,7 @@ onMounted(() => {
     <TripFormModal v-model="dialog" :type="dialogType" :loading="submitting" :initial-data="editingDraft ? selected : null" @back="backToBusiness" @close="closeDialog" @submit="submitOrder" />
     <PdfViewerModal v-model="detailDialog" :title="detailMode === 'review' ? 'Review Travel Order' : 'Travel Order Detail'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="canDecide" :approving="approving" @back="backToApproval" @reject="handleReject" @revision="handleRevision" @approve="handleApprove" />
     <ApprovalFlowModal v-model="approvalDialog" :loading="approvalLoading" :cards="approvalCards" :can-approve="canApprove" @review="openReview" />
+    <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" />
   </div>
 </template>

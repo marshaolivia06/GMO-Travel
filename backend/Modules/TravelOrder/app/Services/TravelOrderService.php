@@ -12,6 +12,7 @@ use Modules\TravelOrder\Models\TravelOrder;
 use Modules\TravelOrder\Repositories\TravelOrderAdvanceRepository;
 use Modules\TravelOrder\Repositories\TravelOrderRepository;
 use Modules\UserManagement\Models\User;
+use Modules\MasterManagement\Models\MasterDivision;
 
 class TravelOrderService
 {
@@ -42,7 +43,10 @@ class TravelOrderService
                 $filters['user_id'] = $user->id;
             }
         } elseif ($isDirector) {
+            $division = MasterDivision::where('division_head_id', $user->id)->first();
+            $department = $division ? Department::where('division_head_id', $division->id)->first() : null;
             $filters['approval_role'] = 'Director';
+            $filters['department_id'] = $department?->id;
         } elseif ($isPresidentDirector) {
             $filters['approval_role'] = 'President Director';
         } else {
@@ -89,6 +93,13 @@ class TravelOrderService
         }
 
         return $approvals->where('sequence', '>=', $lastSubmitted)->values();
+    }
+
+    public function history(int $id, ?User $user = null): array
+    {
+        $order = $this->repository->findById($id);
+
+        return $this->approvalService->history($order);
     }
 
     public function approve(int $id, User $user, ?string $note = null): TravelOrder

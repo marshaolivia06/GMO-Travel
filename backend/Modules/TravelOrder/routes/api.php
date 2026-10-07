@@ -18,7 +18,10 @@ Route::middleware(['auth:sanctum'])
             Route::get('/{id}', [TravelOrderController::class, 'show'])
                 ->middleware('permission:travel-order.view');
 
-            Route::get('/{id}/pdf', [TravelOrderController::class, 'pdf'])
+                Route::get('/{id}/pdf', [TravelOrderController::class, 'pdf'])
+                ->middleware('permission:travel-order.view');
+
+            Route::get('/{id}/history', [TravelOrderController::class, 'history'])
                 ->middleware('permission:travel-order.view');
 
             Route::put('/{id}', [TravelOrderController::class, 'update'])

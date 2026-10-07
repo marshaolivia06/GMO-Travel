@@ -20,7 +20,7 @@ class TravelOrderAwaitingApprovalMail extends Mailable
     public function build(): self
     {
         return $this
-            ->subject("Travel Order {$this->order->order_number} menunggu approval Anda")
+            ->subject("Travel Order {$this->order->order_number} awaiting your approval")
             ->view('travelorder::emails.awaiting_approval');
     }
 }

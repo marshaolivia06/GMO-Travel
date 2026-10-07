@@ -40,8 +40,15 @@ class TravelOrderController extends Controller
     return $pdf->stream("TO-{$id}.pdf");
     }
 
+    public function history(Request $request, int $id): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->service->history($id, $request->user()),
+        ]);
+    }
+
     public function approve(Request $request, int $id): JsonResponse
-{
+    {
     $order = $this->service->approve(
         $id,
         $request->user(),

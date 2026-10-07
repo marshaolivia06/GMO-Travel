@@ -52,6 +52,10 @@ class TravelOrderRepository
                 }
             )
             ->when(
+                $filters['department_id'] ?? null,
+                fn ($query, $departmentId) => $query->where('department_id', $departmentId)
+            )
+            ->when(
                 $filters['exclude_draft'] ?? null,
                 fn ($query) => $query->where('status', '!=', 'draft')
             )
