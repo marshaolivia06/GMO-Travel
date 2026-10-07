@@ -26,7 +26,14 @@ export default createVuetify({
   },
   icons: {
     defaultSet: 'ri',
-    aliases: {},
+    aliases: {
+      prev: 'ri-arrow-left-s-line',
+      next: 'ri-arrow-right-s-line',
+      first: 'ri-skip-back-line',
+      last: 'ri-skip-forward-line',
+      dropdown: 'ri-arrow-down-s-line',
+      clear: 'ri-close-circle-fill',
+    },
     sets: {
       ri: {
         component: props => h(props.tag ?? 'i', { class: [props.icon] }),
