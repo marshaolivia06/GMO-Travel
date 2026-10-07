@@ -58,9 +58,7 @@ const changeTab = tab => {
   })
 }
 
-// USERS
 const userSearch = ref('')
-const userPerPage = ref(5)
 
 const filteredUsers = computed(() => {
   const keyword = userSearch.value.trim().toLowerCase()
@@ -82,9 +80,7 @@ const filteredUsers = computed(() => {
   })
 })
 
-// ROLES
 const roleSearch = ref('')
-const rolePerPage = ref(5)
 const roles = ref([])
 const roleLoading = ref(false)
 const roleError = ref('')
@@ -121,9 +117,7 @@ const fetchRoles = async () => {
   }
 }
 
-// PERMISSIONS
 const permissionSearch = ref('')
-const permissionPerPage = ref(5)
 const permissions = ref([])
 const permissionLoading = ref(false)
 const permissionError = ref('')
@@ -362,7 +356,7 @@ onMounted(() => {
   { title: 'Role', key: 'role' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
-]" :items="filteredUsers" :loading="loading" :items-per-page="userPerPage" item-value="id" density="default" hover @update:items-per-page="value => userPerPage = value">
+]":items="filteredUsers" :loading="loading" item-value="id" density="default" hover>
   <template #top>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
       <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" :disabled="!hasPermission('user-management.create')" @click="addUser">Add User</VBtn>
@@ -408,7 +402,7 @@ onMounted(() => {
   { title: 'Name', key: 'name' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
-]" :items="filteredRoles" :loading="roleLoading" :items-per-page="rolePerPage" item-value="id" density="default" hover @update:items-per-page="value => rolePerPage = value">
+]":items="filteredRoles" :loading="roleLoading" item-value="id" density="default" hover>
   <template #top>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
       <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" :disabled="!hasPermission('user-management.create')" @click="addRole">Add Role</VBtn>
@@ -447,7 +441,7 @@ onMounted(() => {
   { title: 'Permissions', key: 'permissions' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
-]" :items="filteredPermissions" :loading="permissionLoading" :items-per-page="permissionPerPage" item-value="module" density="default" hover @update:items-per-page="value => permissionPerPage = value">
+]" :items="filteredPermissions" :loading="permissionLoading" item-value="module" density="default" hover>
   <template #top>
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap">
       <VBtn color="success" prepend-icon="ri-add-line" style="flex-shrink: 0" :disabled="!hasPermission('user-management.create')" @click="addPermission">Add Permission</VBtn>
