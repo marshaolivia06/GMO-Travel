@@ -7,6 +7,8 @@ import NoteModal from '../components/modal/NoteModal.vue'
 import PdfViewerModal from '../components/modal/PdfViewerModal.vue'
 import PickTypeModal from '../components/modal/PickTypeModal.vue'
 import TripFormModal from '../components/modal/TripFormModal.vue'
+import GmoProcessModal from '../components/modal/GmoProcessModal.vue'
+import GmoBookingModal from '../components/modal/GmoBookingModal.vue'
 import { getTravelOrders, getTravelOrder, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
@@ -18,6 +20,7 @@ const { confirm } = useConfirm()
 const toast = useToastStore()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.role?.name === 'Admin')
+const isAdminGmo = computed(() => authStore.user?.roles?.includes('Admin-GMO'))
 const page = ref(1)
 const orders = ref([])
 const loading = ref(false)
@@ -37,6 +40,10 @@ const pdfUrl = ref('')
 const pdfLoading = ref(false)
 const approvalDialog = ref(false)
 const approvalLoading = ref(false)
+const processDialog = ref(false)
+const processLoading = ref(false)
+const bookingDialog = ref(false)
+const bookingLoading = ref(false)
 const noteDialog = ref(false)
 const noteAction = ref('reject')
 const historyDialog = ref(false)
@@ -44,23 +51,23 @@ const historyLoading = ref(false)
 const historyLogs = ref([])
 const filters = reactive({ search: '', status: null })
 
-const statusOptions = ['Awaiting Approval', 'Awaiting Approval Manager', 'Awaiting Approval Director', 'Awaiting Approval President Director', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking Preparation', 'Awaiting GMO Document Issuance', 'Processed by GMO', 'Approved']
+const statusOptions = ['Awaiting Approval', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking Preparation', 'Awaiting GMO Document Issuance', 'Processed by GMO']
 
 const statusColor = {
-  'Awaiting Approval': 'warning', 'Processed by GMO': 'success', 'Approved': 'success',
-  'Awaiting Approval Manager': 'warning', 'Awaiting Approval Director': 'warning',
-  'Awaiting Approval President Director': 'warning', 'Awaiting Approval GMO': 'warning',
- 'Revision Required': 'warning', 'Cancelled': 'error',
+  'Awaiting Approval': 'warning', 'Processed by GMO': 'success',
+  'Awaiting Approval GMO': 'warning', 'Awaiting GMO Processing': 'warning',
+  'Awaiting GMO Booking Preparation': 'warning', 'Awaiting GMO Document Issuance': 'warning',
+  'Revision Required': 'warning', 'Cancelled': 'error',
 }
 
 const statusLabel = {
-  awaiting_approval: 'Awaiting Approval', awaiting_approval_manager: 'Awaiting Approval Manager',
-  awaiting_approval_director: 'Awaiting Approval Director', awaiting_approval_predir: 'Awaiting Approval President Director',
-  awaiting_approval_gmo: 'Awaiting Approval GMO', approved: 'Approved', revision_required: 'Revision Required',
-  draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required',
+  awaiting_approval: 'Awaiting Approval', awaiting_approval_gmo: 'Awaiting Approval GMO',
+  revision_required: 'Revision Required', draft: 'Draft', cancelled: 'Cancelled',
+  rejected: 'Rejected', revision: 'Revision Required',
   awaiting_gmo_processing: 'Awaiting GMO Processing',
   awaiting_gmo_booking_preparation: 'Awaiting GMO Booking Preparation',
-  awaiting_gmo_document_issuance: 'Awaiting GMO Document Issuance', processed_by_gmo: 'Processed by GMO',
+  awaiting_gmo_document_issuance: 'Awaiting GMO Document Issuance',
+  processed_by_gmo: 'Processed by GMO',
 }
 
 const typeColor = { 'Business Trip - Individual': 'primary', 'Business Trip - Group Trip': 'info', 'Annual Trip': 'success' }
@@ -217,6 +224,21 @@ async function openApproval(row) {
   try { await refreshDetail(row.id) } finally { approvalLoading.value = false }
 }
 
+async function openProcess(row) {
+  selected.value = row.raw
+
+  if (row.raw.status === 'awaiting_gmo_booking_preparation') {
+    bookingDialog.value = true
+    bookingLoading.value = true
+    try { await refreshDetail(row.id) } finally { bookingLoading.value = false }
+    return
+  }
+
+  processDialog.value = true
+  processLoading.value = true
+  try { await refreshDetail(row.id) } finally { processLoading.value = false }
+}
+
 async function openHistory(row) {
   selected.value = row.raw
   historyLogs.value = []
@@ -346,7 +368,7 @@ const historyRounds = computed(() => {
 
     groups.get(round).push({
       key: log.id,
-      chipText: log.final ? 'Fully Approved' : meta.text,
+      chipText: log.final ? 'Approved' : meta.text,
       chipColor: meta.color,
       role: log.role || '-',
       name: log.causer || '-',
@@ -455,10 +477,11 @@ onMounted(() => {
   <VBtnGroup density="comfortable" variant="tonal">
     <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
     <template v-if="item.raw.status !== 'draft'">
-      <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-      <VBtn color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
-      <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
-    </template>
+  <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+  <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-refresh-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+  <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+  <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
+</template>
   </VBtnGroup>
 </template>
       </VDataTable>
@@ -471,5 +494,7 @@ onMounted(() => {
     <ApprovalFlowModal v-model="approvalDialog" :loading="approvalLoading" :cards="approvalCards" :can-approve="canApprove" @review="openReview" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" />
+    <GmoProcessModal v-model="processDialog" title="GMO Travel Order Processing" :status="selected?.status" :order="selected" :loading="processLoading" :processing="false" @cancel="processDialog = false" />
+<GmoBookingModal v-model="bookingDialog" title="GMO Travel Order Booking" :status="selected?.status" :order="selected" :loading="bookingLoading" :processing="false" @cancel="bookingDialog = false" />
   </div>
 </template>

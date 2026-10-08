@@ -199,7 +199,22 @@ private function logActivity(TravelOrder $order, ?User $causer, string $event, s
             ]);
 
             if (!$hasNext) {
-                $order->update(['status' => 'approved']);
+                $ferry = $order->ferry_arrangement;
+                $accommodation = $order->accommodation_arrangement;
+            
+                if (
+                    $ferry === 'Direct Payment' &&
+                    $accommodation === 'Direct Payment'
+                ) {
+                    $nextStatus = 'awaiting_gmo_processing';
+                } else {
+                    $nextStatus = 'awaiting_gmo_booking_preparation';
+                }
+            
+                $order->update([
+                    'status' => $nextStatus,
+                ]);
+            
                 return;
             }
 

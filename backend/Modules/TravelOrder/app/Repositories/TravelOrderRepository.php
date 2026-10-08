@@ -60,6 +60,22 @@ class TravelOrderRepository
                 fn ($query) => $query->where('status', '!=', 'draft')
             )
             ->when(
+                $filters['gmo'] ?? false,
+                fn ($query) => $query->whereIn('status', [
+                    'awaiting_approval_gmo',
+                    'awaiting_gmo_processing',
+                    'awaiting_gmo_booking_preparation',
+                    'awaiting_gmo_document_issuance',
+                    'processed_by_gmo',
+                ])
+            )
+            
+            ->when(
+                $filters['gmo_status'] ?? null,
+                fn ($query, $statuses) => $query->whereIn('status', $statuses)
+            )
+            
+            ->when(
                 $filters['search'] ?? null,
                 function ($query, $search) {
                     $query->where(function ($q) use ($search) {

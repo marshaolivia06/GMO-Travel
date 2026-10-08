@@ -105,6 +105,13 @@ class UserController extends Controller
             ],
         ]);
 
+        if (
+            isset($validated['role']) &&
+            str_starts_with(strtolower($validated['role']), 'admin')
+        ) {
+            $validated['grade'] = null;
+        }
+
         return response()->json(
             $this->userRepository->updateUser($id, $validated)
         );

@@ -27,12 +27,21 @@ class TravelOrderService
     {
         $roleNames = $user->getRoleNames();
         $isAdmin = $roleNames->contains('Admin');
+        $isAdminGmo = $roleNames->contains('Admin-GMO');
         $isDeptHead = $roleNames->contains('Dept Head');
         $isDirector = $roleNames->contains('Director');
         $isPresidentDirector = $roleNames->contains('President Director');
 
         if ($isAdmin) {
             $filters['exclude_draft'] = true;
+        } elseif ($isAdminGmo) {
+            $filters['gmo_status'] = [
+                'awaiting_approval_gmo',
+                'awaiting_gmo_processing',
+                'awaiting_gmo_booking_preparation',
+                'awaiting_gmo_document_issuance',
+                'processed_by_gmo',
+            ];
         } elseif ($isDeptHead) {
             $department = Department::where('dept_head_id', $user->id)->first();
 

@@ -109,10 +109,12 @@ async function submitUser() {
     return
   }
 
-  if (form.grade === null || form.grade === '') {
-    errors.grade = 'Grade is required.'
-    return
-  }
+  const isAdminRole = form.role.toLowerCase().startsWith('admin')
+
+if (!isAdminRole && (form.grade === null || form.grade === '')) {
+  errors.grade = 'Grade is required.'
+  return
+}
 
   const confirmed = await confirm({
     title: 'Add User',
