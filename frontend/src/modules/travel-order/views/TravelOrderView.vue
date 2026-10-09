@@ -478,7 +478,7 @@ onMounted(() => {
     <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
     <template v-if="item.raw.status !== 'draft'">
   <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-  <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-refresh-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+  <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-file-edit-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
   <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
   <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
 </template>

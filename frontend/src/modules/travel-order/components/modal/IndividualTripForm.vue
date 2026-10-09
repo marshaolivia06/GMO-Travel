@@ -366,136 +366,124 @@ onMounted(loadDepartmentInfo)
 
 <template>
   <div>
-    <div v-if="!reviewDialog" class="d-flex align-start justify-space-between mb-6">
-      <div>
-        <div class="text-primary text-body-2 font-weight-bold mb-1">BUSINESS TRIP - INDIVIDUAL</div>
-        <div class="text-h5 font-weight-bold mb-1">Travel Order Form</div>
-        <div class="text-body-2 text-medium-emphasis">Complete a standalone employee Travel Order.</div>
-      </div>
-      <VChip variant="tonal" color="primary" size="small">Standalone Request</VChip>
-    </div>
+    <div v-if="!reviewDialog" class="text-primary text-body-2 font-weight-bold mb-4">BUSINESS TRIP - INDIVIDUAL</div>
 
     <VCard v-if="!reviewDialog" rounded="lg" elevation="1">
-      <VCardItem>
-        <VCardTitle class="text-subtitle-1 font-weight-bold">Travel Order Information</VCardTitle>
-        <VCardSubtitle>Fields inherited from Group Trip or Annual Leave Request are read-only.</VCardSubtitle>
-      </VCardItem>
-      <VDivider />
-
       <VForm @submit.prevent="submitForm">
         <VCardText class="pa-6">
-          <VAlert v-if="generalError" type="error" variant="tonal" class="mb-6">{{ generalError }}</VAlert>
+  <VAlert v-if="generalError" type="error" variant="tonal" class="mb-6">{{ generalError }}</VAlert>
 
-          <div class="text-subtitle-2 font-weight-bold mb-4">Employee Information</div>
-          <VRow>
-            <VCol cols="12" md="6"><VTextField v-model="form.employee" label="Employee *" variant="outlined" density="comfortable" hide-details="auto" disabled /></VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-if="departmentLocked" v-model="form.department" label="Department *" variant="outlined" density="comfortable" hide-details="auto" disabled :loading="loadingDepartmentInfo" />
-              <VSelect v-else :model-value="form.departmentId" label="Department *" :items="departmentOptions" item-title="name" item-value="id" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :loading="loadingDepartmentInfo" :error-messages="errors.department ? [errors.department] : []" @update:model-value="onDepartmentSelect" />
-            </VCol>
+  <div class="text-subtitle-2 font-weight-bold mb-4">Trip Information</div>
+  <VRow>
+  <VCol cols="12" md="4"><div class="text-caption mb-1">1. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter Travel From" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
+  <VCol cols="12" md="4"><div class="text-caption mb-1">2. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter Travel To" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
+  <VCol cols="12" md="4"><div class="text-caption mb-1">3. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
+  <VCol cols="12" md="4"><div class="text-caption mb-1">4. Departure Time</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
+  <VCol cols="12" md="4"><div class="text-caption mb-1">5. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
+  <VCol cols="12" md="4"><div class="text-caption mb-1">6. Return Time</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
+  <VCol cols="12" md="6"><div class="text-caption mb-1">7. Travelling Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter Travelling Purpose" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
+  <VCol cols="12" md="6"><div class="text-caption mb-1">8. Remarks </div><VTextarea v-model="form.remarks" placeholder="Enter Remarks (Optional)" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" /></VCol>
+</VRow>
+
+  <VRow>
+    <VCol cols="12" md="3">
+      <!-- label dropdown Travel Region -->
+<div class="text-caption mb-1">9. Travel Region</div>
+      <VSelect v-model="form.travelRegion" :items="travelRegions" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelRegion ? [errors.travelRegion] : []" @update:model-value="selectRegion">
+        <template #selection="{ item }"><span v-if="form.travelRegion">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
+      </VSelect>
+    </VCol>
+    <VCol v-if="showCountry" cols="12" md="3">
+      <div class="text-caption mb-1">Country </div>
+      <VSelect v-if="!manualCountry" v-model="form.country" :items="countryOptions" item-title="country" item-value="country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" @update:model-value="selectCountry">
+        <template #selection="{ item }"><span v-if="form.country">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select country</span></template>
+      </VSelect>
+      <VTextField v-else ref="customCountryInput" v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" />
+    </VCol>
+    <VCol v-if="manualCountry" cols="12" md="3">
+      <div class="text-caption mb-1">Currency </div>
+      <VSelect v-model="manualCurrency" :items="['USD', 'EUR']" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" @update:model-value="selectManualCurrency">
+        <template #selection="{ item }"><span v-if="manualCurrency">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select currency</span></template>
+      </VSelect>
+    </VCol>
+  </VRow>
+
+  <VRow class="mt-2">
+  <VCol cols="12">
+    <div class="text-caption mb-1 ml-3">10. Ticket, Accommodation & Travel Advance</div>
+  </VCol>
+</VRow>
+<VRow>
+  <VCol cols="12" md="4">
+    <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
+      <VCardItem>
+        <template #append><VChip variant="tonal" :color="isFerryReimbursable ? 'success' : 'error'" size="small">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
+        <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Ferry Ticket <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
+        <div class="text-caption text-medium-emphasis mt-1">Select transport type, arranger, and payer.</div>
+      </VCardItem>
+      <VCardText>
+        <VRow>
+          <VCol cols="6"><div class="text-caption mb-1">Ticket Type</div><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
+          <VCol cols="6"><div class="text-caption mb-1">Arrangement</div><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
+        </VRow>
+      </VCardText>
+    </VCard>
+  </VCol>
+
+  <VCol cols="12" md="4">
+    <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
+      <VCardItem>
+        <template #append><VChip variant="tonal" :color="isAccommodationReimbursable ? 'success' : 'error'" size="small">{{ isAccommodationReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
+        <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Accommodation <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
+        <div class="text-caption text-medium-emphasis mt-1">Select accommodation arrangement.</div>
+      </VCardItem>
+      <VCardText>
+        <div class="text-caption mb-1">Arrangement</div>
+        <VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect>
+      </VCardText>
+    </VCard>
+  </VCol>
+
+  <VCol cols="12" md="4">
+    <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
+      <VCardItem>
+        <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
+        <div class="text-caption text-medium-emphasis mt-1">Optional advance based on travel region.</div>
+      </VCardItem>
+      <VCardText>
+        <VAlert v-if="!hasAdvance" type="info" variant="tonal" density="compact">Select a travel region first.</VAlert>
+        <template v-else>
+          <VAlert type="info" variant="tonal" density="compact" class="mb-4">
+            <template v-if="form.travelRegion === 'Indonesia'"><strong>Indonesia policy:</strong> Travel Advance is requested in IDR and follows your grade.</template>
+            <template v-else-if="form.travelRegion === 'Singapore'"><strong>Singapore policy:</strong> Travel Advance is requested in SGD.</template>
+            <template v-else><strong>Non-Singapore policy:</strong> Select USD, EUR, MYR, or JPY for each advance component.</template>
+          </VAlert>
+
+          <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
+
+          <div class="d-flex align-center text-caption mb-1">
+            <span>Meal Allowance</span>
+            <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ mealHint }}</span></VTooltip>
+          </div>
+          <VRow class="align-center">
+            <VCol cols="4" class="pa-1"><VSelect v-model="mealCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+            <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, mealCurrency)" /></VCol>
           </VRow>
 
-          <div class="text-subtitle-2 font-weight-bold mb-4 mt-4">Trip Information</div>
-          <VRow>
-            <VCol cols="12" md="6"><VTextField v-model="form.travelFrom" label="Travel From *" placeholder="Contoh: Batam" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextField v-model="form.travelTo" label="Travel To *" placeholder="Contoh: Jakarta" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextField v-model="form.departureDate" label="Departure Date *" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextField v-model="form.departureTime" label="Departure Time *" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextField v-model="form.returnDate" label="Return Date *" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextField v-model="form.returnTime" label="Return Time *" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextarea v-model="form.purpose" label="Travelling Purpose *" placeholder="Jelaskan tujuan perjalanan dinas ini" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
-            <VCol cols="12" md="6"><VTextarea v-model="form.remarks" label="Remarks (Optional)" placeholder="Add remarks if needed" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" /></VCol>
+          <div class="d-flex align-center text-caption mb-1 mt-4">
+            <span>Pocket Money</span>
+            <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ pocketHint }}</span></VTooltip>
+          </div>
+          <VRow class="align-center">
+            <VCol cols="4" class="pa-1"><VSelect v-model="pocketCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+            <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, pocketCurrency)" /></VCol>
           </VRow>
-
-          <div class="text-subtitle-2 font-weight-bold mb-4 mt-4">Travel Region</div>
-          <VRow>
-            <VCol cols="12" md="3">
-              <VSelect v-model="form.travelRegion" :items="travelRegions" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelRegion ? [errors.travelRegion] : []" @update:model-value="selectRegion">
-                <template #selection="{ item }"><span v-if="form.travelRegion">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
-              </VSelect>
-            </VCol>
-            <VCol v-if="showCountry" cols="12" md="3">
-              <VSelect v-if="!manualCountry" v-model="form.country" :items="countryOptions" item-title="country" item-value="country" label="Country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" @update:model-value="selectCountry">
-                <template #selection="{ item }"><span v-if="form.country">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select country</span></template>
-              </VSelect>
-              <VTextField v-else ref="customCountryInput" v-model="form.country" label="Country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" />
-            </VCol>
-            <VCol v-if="manualCountry" cols="12" md="3">
-              <VSelect v-model="manualCurrency" :items="['USD', 'EUR']" label="Currency" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" @update:model-value="selectManualCurrency">
-                <template #selection="{ item }"><span v-if="manualCurrency">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select currency</span></template>
-              </VSelect>
-            </VCol>
-          </VRow>
-
-          <div class="text-subtitle-2 font-weight-bold mb-4 mt-6">Ticket, Accommodation & Travel Advance</div>
-          <VRow>
-            <VCol cols="12" md="4">
-              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-                <VCardItem>
-                  <template #append><VChip variant="tonal" :color="isFerryReimbursable ? 'success' : 'error'" size="small">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Ferry Ticket <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-                  <div class="text-caption text-medium-emphasis mt-1">Select transport type, arranger, and payer.</div>
-                </VCardItem>
-                <VCardText>
-                  <VRow>
-                    <VCol cols="6"><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
-                    <VCol cols="6"><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
-                  </VRow>
-                </VCardText>
-              </VCard>
-            </VCol>
-
-            <VCol cols="12" md="4">
-              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-                <VCardItem>
-                  <template #append><VChip variant="tonal" :color="isAccommodationReimbursable ? 'success' : 'error'" size="small">{{ isAccommodationReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Accommodation <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-                  <div class="text-caption text-medium-emphasis mt-1">Select accommodation arrangement.</div>
-                </VCardItem>
-                <VCardText><VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCardText>
-              </VCard>
-            </VCol>
-
-            <VCol cols="12" md="4">
-              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-                <VCardItem>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-                  <div class="text-caption text-medium-emphasis mt-1">Optional advance based on travel region.</div>
-                </VCardItem>
-                <VCardText>
-                  <VAlert v-if="!hasAdvance" type="info" variant="tonal" density="compact">Select a travel region first.</VAlert>
-                  <template v-else>
-                    <VAlert type="info" variant="tonal" density="compact" class="mb-4">
-                      <template v-if="form.travelRegion === 'Indonesia'"><strong>Indonesia policy:</strong> Travel Advance is requested in IDR and follows your grade.</template>
-                      <template v-else-if="form.travelRegion === 'Singapore'"><strong>Singapore policy:</strong> Travel Advance is requested in SGD.</template>
-                      <template v-else><strong>Non-Singapore policy:</strong> Select USD, EUR, MYR, or JPY for each advance component.</template>
-                    </VAlert>
-
-                    <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
-
-                    <div class="d-flex align-center text-body-2 font-weight-medium mb-2">
-                      <span>Meal Allowance</span>
-                      <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ mealHint }}</span></VTooltip>
-                    </div>
-                    <VRow class="align-center">
-                      <VCol cols="4" class="pa-1"><VSelect v-model="mealCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-                      <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, mealCurrency)" /></VCol>
-                    </VRow>
-
-                    <div class="d-flex align-center text-body-2 font-weight-medium mb-2 mt-4">
-                      <span>Pocket Money</span>
-                      <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ pocketHint }}</span></VTooltip>
-                    </div>
-                    <VRow class="align-center">
-                      <VCol cols="4" class="pa-1"><VSelect v-model="pocketCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-                      <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, pocketCurrency)" /></VCol>
-                    </VRow>
-                  </template>
-                </VCardText>
-              </VCard>
-            </VCol>
-          </VRow>
-        </VCardText>
+        </template>
+      </VCardText>
+    </VCard>
+  </VCol>
+</VRow>
+</VCardText>
 
         <VDivider />
         <VCardActions class="pa-4 justify-end">
@@ -506,7 +494,7 @@ onMounted(loadDepartmentInfo)
       </VForm>
     </VCard>
 
-    <div v-if="reviewDialog">
+<div v-if="reviewDialog">
       <div class="d-flex align-center justify-space-between mb-1">
         <div class="text-caption font-weight-bold text-medium-emphasis">SUMMARY</div>
         <VChip variant="tonal" color="warning" size="small">Not Submitted</VChip>
@@ -515,35 +503,63 @@ onMounted(loadDepartmentInfo)
       <div class="text-body-2 text-medium-emphasis mb-4">Review your Travel Order information before submission.</div>
 
       <VCard rounded="lg" elevation="1" class="mb-4">
-        <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Request Summary</VCardTitle></VCardItem>
-        <VDivider />
-        <VCardText class="pa-4">
-          <VRow dense>
-            <VCol cols="12" md="3"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Request Type</div><VChip variant="outlined" color="primary" size="small" class="mt-1">Business Trip - Individual</VChip></VCardText></VCard></VCol>
-            <VCol cols="12" md="3"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Employee</div><div class="text-body-2 font-weight-bold mt-1">{{ form.employee || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="3"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Department</div><div class="text-body-2 font-weight-bold mt-1">{{ form.department || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="3"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Travel Region</div><div class="text-body-2 font-weight-bold mt-1">{{ form.travelRegion || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Departure</div><div class="text-body-2 font-weight-bold mt-1">{{ departureDisplay }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Return</div><div class="text-body-2 font-weight-bold mt-1">{{ returnDisplay }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Route</div><div class="text-body-2 font-weight-bold mt-1">{{ form.travelFrom || '-' }} → {{ form.travelTo || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Purpose</div><div class="text-body-2 font-weight-bold mt-1">{{ form.purpose || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12"><VCard color="grey-lighten-4" rounded="lg"><VCardText class="pa-3"><div class="text-caption text-medium-emphasis">Remarks</div><div class="text-body-2 font-weight-bold mt-1">{{ form.remarks || '—' }}</div></VCardText></VCard></VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
+  <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Trip Information</VCardTitle></VCardItem>
+  <VDivider />
+  <VCardText class="pa-4">
+    <VRow dense>
+      <VCol v-for="i in [
+  { l: 'Request Type', chip: 'Business Trip - Individual' }, { l: 'Employee', v: form.employee }, { l: 'Department', v: form.department }, { l: 'Travel Region', v: form.travelRegion },
+  { l: 'Travel From', v: form.travelFrom }, { l: 'Travel To', v: form.travelTo }, { l: 'Country', v: form.country || '-' }, { l: 'Departure Date', v: formatReviewDate(form.departureDate) },
+  { l: 'Departure Time', v: form.departureTime }, { l: 'Return Date', v: formatReviewDate(form.returnDate) }, { l: 'Return Time', v: form.returnTime }, { l: 'Travelling Purpose', v: form.purpose },
+  { l: 'Remarks', v: form.remarks, cols: 12 }
+]" :key="i.l" cols="12" sm="6" :md="i.cols || 3">
+        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+          <VCardText class="pa-3 text-high-emphasis">
+            <div class="text-caption text-medium-emphasis">{{ i.l }}</div>
+            <VChip v-if="i.chip" variant="outlined" color="primary" size="small" class="mt-1">{{ i.chip }}</VChip>
+            <div v-else class="text-body-2 font-weight-bold mt-1">{{ i.v || '-' }}</div>
+          </VCardText>
+        </VCard>
+      </VCol>
+    </VRow>
+  </VCardText>
+</VCard>
 
-      <VCard rounded="lg" elevation="1" class="mb-4">
-        <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Ticket, Accommodation & Travel Advance</VCardTitle></VCardItem>
-        <VDivider />
-        <VCardText class="pa-4">
-          <VRow dense>
-            <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg" class="h-100"><VCardText class="pa-3"><div class="d-flex align-center justify-space-between mb-2"><div class="text-subtitle-2 font-weight-bold">{{ form.ferryTicketType === 'Airplane' ? 'Airplane Ticket' : 'Ferry Ticket' }}</div><VChip variant="tonal" size="small" :color="isFerryReimbursable ? 'success' : 'error'">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></div><div class="text-body-2 font-weight-bold">{{ form.ferryArrangement || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg" class="h-100"><VCardText class="pa-3"><div class="d-flex align-center justify-space-between mb-2"><div class="text-subtitle-2 font-weight-bold">Accommodation</div><VChip variant="tonal" size="small" :color="isAccommodationReimbursable ? 'success' : 'error'">{{ isAccommodationReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></div><div class="text-body-2 font-weight-bold">{{ form.accommodationArrangement || '-' }}</div></VCardText></VCard></VCol>
-            <VCol cols="12" md="4"><VCard color="grey-lighten-4" rounded="lg" class="h-100"><VCardText class="pa-3"><div class="text-subtitle-2 font-weight-bold mb-2">Travel Advance</div><div v-if="!hasAdvance" class="text-body-2 font-weight-bold">Not Applicable</div><template v-else><div class="text-caption text-medium-emphasis">Meal Allowance</div><div class="text-body-2 font-weight-bold mb-2">{{ mealAllowanceDisplay || '-' }} {{ mealCurrency }}</div><div class="text-caption text-medium-emphasis">Pocket Money</div><div class="text-body-2 font-weight-bold">{{ pocketMoneyDisplay || '-' }} {{ pocketCurrency }}</div></template></VCardText></VCard></VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
-
+<VCard rounded="lg" elevation="1" class="mb-4">
+  <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Ticket, Accommodation & Travel Advance</VCardTitle></VCardItem>
+  <VDivider />
+  <VCardText class="pa-4">
+    <VRow dense>
+      <VCol v-for="i in [
+        { t: form.ferryTicketType === 'Airplane' ? 'Airplane Ticket' : 'Ferry Ticket', a: form.ferryArrangement, ok: isFerryReimbursable },
+        { t: 'Accommodation', a: form.accommodationArrangement, ok: isAccommodationReimbursable }
+      ]" :key="i.t" cols="12" md="4">
+        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+          <VCardText class="pa-3 text-high-emphasis">
+            <div class="d-flex align-center justify-space-between">
+              <div class="text-caption text-medium-emphasis">{{ i.t }}</div>
+              <VChip variant="tonal" size="small" :color="i.ok ? 'success' : 'error'">{{ i.ok ? 'Reimbursable' : 'Not Reimbursable' }}</VChip>
+            </div>
+            <div class="text-subtitle-1 font-weight-bold mt-1">{{ i.a || '-' }}</div>
+            <div class="text-caption text-medium-emphasis">{{ i.ok ? 'Reimbursable subject to policy.' : 'Not reimbursable.' }}</div>
+          </VCardText>
+        </VCard>
+      </VCol>
+      <VCol cols="12" md="4">
+        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+          <VCardText class="pa-3 text-high-emphasis">
+            <div class="text-caption text-medium-emphasis">Travel Advance</div>
+            <div v-if="!hasAdvance" class="text-subtitle-1 font-weight-bold mt-1">Not Requested</div>
+            <div v-else class="mt-1">
+  <div class="text-body-2 font-weight-bold">Meal: {{ mealAllowanceDisplay || '-' }} {{ mealCurrency }}</div>
+  <div class="text-body-2 font-weight-bold">Pocket: {{ pocketMoneyDisplay || '-' }} {{ pocketCurrency }}</div>
+</div>
+          </VCardText>
+        </VCard>
+      </VCol>
+    </VRow>
+  </VCardText>
+</VCard>
       <VCard rounded="lg" elevation="1">
         <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Submission Declaration</VCardTitle></VCardItem>
         <VDivider />
