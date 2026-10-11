@@ -4,12 +4,13 @@ import { useAuthStore } from '../../../../stores/auth'
 import { getDepartmentLock, getTravelAdvanceCountries, getTravelAdvanceLimit, getTravelAdvanceLimitByGrade } from '../../services/travelOrderService'
 import { getDepartmentOptions } from '../../../master-management/services/departmentService'
 import { useConfirm } from '../../../../composables/useConfirm'
+import { getMySection } from '../../../master-management/services/sectionService'
 
-const emit = defineEmits(['cancel', 'submit'])
+const emit = defineEmits(['cancel', 'submit', 'summary-change'])
 const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null } })
 const authStore = useAuthStore()
 const { confirm } = useConfirm()
-
+const sectionName = ref('')
 const userGrade = computed(() => Number(authStore.user?.grade) || 0)
 const generalError = ref('')
 const reviewDialog = ref(false)
@@ -28,7 +29,7 @@ const manualCountry = ref(false)
 const selectedCountryCurrency = ref('')
 const manualCurrency = ref('')
 
-const travelRegions = ['Indonesia', 'Singapore', 'Non Singapore']
+const travelRegions = ['Domestic', 'Singapore', 'Overseas']
 const ferryTicketTypes = ['Ferry', 'Airplane']
 const ferryArrangements = ['Direct Payment', 'Booked by Company']
 const accommodationArrangements = ['Direct Payment', 'Booked by Company', 'Not Required']
@@ -45,6 +46,12 @@ const form = reactive({
   departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '',
   travelRegion: '', country: '', customCountry: '', pocketMoney: '', mealAllowance: '',
   ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '',
+})
+
+const summaryCountry = computed(() => {
+  if (form.travelRegion === 'Domestic') return 'Indonesia'
+  if (form.travelRegion === 'Singapore') return 'Singapore'
+  return form.country || '-'
 })
 
 function normalizeDate(value) {
@@ -83,7 +90,7 @@ function fillInitialData(order) {
     accommodationArrangement: accommodation.arrangement || order.accommodation_arrangement || '',
   })
 
-  if (form.travelRegion === 'Indonesia') mealCurrency.value = pocketCurrency.value = 'IDR'
+  if (form.travelRegion === 'Domestic') mealCurrency.value = pocketCurrency.value = 'IDR'
   else if (form.travelRegion === 'Singapore') mealCurrency.value = pocketCurrency.value = 'SGD'
   else {
     const currency = advance.currency || order.currency || ''
@@ -95,12 +102,13 @@ function fillInitialData(order) {
 }
 
 const hasAdvance = computed(() => travelRegions.includes(form.travelRegion))
-const showCountry = computed(() => form.travelRegion === 'Non Singapore')
+const showCountry = computed(() => !!form.travelRegion)
+const lockCountry = computed(() => ['Domestic', 'Singapore'].includes(form.travelRegion))
 const isFerryReimbursable = computed(() => form.ferryArrangement === 'Direct Payment')
 const isAccommodationReimbursable = computed(() => form.accommodationArrangement === 'Direct Payment')
 
 const advanceCurrencyItems = computed(() => {
-  if (form.travelRegion === 'Indonesia') return ['IDR']
+  if (form.travelRegion === 'Domestic') return ['IDR']
   if (form.travelRegion === 'Singapore') return ['SGD']
   return [selectedCountryCurrency.value || manualCurrency.value || 'USD']
 })
@@ -172,6 +180,16 @@ function onDepartmentSelect(id) {
   form.department = departmentOptions.value.find(item => item.id === id)?.name || ''
 }
 
+async function loadMySection() {
+  try {
+    const data = await getMySection()
+    sectionName.value = data?.name || ''
+  } catch (error) {
+    sectionName.value = ''
+    console.error('Failed to load section:', error)
+  }
+}
+
 async function loadDepartmentInfo() {
   loadingDepartmentInfo.value = true
   try {
@@ -191,19 +209,19 @@ async function loadDepartmentInfo() {
   }
 }
 
-const masterRegionMap = { Indonesia: 'Domestic', Singapore: 'Singapore', 'Non Singapore': 'Overseas' }
+const masterRegionMap = { Domestic: 'Domestic', Singapore: 'Singapore', Overseas: 'Overseas' }
 
 async function loadTravelAdvanceLimit(region, currency) {
   if (!region || !currency) return
   const key = `${region}_${currency}`
   if (travelAdvanceLimits[key]) return
-  if (region === 'Indonesia' && !userGrade.value) {
+ if (region === 'Domestic' && !userGrade.value) {
     generalError.value = 'Grade user tidak ditemukan.'
     return
   }
   loadingTravelAdvanceLimit.value = true
   try {
-    const response = region === 'Indonesia'
+    const response = region === 'Domestic'
       ? await getTravelAdvanceLimitByGrade(masterRegionMap[region], userGrade.value)
       : await getTravelAdvanceLimit(region, currency)
     travelAdvanceLimits[key] = response.data || response
@@ -216,11 +234,10 @@ async function loadTravelAdvanceLimit(region, currency) {
 
 async function loadCountries(region) {
   countryOptions.value = []
-  if (!region) return
-  const masterRegion = masterRegionMap[region]
-  if (!masterRegion) return
+  if (region !== 'Overseas') return
+
   try {
-    const response = await getTravelAdvanceCountries(masterRegion)
+    const response = await getTravelAdvanceCountries(masterRegionMap[region])
     countryOptions.value = [...(response.data || response || []), { country: 'Other', currency: null }]
   } catch (error) {
     console.error('Country API error:', error)
@@ -230,12 +247,13 @@ async function loadCountries(region) {
 
 function selectRegion(region) {
   form.travelRegion = region
-  form.country = form.customCountry = form.pocketMoney = form.mealAllowance = ''
+  form.country = region === 'Domestic' ? 'Indonesia' : region === 'Singapore' ? 'Singapore' : ''
+  form.customCountry = form.pocketMoney = form.mealAllowance = ''
   manualCountry.value = false
   manualCurrency.value = selectedCountryCurrency.value = ''
-  mealCurrency.value = region === 'Indonesia' ? 'IDR' : region === 'Singapore' ? 'SGD' : 'USD'
+  mealCurrency.value = region === 'Domestic' ? 'IDR' : region === 'Singapore' ? 'SGD' : 'USD'
   pocketCurrency.value = mealCurrency.value
-  errors.pocketMoney = errors.mealAllowance = ''
+  errors.pocketMoney = errors.mealAllowance = errors.country = ''
   loadCountries(region)
 }
 
@@ -288,7 +306,7 @@ function validate(isSubmit = true) {
     }
   })
 
-  if (form.travelRegion === 'Non Singapore' && !String(form.country || '').trim()) {
+  if (form.travelRegion === 'Overseas' && !String(form.country || '').trim()) {
     errors.country = 'This field is required.'
     valid = false
   }
@@ -316,7 +334,7 @@ function validate(isSubmit = true) {
 }
 
 function getCurrency() {
-  if (form.travelRegion === 'Indonesia') return 'IDR'
+  if (form.travelRegion === 'Domestic') return 'IDR'
   if (form.travelRegion === 'Singapore') return 'SGD'
   return manualCurrency.value || selectedCountryCurrency.value || mealCurrency.value || pocketCurrency.value || null
 }
@@ -329,11 +347,20 @@ function saveDraft() {
 function submitForm() {
   if (props.loading || !validate(true)) return
   reviewDialog.value = true
+  emit('summary-change', true)
 }
 
 function backToEdit() {
-  if (!props.loading) reviewDialog.value = false
+  if (props.loading) return
+  reviewDialog.value = false
+  emit('summary-change', false)
 }
+
+function handleSummaryBack() {
+  backToEdit()
+}
+
+defineExpose({ handleSummaryBack })
 
 async function confirmSubmit() {
   if (!canSubmit.value) return
@@ -361,7 +388,10 @@ watch(pocketMax, max => {
   if (max !== null && form.pocketMoney !== '' && Number(form.pocketMoney) > max) form.pocketMoney = String(max)
 })
 
-onMounted(loadDepartmentInfo)
+onMounted(() => {
+  loadDepartmentInfo()
+  loadMySection()
+})
 </script>
 
 <template>
@@ -393,13 +423,14 @@ onMounted(loadDepartmentInfo)
         <template #selection="{ item }"><span v-if="form.travelRegion">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
       </VSelect>
     </VCol>
-    <VCol v-if="showCountry" cols="12" md="3">
-      <div class="text-caption mb-1">Country </div>
-      <VSelect v-if="!manualCountry" v-model="form.country" :items="countryOptions" item-title="country" item-value="country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" @update:model-value="selectCountry">
-        <template #selection="{ item }"><span v-if="form.country">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select country</span></template>
-      </VSelect>
-      <VTextField v-else ref="customCountryInput" v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.country ? [errors.country] : []" />
-    </VCol>
+    
+<VCol v-if="showCountry" cols="12" md="3">
+  <div class="text-caption mb-1">Country</div>
+  <VSelect v-if="!manualCountry" v-model="form.country" :items="countryOptions" item-title="country" item-value="country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || lockCountry" :error-messages="errors.country ? [errors.country] : []" @update:model-value="selectCountry">
+    <template #selection="{ item }"><span v-if="form.country">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select country</span></template>
+  </VSelect>
+  <VTextField v-else ref="customCountryInput" v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || lockCountry" :error-messages="errors.country ? [errors.country] : []" />
+</VCol>
     <VCol v-if="manualCountry" cols="12" md="3">
       <div class="text-caption mb-1">Currency </div>
       <VSelect v-model="manualCurrency" :items="['USD', 'EUR']" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" @update:model-value="selectManualCurrency">
@@ -410,7 +441,7 @@ onMounted(loadDepartmentInfo)
 
   <VRow class="mt-2">
   <VCol cols="12">
-    <div class="text-caption mb-1 ml-3">10. Ticket, Accommodation & Travel Advance</div>
+    <div class="text-caption mb-1">10. Ticket, Accommodation & Travel Advance</div>
   </VCol>
 </VRow>
 <VRow>
@@ -452,12 +483,12 @@ onMounted(loadDepartmentInfo)
       </VCardItem>
       <VCardText>
         <VAlert v-if="!hasAdvance" type="info" variant="tonal" density="compact">Select a travel region first.</VAlert>
-        <template v-else>
-          <VAlert type="info" variant="tonal" density="compact" class="mb-4">
-            <template v-if="form.travelRegion === 'Indonesia'"><strong>Indonesia policy:</strong> Travel Advance is requested in IDR and follows your grade.</template>
-            <template v-else-if="form.travelRegion === 'Singapore'"><strong>Singapore policy:</strong> Travel Advance is requested in SGD.</template>
-            <template v-else><strong>Non-Singapore policy:</strong> Select USD, EUR, MYR, or JPY for each advance component.</template>
-          </VAlert>
+  <template v-else>
+  <VAlert type="info" variant="tonal" density="compact" class="mb-4">
+    <template v-if="form.travelRegion === 'Domestic'"><strong>Indonesia policy:</strong> Travel Advance is requested in IDR and follows your grade.</template>
+    <template v-else-if="form.travelRegion === 'Singapore'"><strong>Singapore policy:</strong> Travel Advance is requested in SGD.</template>
+    <template v-else><strong>Overseas policy:</strong> Select USD, EUR, MYR, or JPY for each advance component.</template>
+  </VAlert>
 
           <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
 
@@ -495,21 +526,14 @@ onMounted(loadDepartmentInfo)
     </VCard>
 
 <div v-if="reviewDialog">
-      <div class="d-flex align-center justify-space-between mb-1">
-        <div class="text-caption font-weight-bold text-medium-emphasis">SUMMARY</div>
-        <VChip variant="tonal" color="warning" size="small">Not Submitted</VChip>
-      </div>
-      <div class="text-h5 font-weight-bold mb-1">Travel Order Summary</div>
-      <div class="text-body-2 text-medium-emphasis mb-4">Review your Travel Order information before submission.</div>
-
-      <VCard rounded="lg" elevation="1" class="mb-4">
-  <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Trip Information</VCardTitle></VCardItem>
-  <VDivider />
+  <VCard rounded="lg" elevation="1" class="mb-4">
+    <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Trip Information</VCardTitle></VCardItem>
+    <VDivider />
   <VCardText class="pa-4">
     <VRow dense>
       <VCol v-for="i in [
-  { l: 'Request Type', chip: 'Business Trip - Individual' }, { l: 'Employee', v: form.employee }, { l: 'Department', v: form.department }, { l: 'Travel Region', v: form.travelRegion },
-  { l: 'Travel From', v: form.travelFrom }, { l: 'Travel To', v: form.travelTo }, { l: 'Country', v: form.country || '-' }, { l: 'Departure Date', v: formatReviewDate(form.departureDate) },
+  { l: 'Request Type', chip: 'Business Trip - Individual' }, { l: 'Section', v: sectionName }, { l: 'Department', v: form.department }, { l: 'Travel Region', v: form.travelRegion },
+  { l: 'Travel From', v: form.travelFrom }, { l: 'Travel To', v: form.travelTo }, { l: 'Country', v: summaryCountry }, { l: 'Departure Date', v: formatReviewDate(form.departureDate) },
   { l: 'Departure Time', v: form.departureTime }, { l: 'Return Date', v: formatReviewDate(form.returnDate) }, { l: 'Return Time', v: form.returnTime }, { l: 'Travelling Purpose', v: form.purpose },
   { l: 'Remarks', v: form.remarks, cols: 12 }
 ]" :key="i.l" cols="12" sm="6" :md="i.cols || 3">
@@ -569,9 +593,10 @@ onMounted(loadDepartmentInfo)
         </VCardText>
         <VDivider />
         <VCardActions class="pa-3 justify-end">
-          <VBtn variant="text" :disabled="props.loading" @click="backToEdit">Back</VBtn>
-          <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit</VBtn>
-        </VCardActions>
+  <VBtn variant="text" :disabled="props.loading" @click="backToEdit">Back</VBtn>
+  <VBtn color="success" variant="flat" :loading="props.loading" @click="saveDraft">Draft</VBtn>
+  <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit</VBtn>
+</VCardActions>
       </VCard>
     </div>
   </div>

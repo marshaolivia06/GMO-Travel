@@ -2,6 +2,8 @@ import { http } from '../../../plugins/axios'
 
 const BASE = '/v1/master-management/sections'
 
+export const getMySection = () => http.get(`${BASE}/my-section`).then(res => res.data)
+
 export const getSections = () => http.get(BASE).then(res => res.data)
 
 export const createSection = section => http.post(BASE, section).then(res => res.data)

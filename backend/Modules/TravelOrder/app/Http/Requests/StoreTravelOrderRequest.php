@@ -20,16 +20,16 @@ class StoreTravelOrderRequest extends FormRequest
         $isSubmitted = $status === 'submitted';
 
         $isAdvanceRequired = in_array(
-            $travelRegion,
-            ['Indonesia', 'Singapore', 'Non Singapore'],
-            true
-        );
+        $travelRegion,
+        ['Domestic', 'Singapore', 'Overseas'],
+        true
+      );
 
         $allowedCurrencies = match ($travelRegion) {
-            'Indonesia' => ['IDR'],
-            'Singapore' => ['SGD'],
-            'Non Singapore' => ['USD', 'EUR', 'MYR', 'JPY'],
-            default => [],
+    'Domestic' => ['IDR'],
+    'Singapore' => ['SGD'],
+    'Overseas' => ['USD', 'EUR', 'MYR', 'JPY'],
+    default => [],
         };
 
         return [
@@ -98,14 +98,22 @@ class StoreTravelOrderRequest extends FormRequest
             ],
 
             'travel_region' => [
-                'required_if:status,submitted',
-                'nullable',
-                Rule::in([
-                    'Indonesia',
-                    'Singapore',
-                    'Non Singapore',
-                ]),
-            ],
+    'required_if:status,submitted',
+    'nullable',
+    Rule::in([
+        'Domestic',
+        'Singapore',
+        'Overseas',
+    ]),
+],
+
+'country' => [
+    'required_if:status,submitted',
+    'nullable',
+    'string',
+    'max:255',
+],
+
 
             'ferry_ticket_type' => [
                 'required_if:status,submitted',

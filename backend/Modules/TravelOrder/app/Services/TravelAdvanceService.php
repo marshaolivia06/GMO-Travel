@@ -83,9 +83,9 @@ class TravelAdvanceService
         int $grade,
         int $days
     ): array {
-        $master = $travelRegion === 'Indonesia'
-            ? $this->travelAdvanceRepository->findByRegionAndGrade(self::DOMESTIC_REGION, $grade)
-            : $this->travelAdvanceRepository->findByRegionAndCurrency($travelRegion, (string) $currency);
+        $master = $travelRegion === 'Domestic'
+    ? $this->travelAdvanceRepository->findByRegionAndGrade(self::DOMESTIC_REGION, $grade)
+    : $this->travelAdvanceRepository->findByRegionAndCurrency($travelRegion, (string) $currency);
 
         if (! $master) {
             return [

@@ -31,6 +31,7 @@ class TravelOrder extends Model
         'purpose',
         'remarks',
         'travel_region',
+        'country',
         'ferry_ticket_type',
         'ferry_arrangement',
         'accommodation_arrangement',

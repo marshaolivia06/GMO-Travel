@@ -4,10 +4,10 @@ const BASE = '/v1/travel-orders'
 
 const toPayload = form => {
   const hasAdvance = [
-    'Indonesia',
-    'Singapore',
-    'Non Singapore',
-  ].includes(form.travelRegion)
+  'Domestic',
+  'Singapore',
+  'Overseas',
+].includes(form.travelRegion)
 
   const payload = {
     status: form.status,
@@ -27,6 +27,7 @@ const toPayload = form => {
     remarks: form.remarks,
 
     travel_region: form.travelRegion,
+    country: form.country,
 
     ferry_ticket_type: form.ferryTicketType,
     ferry_arrangement: form.ferryArrangement,

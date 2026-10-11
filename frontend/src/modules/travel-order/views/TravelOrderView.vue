@@ -173,6 +173,7 @@ function selectRequest(type) {
 
 function backToRequest() { businessDialog.value = false; requestDialog.value = true }
 function backToBusiness() { dialog.value = false; dialogType.value = null; businessDialog.value = true }
+
 function selectBusinessType(type) { businessDialog.value = false; dialogType.value = type; dialog.value = true }
 function closeDialog() { dialog.value = false; dialogType.value = null }
 
@@ -429,40 +430,15 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="mb-6">
-      <div class="text-overline text-medium-emphasis">EMPLOYEE WORKSPACE</div>
-      <div class="d-flex align-center justify-space-between">
-        <div>
-          <div class="text-h4 font-weight-bold mb-1">My Travel Orders</div>
-          <div class="text-body-1 text-medium-emphasis">Track approval and GMO operational status using one current Travel Order status.</div>
-        </div>
-        <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
-      </div>
-    </div>
-
     <VCard rounded="lg" elevation="1">
-      <VCardItem class="px-6 py-4">
-        <VCardTitle class="text-subtitle-1 font-weight-bold">Travel Order Inquiry</VCardTitle>
-        <template #append><VChip size="small" variant="tonal" color="primary">{{ filteredRows.length }} requests</VChip></template>
-      </VCardItem>
-      <VDivider />
-      <VCardText class="filter-section px-6 py-5">
-        <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
-        <VRow align="end" dense>
-          <VCol cols="12" md="4">
-            <div class="text-caption font-weight-bold mb-1">Travel Order ID / Subject</div>
-            <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable />
-          </VCol>
-          <VCol cols="12" md="3">
-            <div class="text-caption font-weight-bold mb-1">Status</div>
-            <VSelect v-model="filters.status" :items="statusOptions" placeholder="All statuses" variant="outlined" density="compact" hide-details clearable />
-          </VCol>
-          <VCol cols="12" md="2">
-            <VBtn variant="tonal" color="error" block height="40" @click="clearFilters">Clear</VBtn>
-          </VCol>
-        </VRow>
-      </VCardText>
-      <VDivider />
+  <VCardText class="px-6 py-4">
+    <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
+    <div class="d-flex align-center justify-space-between ga-4">
+      <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
+      <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable style="max-width: 200px" />
+    </div>
+  </VCardText>
+  <VDivider />
 
       <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No travel orders found.">
         <template #item.id="{ item }"><span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span></template>
@@ -473,15 +449,15 @@ onMounted(() => {
         <template #item.status="{ item }">
           <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip>
         </template>
-        <template #item.action="{ item }">
+<template #item.action="{ item }">
   <VBtnGroup density="comfortable" variant="tonal">
     <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
-    <template v-if="item.raw.status !== 'draft'">
-  <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-  <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-file-edit-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
-  <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
-  <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
-</template>
+    <template v-else>
+      <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+      <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-file-edit-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+      <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+    </template>
+    <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
   </VBtnGroup>
 </template>
       </VDataTable>

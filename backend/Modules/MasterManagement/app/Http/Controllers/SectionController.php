@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\MasterManagement\Repositories\SectionRepository;
+use Modules\MasterManagement\Models\Section;
 
 class SectionController extends Controller
 {
@@ -97,6 +98,26 @@ class SectionController extends Controller
 
     return response()->json([
         'message' => 'Section deleted successfully.',
+    ]);
+}
+
+public function mySection(Request $request): JsonResponse
+{
+    $section = Section::with('department')
+        ->where('section_head_id', $request->user()->id)
+        ->where('status', 1)
+        ->first();
+
+    if (!$section) {
+        return response()->json([
+            'message' => 'Section untuk user ini tidak ditemukan.',
+        ], 404);
+    }
+
+    return response()->json([
+        'id' => $section->id,
+        'name' => $section->name,
+        'department' => $section->department?->name,
     ]);
 }
 

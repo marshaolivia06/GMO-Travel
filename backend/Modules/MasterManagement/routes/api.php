@@ -30,6 +30,10 @@ Route::middleware(['auth:sanctum'])
 
         // SECTIONS
         Route::get(
+            'master-management/sections/my-section',
+            [SectionController::class, 'mySection']
+        );
+        Route::get(
             'master-management/sections/options',
             [SectionController::class, 'options']
         );

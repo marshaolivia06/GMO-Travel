@@ -133,7 +133,7 @@ private function logActivity(TravelOrder $order, ?User $causer, string $event, s
             return User::whereKey($id)->get();
         }
 
-        if ($roleName === 'Director') {
+        if ($roleName === 'Div Head') {
             $department = Department::find($order->department_id);
             $division = $department?->division_head_id
                 ? MasterDivision::find($department->division_head_id)
@@ -159,7 +159,7 @@ private function logActivity(TravelOrder $order, ?User $causer, string $event, s
                 ->exists();
         }
 
-        if ($stage->role->name === 'Director') {
+        if ($stage->role->name === 'Div Head') {
             $department = Department::find($order->department_id);
 
             if (!$department || !$department->division_head_id) {

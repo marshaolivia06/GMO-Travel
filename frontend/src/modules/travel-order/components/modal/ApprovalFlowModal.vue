@@ -29,7 +29,7 @@ const emit = defineEmits(['update:modelValue', 'review'])
       <div v-if="card.time" class="text-body-2 text-medium-emphasis">{{ card.time }}</div>
       <div v-if="card.note" class="text-body-2 mt-2"><span class="font-weight-bold">Note:</span> {{ card.note }}</div>
       <div v-if="card.isCurrent && canApprove" class="d-flex justify-end mt-3">
-        <VBtn size="small" color="amber" elevation="3" @click="emit('review')">Approve Here</VBtn>
+        <VBtn size="small" color="amber" elevation="3" @click="emit('review')">Klik Here</VBtn>
       </div>
     </VCardText>
   </VCard>
