@@ -1,43 +1,32 @@
 @php
     use Modules\MasterManagement\Models\Section;
+
     $section = Section::where('section_head_id', $order->user_id)->first();
     $val = fn ($v) => ($v === null || $v === '') ? '-' : $v;
     $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y') : '-';
     $dateTime = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y H:i') : '-';
     $money = fn ($amount, $currency) => ((float) $amount) ? number_format((float) $amount, 2) . ' ' . ($currency ?? '') : 'Not Applicable';
 
-    $approvalLabels = [
-        'submitted' => 'Requested',
-        'pending' => 'Awaiting Approval',
-        'approved' => 'Approved',
-        'rejected' => 'Rejected',
-        'cancelled' => 'Cancelled',
-        'revision' => 'Revision Required',
-    ];
-
-    $tripTypes = [
-        'individual' => 'Business Trip - Individual',
-        'group' => 'Business Trip - Group Trip',
-        'annual' => 'Annual Trip',
-    ];
-
+    $approvalLabels = ['submitted' => 'Requested', 'pending' => 'Awaiting Approval', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled', 'revision' => 'Revision Required'];
+    $tripTypes = ['individual' => 'Business Trip - Individual', 'group' => 'Business Trip - Group Trip', 'annual' => 'Annual Trip'];
     $advance = $order->advance;
 
     $summary = [
-    [['Request Type', $tripTypes[$order->trip_type] ?? 'Business Trip - Individual'], ['Travel Region', $val($order->travel_region)]],
-    [['Employee', $val($order->user?->name)], ['Country', $val($order->country)]],
-    [['Section', $val($section?->name)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
-    [['Department', $val($order->department?->name)], ['Departure', $date($order->departure_date) . ' ' . $order->departure_time]],
-    [['Purpose', $val($order->purpose)], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
-    [['Remarks', $val($order->remarks)]],
+        [['Request Type', $tripTypes[$order->trip_type] ?? 'Business Trip - Individual'], ['Travel Region', $val($order->travel_region)]],
+        [['Employee', $val($order->user?->name)], ['Country', $val($order->country)]],
+        [['Section', $val($section?->name)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
+        [['Department', $val($order->department?->name)], ['Departure', $date($order->departure_date) . ' ' . $order->departure_time]],
+        [['Purpose', $val($order->purpose)], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
+        [['Remarks', $val($order->remarks)]],
     ];
 
     $ticket = [
-    [['Ticket Type', $val($order->ferry_ticket_type)], ['Ticket Arrangement', $val($order->ferry_arrangement)]],
-    [['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)], ['Accommodation', $val($order->accommodation_arrangement)]],
-    [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
-];
+        [['Ticket Type', $val($order->ferry_ticket_type)], ['Ticket Arrangement', $val($order->ferry_arrangement)]],
+        [['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)], ['Accommodation', $val($order->accommodation_arrangement)]],
+        [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
+    ];
 @endphp
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -69,19 +58,19 @@
     </style>
 </head>
 <body>
-<div class="doc-head">
-    <div style="text-align: left; font-size: 11px; font-weight: bold; letter-spacing: 0; margin-bottom: 18px;">
-        PT. Ecogreen Oleochemicals<br>
-        Batam Plant
+    <div class="doc-head">
+        <div style="text-align: left; font-size: 11px; font-weight: bold; letter-spacing: 0; margin-bottom: 18px;">
+            PT. Ecogreen Oleochemicals<br>
+            Batam Plant
+        </div>
+        <div class="doc-title">TRAVEL ORDER</div>
     </div>
-    <div class="doc-title">TRAVEL ORDER</div>
-</div>
 
     @foreach ([['Request Summary', $summary], ['Ticket, Accommodation & Travel Advance', $ticket]] as [$title, $rows])
         <div class="section">
             @if ($title !== 'Request Summary')
-    <div class="section-title">{{ $title }}</div>
-    @endif
+                <div class="section-title">{{ $title }}</div>
+            @endif
             <div class="info">
                 @foreach ($rows as $row)
                     <div class="row">
@@ -113,6 +102,15 @@
             <tbody>
                 @forelse ($order->approvals->sortBy('sequence') as $step)
                     @php
+                        $role = $step->role?->name ?? '-';
+                        $organization = match ($role) {
+                            'Sect Head' => $section?->name,
+                            'Dept Head' => $order->department?->name,
+                            'Div Head' => $order->department?->divisionHead?->division_name,
+                            default => null,
+                        };
+                        $displayRole = str_replace(' ', '.', $role);
+                        $roleLabel = $organization ? "{$organization} ({$displayRole})" : $displayRole;
                         $statusStyle = match ($step->status) {
                             'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;',
                             'approved' => 'background-color: #DCFCE7; color: #15803D;',
@@ -122,29 +120,25 @@
                     @endphp
                     <tr>
                         <td class="center">{{ $loop->iteration }}</td>
-                        <td>{{ $val($step->role?->name) }}</td>
+                        <td>{{ $val($roleLabel) }}</td>
                         <td>{{ $val($step->user?->name) }}</td>
                         <td class="center">{{ $step->acted_at ? $dateTime($step->acted_at) : '-' }}</td>
-                        <td class="center">
-                            <span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; {{ $statusStyle }}">{{ $approvalLabels[$step->status] ?? $step->status }}</span>
-                        </td>
+                        <td class="center"><span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; {{ $statusStyle }}">{{ $approvalLabels[$step->status] ?? $step->status }}</span></td>
                     </tr>
                 @empty
-                    <tr>
-                        <td colspan="5" class="center">No approval data yet.</td>
-                    </tr>
+                    <tr><td colspan="5" class="center">No approval data yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
 
     <div class="footer">
-    <table>
-        <tr>
-            <td>No. {{ $order->approvals->where('status', '!=', 'submitted')->isNotEmpty() && $order->approvals->where('status', '!=', 'submitted')->every(fn ($step) => $step->status === 'approved') ? $val($order->order_number) : '-' }}</td>
-            <td class="right">Generated: {{ now()->format('d M Y H:i') }}</td>
-        </tr>
-    </table>
-</div>
+        <table>
+            <tr>
+                <td>No. {{ $order->approvals->where('status', '!=', 'submitted')->isNotEmpty() && $order->approvals->where('status', '!=', 'submitted')->every(fn ($step) => $step->status === 'approved') ? $val($order->order_number) : '-' }}</td>
+                <td class="right">Generated: {{ now()->format('d M Y H:i') }}</td>
+            </tr>
+        </table>
+    </div>
 </body>
 </html>

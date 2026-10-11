@@ -105,24 +105,26 @@ private function logActivity(TravelOrder $order, ?User $causer, string $event, s
         ->withProperties(array_merge($props, ['round' => $round]))
         ->log($description);
 }
-    public function notifyCurrentApprovers(TravelOrder $order): void
-    {
-        $stage = $this->currentStage($order);
 
-        if (!$stage) {
-            return;
-        }
+public function notifyCurrentApprovers(TravelOrder $order): void
+{
+    $stage = $this->currentStage($order);
 
-        $order->loadMissing('user');
+    if (!$stage) {
+        return;
+    }
 
-        foreach ($this->approversOf($order, $stage) as $approver) {
-            if ($approver->email) {
-                Mail::to($approver->email)->queue(
-                    new TravelOrderAwaitingApprovalMail($order, $stage->role->name)
-                );
-            }
+    $order->loadMissing('user');
+    $approvers = $this->approversOf($order, $stage);
+
+    foreach ($approvers as $approver) {
+        if ($approver->email) {
+            Mail::to($approver->email)->queue(
+                new TravelOrderAwaitingApprovalMail($order, $stage->role->name)
+            );
         }
     }
+}
 
     private function approversOf(TravelOrder $order, $stage)
     {

@@ -10,9 +10,10 @@ const toPayload = form => {
 ].includes(form.travelRegion)
 
   const payload = {
-    status: form.status,
-
-    department_id: form.departmentId || undefined,
+  request_type: form.request_type,
+  trip_type: form.trip_type,
+  status: form.status,
+  department_id: form.departmentId || undefined,
 
     travel_from: form.travelFrom,
     travel_to: form.travelTo,

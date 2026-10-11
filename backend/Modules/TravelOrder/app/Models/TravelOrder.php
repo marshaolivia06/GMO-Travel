@@ -18,6 +18,7 @@ class TravelOrder extends Model
 
     protected $fillable = [
         'order_number',
+        'request_type',
         'trip_type',
         'status',
         'user_id',

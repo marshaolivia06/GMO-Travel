@@ -341,7 +341,7 @@ function getCurrency() {
 
 function saveDraft() {
   if (props.loading) return
-  emit('submit', { ...form, status: 'draft', currency: getCurrency() })
+  emit('submit', { ...form, request_type: 'business_trip', trip_type: 'individual', status: 'draft', currency: getCurrency() })
 }
 
 function submitForm() {
@@ -366,7 +366,7 @@ async function confirmSubmit() {
   if (!canSubmit.value) return
   const confirmed = await confirm({ title: 'Submit Travel Order?', text: 'Are you sure you want to submit this Travel Order?', color: 'primary' })
   if (!confirmed) return
-  emit('submit', { ...form, status: 'submitted', currency: getCurrency() })
+  emit('submit', { ...form, request_type: 'business_trip', trip_type: 'individual', status: 'submitted', currency: getCurrency() })
 }
 
 function cancel() {
@@ -604,4 +604,4 @@ onMounted(() => {
 
 <style scoped>
 .text-right-input :deep(input) { text-align: right; }
-</style>
+</style> 

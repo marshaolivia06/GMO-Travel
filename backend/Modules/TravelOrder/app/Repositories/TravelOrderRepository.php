@@ -136,14 +136,15 @@ class TravelOrderRepository
     }
 
     public function findById(int $id): TravelOrder
-    {
-        return TravelOrder::with([
-            'user:id,name',
-            'department:id,name',
-            'creator:id,name',
-            'advance',
-        ])->findOrFail($id);
-    }
+{
+    return TravelOrder::with([
+        'user:id,name',
+        'department:id,name,division_head_id',
+        'department.divisionHead',
+        'creator:id,name',
+        'advance',
+    ])->findOrFail($id);
+}
 
     public function create(array $data): TravelOrder
     {

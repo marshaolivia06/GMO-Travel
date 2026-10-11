@@ -17,22 +17,30 @@ const emit = defineEmits(['update:modelValue', 'review'])
 
       <VCardText class="pa-6">
         <VRow align="stretch">
-          <VCol v-for="card in cards" :key="card.key" cols="12" md="4">
-            <VCard variant="flat" rounded="lg" height="120" class="approval-card bg-grey-lighten-5">
-    <VCardText class="flex-grow-1">
-      <div class="d-flex align-start justify-space-between ga-2">
-        <div class="text-subtitle-1 font-weight-medium">{{ card.title }}</div>
-        <VChip size="small" variant="flat" :color="card.chipColor" class="text-no-wrap">{{ card.chipText }}</VChip>
+          
+<VCol v-for="card in cards" :key="card.key" cols="12" md="4" class="d-flex">
+  
+<VCard variant="flat" rounded="lg" min-height="145" width="100%" class="approval-card bg-grey-lighten-5 d-flex flex-column">
+  <VCardText class="pa-4 d-flex flex-column flex-grow-1">
+    <div class="d-flex align-start ga-2">
+      <div class="text-subtitle-1 font-weight-medium flex-grow-1 text-wrap" style="min-width: 0; overflow-wrap: anywhere;">
+        {{ card.title }}
       </div>
-      <div class="text-body-2 text-medium-emphasis mt-1">{{ card.caption }}</div>
-      <div v-if="card.name" class="text-body-2 font-weight-bold mt-1">{{ card.name }}</div>
-      <div v-if="card.time" class="text-body-2 text-medium-emphasis">{{ card.time }}</div>
-      <div v-if="card.note" class="text-body-2 mt-2"><span class="font-weight-bold">Note:</span> {{ card.note }}</div>
-      <div v-if="card.isCurrent && canApprove" class="d-flex justify-end mt-3">
-        <VBtn size="small" color="amber" elevation="3" @click="emit('review')">Klik Here</VBtn>
-      </div>
-    </VCardText>
-  </VCard>
+      <VChip size="small" variant="flat" :color="card.chipColor" class="flex-shrink-0">
+        {{ card.chipText }}
+      </VChip>
+    </div>
+
+    <div class="text-body-2 text-medium-emphasis mt-2">{{ card.caption }}</div>
+    <div v-if="card.name" class="text-body-2 font-weight-bold mt-2">{{ card.name }}</div>
+    <div v-if="card.time" class="text-body-2 text-medium-emphasis mt-1">{{ card.time }}</div>
+    <div v-if="card.note" class="text-body-2 mt-2 text-wrap"><span class="font-weight-bold">Note:</span> {{ card.note }}</div>
+
+    <div v-if="card.isCurrent && canApprove" class="d-flex justify-end mt-auto pt-3">
+      <VBtn size="small" color="amber" elevation="3" @click="emit('review')">Klik Here</VBtn>
+    </div>
+  </VCardText>
+</VCard>
 </VCol>
 </VRow>
       </VCardText>

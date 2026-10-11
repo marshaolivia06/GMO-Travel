@@ -41,6 +41,14 @@ class StoreTravelOrderRequest extends FormRequest
                 ]),
             ],
 
+            'request_type' => [
+            'required',
+            Rule::in([
+            'business_trip',
+            'annual_leave',
+            ]),
+            ],
+
             'department_id' => [
                 'nullable',
                 'integer',

@@ -167,6 +167,7 @@ function selectRequest(type) {
     showMessage('Annual Leave form is not available yet.', 'info')
     return
   }
+
   requestDialog.value = false
   businessDialog.value = true
 }
@@ -246,7 +247,11 @@ async function openHistory(row) {
   historyDialog.value = true
   historyLoading.value = true
   try {
-    const response = await getTravelOrderHistory(row.id)
+    const [detail, response] = await Promise.all([
+      getTravelOrder(row.id),
+      getTravelOrderHistory(row.id),
+    ])
+    selected.value = detail?.data?.data ?? detail?.data ?? detail
     historyLogs.value = response?.data ?? []
   } catch (error) {
     console.error('Load history error:', error)
@@ -329,24 +334,36 @@ const approvalChip = {
   cancelled: { text: 'Cancelled', color: 'grey', caption: 'Not processed' },
 }
 
+
+
 const approvalCards = computed(() => {
   const all = selected.value?.approvals || []
-  // Hanya tampilkan putaran terakhir (mulai dari baris 'submitted' terbaru)
   const lastRound = all.map(step => step.status).lastIndexOf('submitted')
   const steps = lastRound > 0 ? all.slice(lastRound) : all
   const currentIndex = steps.findIndex(step => step.status === 'pending')
+  const department = selected.value?.department?.name || ''
+  const division = selected.value?.department?.division_head?.division_name || ''
+  const section = selected.value?.requester_section_name || ''
 
   return steps.map((step, index) => {
     const meta = approvalChip[step.status] || approvalChip.pending
-    const isPending = step.status === 'pending'
+    const role = step.role_name || '-'
+    const displayRole = role.replace(' ', '.')
+    const organization = role === 'Sect Head' ? section
+      : role === 'Dept Head' ? department
+      : role === 'Div Head' ? division
+      : ''
 
     return {
-      key: step.id, title: step.role_name || '-', chipText: meta.text, chipColor: meta.color,
+      key: step.id,
+      title: organization ? `${organization} (${displayRole})` : displayRole,
+      chipText: meta.text,
+      chipColor: meta.color,
       caption: meta.caption,
       name: ['pending', 'cancelled'].includes(step.status) ? '' : (step.name || '-'),
       time: formatDateTime(step.acted_at),
       note: ['rejected', 'revision'].includes(step.status) ? (step.note || '') : '',
-      isCurrent: isPending && index === currentIndex,
+      isCurrent: step.status === 'pending' && index === currentIndex,
     }
   })
 })
@@ -360,10 +377,23 @@ const historyChip = {
 
 const historyRounds = computed(() => {
   const groups = new Map()
+  const department = selected.value?.department?.name || ''
+  const division = selected.value?.department?.division_head?.division_name || ''
+  const section = selected.value?.requester_section_name || ''
 
   for (const log of historyLogs.value) {
     const round = log.round ?? 1
     const meta = historyChip[log.event] || { text: log.event, color: 'grey' }
+    const role = (log.role || '-').trim()
+    const normalizedRole = role.toLowerCase().replace(/[.\s_-]+/g, '')
+    const displayRole = normalizedRole === 'secthead' ? 'Sect.Head'
+      : normalizedRole === 'depthead' ? 'Dept.Head'
+      : ['divhead', 'director'].includes(normalizedRole) ? 'Div.Head'
+      : role.replace(/\s+/g, '.')
+    const organization = ['secthead', 'sectionhead'].includes(normalizedRole) ? section
+      : ['depthead', 'departmenthead'].includes(normalizedRole) ? department
+      : ['divhead', 'divisionhead', 'director'].includes(normalizedRole) ? division
+      : ''
 
     if (!groups.has(round)) groups.set(round, [])
 
@@ -371,7 +401,7 @@ const historyRounds = computed(() => {
       key: log.id,
       chipText: log.final ? 'Approved' : meta.text,
       chipColor: meta.color,
-      role: log.role || '-',
+      role: organization ? `${organization} (${displayRole})` : displayRole,
       name: log.causer || '-',
       time: formatDateTime(log.created_at),
       note: log.remark || log.note || '',
@@ -379,7 +409,7 @@ const historyRounds = computed(() => {
   }
 
   return [...groups.entries()]
-  .sort((a, b) => a[0] - b[0])
+    .sort((a, b) => a[0] - b[0])
     .map(([round, items]) => ({ round, items }))
 })
 
@@ -401,7 +431,7 @@ async function submitOrder(payload) {
   if (submitting.value) return
   submitting.value = true
   try {
-    const requestPayload = { ...payload, status: payload.status || 'submitted' }
+    const requestPayload = { ...payload, request_type: 'business_trip', trip_type: dialogType.value, status: payload.status || 'submitted' }
     if (editingDraft.value && selected.value?.id) await updateTravelOrder(selected.value.id, requestPayload)
     else await createTravelOrder(requestPayload)
     closeDialog()

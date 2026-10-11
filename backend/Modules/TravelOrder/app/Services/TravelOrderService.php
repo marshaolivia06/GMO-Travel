@@ -29,7 +29,7 @@ class TravelOrderService
         $isAdmin = $roleNames->contains('Admin');
         $isAdminGmo = $roleNames->contains('Admin-GMO');
         $isDeptHead = $roleNames->contains('Dept Head');
-        $isDirector = $roleNames->contains('Director');
+        $isDivHead = $roleNames->contains('Div Head');
         $isPresidentDirector = $roleNames->contains('President Director');
 
         if ($isAdmin) {
@@ -51,10 +51,10 @@ class TravelOrderService
             } else {
                 $filters['user_id'] = $user->id;
             }
-        } elseif ($isDirector) {
+        } elseif ($isDivHead) {
             $division = MasterDivision::where('division_head_id', $user->id)->first();
             $department = $division ? Department::where('division_head_id', $division->id)->first() : null;
-            $filters['approval_role'] = 'Director';
+            $filters['approval_role'] = 'Div Head';
             $filters['department_id'] = $department?->id;
         } elseif ($isPresidentDirector) {
             $filters['approval_role'] = 'President Director';
@@ -71,17 +71,27 @@ class TravelOrderService
         return $orders;
     }
 
-    public function find(int $id, ?User $user = null): TravelOrder
-    {
-        $order = $this->repository->findById($id);
-        $order->load([
-            'approvals' => fn ($q) => $q->orderBy('sequence'),
-            'approvals.role',
-            'approvals.user',
-        ]);
-        $order->setAttribute('can_approve', $user ? $this->approvalService->canApprove($order, $user) : false);
-        return $order;
-    }
+    
+public function find(int $id, ?User $user = null): TravelOrder
+{
+    $order = $this->repository->findById($id);
+    $order->load([
+        'approvals' => fn ($q) => $q->orderBy('sequence'),
+        'approvals.role',
+        'approvals.user',
+        'department.divisionHead',
+    ]);
+
+    $order->setAttribute(
+        'requester_section_name',
+        Section::where('section_head_id', $order->created_by)->value('name')
+    );
+
+    $order->setAttribute('can_approve', $user ? $this->approvalService->canApprove($order, $user) : false);
+
+    return $order;
+}
+
 
     public function pdf(int $id, ?User $user = null)
     {
