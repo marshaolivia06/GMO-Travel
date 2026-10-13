@@ -100,7 +100,6 @@ class SectionController extends Controller
         'message' => 'Section deleted successfully.',
     ]);
 }
-
 public function mySection(Request $request): JsonResponse
 {
     $section = Section::with('department')
@@ -110,8 +109,10 @@ public function mySection(Request $request): JsonResponse
 
     if (!$section) {
         return response()->json([
-            'message' => 'Section untuk user ini tidak ditemukan.',
-        ], 404);
+            'id' => null,
+            'name' => null,
+            'department' => null,
+        ]);
     }
 
     return response()->json([

@@ -7,12 +7,12 @@ use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Modules\MasterManagement\Models\Department;
+use Modules\MasterManagement\Models\MasterDivision;
 use Modules\MasterManagement\Models\Section;
 use Modules\TravelOrder\Models\TravelOrder;
 use Modules\TravelOrder\Repositories\TravelOrderAdvanceRepository;
 use Modules\TravelOrder\Repositories\TravelOrderRepository;
 use Modules\UserManagement\Models\User;
-use Modules\MasterManagement\Models\MasterDivision;
 
 class TravelOrderService
 {
@@ -25,12 +25,13 @@ class TravelOrderService
 
     public function list(User $user, array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $roleNames = $user->getRoleNames();
-        $isAdmin = $roleNames->contains('Admin');
-        $isAdminGmo = $roleNames->contains('Admin-GMO');
-        $isDeptHead = $roleNames->contains('Dept Head');
-        $isDivHead = $roleNames->contains('Div Head');
-        $isPresidentDirector = $roleNames->contains('President Director');
+        $roles = $user->getRoleNames();
+
+        $isAdmin = $roles->contains('Admin');
+        $isAdminGmo = $roles->contains('Admin-GMO');
+        $isDeptHead = $roles->contains('Dept Head');
+        $isDivHead = $roles->contains('Div Head');
+        $isPresidentDirector = $roles->contains('President Director');
 
         if ($isAdmin) {
             $filters['exclude_draft'] = true;
@@ -38,8 +39,7 @@ class TravelOrderService
             $filters['gmo_status'] = [
                 'awaiting_approval_gmo',
                 'awaiting_gmo_processing',
-                'awaiting_gmo_booking_preparation',
-                'awaiting_gmo_document_issuance',
+                'awaiting_gmo_booking_document_issuance',
                 'processed_by_gmo',
             ];
         } elseif ($isDeptHead) {
@@ -51,32 +51,56 @@ class TravelOrderService
             } else {
                 $filters['user_id'] = $user->id;
             }
-        } elseif ($isDivHead) {
-            $division = MasterDivision::where('division_head_id', $user->id)->first();
-            $department = $division ? Department::where('division_head_id', $division->id)->first() : null;
-            $filters['approval_role'] = 'Div Head';
-            $filters['department_id'] = $department?->id;
-        } elseif ($isPresidentDirector) {
-            $filters['approval_role'] = 'President Director';
-        } else {
+        
+} elseif ($isDivHead) {
+    $filters['requester_or_div_head_id'] = $user->id;
+    unset($filters['user_id'], $filters['approval_role'], $filters['department_id']);
+} elseif ($isPresidentDirector) {
+    $filters['approval_role'] = 'President Director';
+}
+ else {
             $filters['user_id'] = $user->id;
         }
 
-        $orders = $this->repository->paginate($filters, $perPage);
+        
+$orders = $this->repository->paginate($filters, $perPage);
 
-        $orders->getCollection()->each(function ($order) use ($user) {
-            $order->setAttribute('can_approve', $this->approvalService->canApprove($order, $user));
-        });
+$orders->getCollection()->each(function ($order) use ($user) {
+    $requester = User::find($order->created_by ?? $order->user_id);
+    $requesterRoles = $requester?->getRoleNames() ?? collect();
 
-        return $orders;
+    $requesterRole = $requesterRoles->contains('Div Head')
+        ? 'Div Head'
+        : ($requesterRoles->contains('Dept Head')
+            ? 'Dept Head'
+            : ($requesterRoles->contains('Sect Head')
+                ? 'Sect Head'
+                : null));
+
+    $order->setAttribute('requester_role', $requesterRole);
+
+    $order->setAttribute(
+        'requester_division_name',
+        $requesterRole === 'Div Head'
+            ? MasterDivision::where('division_head_id', $requester->id)
+                ->value('division_name')
+            : null
+    );
+
+    $order->setAttribute(
+        'can_approve',
+        $this->approvalService->canApprove($order, $user)
+    );
+});
+
+return $orders;
     }
-
-    
 public function find(int $id, ?User $user = null): TravelOrder
 {
     $order = $this->repository->findById($id);
+
     $order->load([
-        'approvals' => fn ($q) => $q->orderBy('sequence'),
+        'approvals' => fn ($query) => $query->orderBy('sequence'),
         'approvals.role',
         'approvals.user',
         'department.divisionHead',
@@ -87,31 +111,37 @@ public function find(int $id, ?User $user = null): TravelOrder
         Section::where('section_head_id', $order->created_by)->value('name')
     );
 
-    $order->setAttribute('can_approve', $user ? $this->approvalService->canApprove($order, $user) : false);
+    $order->setAttribute(
+        'requester_division_name',
+        MasterDivision::where('division_head_id', $order->created_by)
+            ->value('division_name')
+    );
+
+    $order->setAttribute(
+        'can_approve',
+        $user ? $this->approvalService->canApprove($order, $user) : false
+    );
 
     return $order;
 }
 
-
     public function pdf(int $id, ?User $user = null)
     {
         $order = $this->find($id, $user);
-
-        // PDF hanya memuat putaran approval terakhir; riwayat lama tetap ada di database
         $order->setRelation('approvals', $this->latestRound($order->approvals));
 
-        return Pdf::loadView('travelorder::pdf.travel_order', ['order' => $order])->setPaper('a4');
+        return Pdf::loadView('travelorder::pdf.travel_order', [
+            'order' => $order,
+        ])->setPaper('a4');
     }
 
     private function latestRound($approvals)
     {
         $lastSubmitted = $approvals->where('status', 'submitted')->max('sequence');
 
-        if ($lastSubmitted === null) {
-            return $approvals;
-        }
-
-        return $approvals->where('sequence', '>=', $lastSubmitted)->values();
+        return $lastSubmitted === null
+            ? $approvals
+            : $approvals->where('sequence', '>=', $lastSubmitted)->values();
     }
 
     public function history(int $id, ?User $user = null): array
@@ -125,6 +155,7 @@ public function find(int $id, ?User $user = null): TravelOrder
     {
         $travelOrder = $this->repository->findById($id);
         $this->approvalService->approve($travelOrder, $user, $note);
+
         return $this->find($id, $user);
     }
 
@@ -132,6 +163,7 @@ public function find(int $id, ?User $user = null): TravelOrder
     {
         $travelOrder = $this->repository->findById($id);
         $this->approvalService->reject($travelOrder, $user, $remark);
+
         return $this->find($id, $user);
     }
 
@@ -139,39 +171,68 @@ public function find(int $id, ?User $user = null): TravelOrder
     {
         $travelOrder = $this->repository->findById($id);
         $this->approvalService->revision($travelOrder, $user, $remark);
+
         return $this->find($id, $user);
     }
 
-    public function getDepartmentLockInfo(User $user): array
-    {
-        $department = Department::where('dept_head_id', $user->id)->orWhere('dept_admin_id', $user->id)->first();
-
-        if ($department) {
-            return ['locked' => true, 'department' => ['id' => $department->id, 'name' => $department->name]];
-        }
-
-        $section = Section::where('section_head_id', $user->id)->first();
-
-        if ($section) {
-            $department = Department::find($section->department_id);
-
-            if ($department) {
-                return ['locked' => true, 'department' => ['id' => $department->id, 'name' => $department->name]];
-            }
-        }
-
+    
+public function getDepartmentLockInfo(User $user): array
+{
+    if ($user->getRoleNames()->contains('Div Head')) {
         return ['locked' => false, 'department' => null];
     }
+
+    $section = Section::where('section_head_id', $user->id)->first();
+
+    $department = $section
+        ? Department::where('id', $section->department_id)
+            ->where('status', 1)
+            ->first()
+        : Department::where('status', 1)
+            ->where(function ($query) use ($user) {
+                $query->where('dept_head_id', $user->id)
+                    ->orWhere('dept_admin_id', $user->id);
+            })
+            ->first();
+
+    if (!$department && $section) {
+        $department = Department::where('status', 1)
+            ->where(function ($query) use ($user) {
+                $query->where('dept_head_id', $user->id)
+                    ->orWhere('dept_admin_id', $user->id);
+            })
+            ->first();
+    }
+
+    return $department
+        ? [
+            'locked' => true,
+            'department' => [
+                'id' => $department->id,
+                'name' => $department->name,
+            ],
+        ]
+        : ['locked' => false, 'department' => null];
+}
 
     public function create(array $data, User $user): TravelOrder
     {
         $lockInfo = $this->getDepartmentLockInfo($user);
-        $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($data['department_id'] ?? null);
+        $isDivHead = $user->getRoleNames()->contains('Div Head');
 
-        abort_if(!$departmentId, 422, 'Department wajib dipilih.');
+        $departmentId = $lockInfo['locked']
+            ? $lockInfo['department']['id']
+            : ($isDivHead ? null : ($data['department_id'] ?? null));
+
+        abort_if(!$departmentId && !$isDivHead, 422, 'Department wajib dipilih.');
 
         if (($data['status'] ?? 'draft') === 'submitted') {
-            $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
+            $days = max(
+                1,
+                (int) Carbon::parse($data['departure_date'])
+                    ->startOfDay()
+                    ->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1
+            );
 
             $validation = $this->advanceService->validateAdvance(
                 $data['travel_region'],
@@ -201,6 +262,7 @@ public function find(int $id, ?User $user = null): TravelOrder
             unset($data['meal_allowance'], $data['pocket_money'], $data['currency']);
 
             $travelOrder = $this->repository->create($data);
+
             $advanceData['travel_order_id'] = $travelOrder->id;
             $this->advanceRepository->create($advanceData);
 
@@ -216,16 +278,34 @@ public function find(int $id, ?User $user = null): TravelOrder
     {
         $travelOrder = $this->repository->findById($id);
 
-        abort_if($travelOrder->user_id !== $user->id, 403, 'Anda tidak memiliki akses untuk mengubah Travel Order ini.');
-        abort_if($travelOrder->status !== 'draft', 422, 'Hanya Travel Order dengan status draft yang dapat diubah.');
+        abort_if(
+            $travelOrder->user_id !== $user->id,
+            403,
+            'Anda tidak memiliki akses untuk mengubah Travel Order ini.'
+        );
+
+        abort_if(
+            $travelOrder->status !== 'draft',
+            422,
+            'Hanya Travel Order dengan status draft yang dapat diubah.'
+        );
 
         $lockInfo = $this->getDepartmentLockInfo($user);
-        $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($data['department_id'] ?? $travelOrder->department_id);
+        $isDivHead = $user->getRoleNames()->contains('Div Head');
 
-        abort_if(!$departmentId, 422, 'Department wajib dipilih.');
+        $departmentId = $lockInfo['locked']
+            ? $lockInfo['department']['id']
+            : ($isDivHead ? null : ($data['department_id'] ?? $travelOrder->department_id));
+
+        abort_if(!$departmentId && !$isDivHead, 422, 'Department wajib dipilih.');
 
         if (($data['status'] ?? 'draft') === 'submitted') {
-            $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
+            $days = max(
+                1,
+                (int) Carbon::parse($data['departure_date'])
+                    ->startOfDay()
+                    ->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1
+            );
 
             $validation = $this->advanceService->validateAdvance(
                 $data['travel_region'],

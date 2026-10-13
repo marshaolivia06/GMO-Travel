@@ -6,7 +6,11 @@
     $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y') : '-';
     $dateTime = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y H:i') : '-';
     $money = fn ($amount, $currency) => ((float) $amount) ? number_format((float) $amount, 2) . ' ' . ($currency ?? '') : 'Not Applicable';
-
+    $division = $order->department?->divisionHead
+    ?? \Modules\MasterManagement\Models\MasterDivision::where(
+        'division_head_id',
+        $order->user_id
+    )->first();
     $approvalLabels = ['submitted' => 'Requested', 'pending' => 'Awaiting Approval', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled', 'revision' => 'Revision Required'];
     $tripTypes = ['individual' => 'Business Trip - Individual', 'group' => 'Business Trip - Group Trip', 'annual' => 'Annual Trip'];
     $advance = $order->advance;
@@ -103,14 +107,19 @@
                 @forelse ($order->approvals->sortBy('sequence') as $step)
                     @php
                         $role = $step->role?->name ?? '-';
+                       
                         $organization = match ($role) {
-                            'Sect Head' => $section?->name,
-                            'Dept Head' => $order->department?->name,
-                            'Div Head' => $order->department?->divisionHead?->division_name,
-                            default => null,
-                        };
-                        $displayRole = str_replace(' ', '.', $role);
-                        $roleLabel = $organization ? "{$organization} ({$displayRole})" : $displayRole;
+                        'Sect Head' => $section?->name,
+                        'Dept Head' => $order->department?->name,
+                        'Div Head' => $division?->division_name,
+                        default => null,
+                    };
+
+                $displayRole = str_replace(' ', '.', $role);
+
+                $roleLabel = $organization
+                ? "{$organization} ({$displayRole})"
+                : $displayRole;
                         $statusStyle = match ($step->status) {
                             'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;',
                             'approved' => 'background-color: #DCFCE7; color: #15803D;',

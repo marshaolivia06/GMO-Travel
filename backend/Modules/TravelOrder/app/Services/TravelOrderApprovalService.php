@@ -12,6 +12,7 @@ use Modules\TravelOrder\Emails\TravelOrderDeclinedMail;
 use Modules\TravelOrder\Models\TravelOrder;
 use Modules\UserManagement\Models\User;
 use Spatie\Activitylog\Models\Activity;
+use Modules\MasterManagement\Models\Section;
 
 class TravelOrderApprovalService
 {
@@ -200,25 +201,26 @@ public function notifyCurrentApprovers(TravelOrder $order): void
                 'final'    => !$hasNext,
             ]);
 
-            if (!$hasNext) {
-                $ferry = $order->ferry_arrangement;
-                $accommodation = $order->accommodation_arrangement;
             
-                if (
-                    $ferry === 'Direct Payment' &&
-                    $accommodation === 'Direct Payment'
-                ) {
-                    $nextStatus = 'awaiting_gmo_processing';
-                } else {
-                    $nextStatus = 'awaiting_gmo_booking_preparation';
-                }
-            
-                $order->update([
-                    'status' => $nextStatus,
-                ]);
-            
-                return;
-            }
+if (!$hasNext) {
+    $ferry = $order->ferry_arrangement;
+    $accommodation = $order->accommodation_arrangement;
+
+    if (
+        $ferry === 'Direct Payment' &&
+        $accommodation === 'Direct Payment'
+    ) {
+        $nextStatus = 'awaiting_gmo_processing';
+    } else {
+        $nextStatus = 'awaiting_gmo_booking_document_issuance';
+    }
+
+    $order->update([
+        'status' => $nextStatus,
+    ]);
+
+    return;
+}
 
             DB::afterCommit(fn() => $this->notifyCurrentApprovers($order));
         });
@@ -306,20 +308,35 @@ public function notifyCurrentApprovers(TravelOrder $order): void
             ->where('subject_id', $order->id)
             ->orderBy('id')
             ->get()
-            ->map(fn($log) => [
-                'id'          => $log->id,
-                'event'       => $log->event,
-                'description' => $log->description,
-                'round'       => $log->properties->get('round'),
-                'sequence'    => $log->properties->get('sequence'),
-                'role'        => $log->properties->get('role'),
-                'note'        => $log->properties->get('note'),
-                'remark'      => $log->properties->get('remark'),
-                'final'       => $log->properties->get('final'),
-                'causer'      => $log->causer?->name,
-                'created_at'  => $log->created_at,
-            ])
+            ->map(function ($log) {
+                $role = $log->properties->get('role');
+                $user = $log->causer;
+    
+                if ($user && $role === 'Div Head') {
+                    $division = MasterDivision::where('division_head_id', $user->id)->first();
+                
+                    if ($division) {
+                        $divisionName = trim($division->division_name);
+                        $divisionName = rtrim($divisionName, ". \t\n\r\0\x0B");
+                        $role = "{$divisionName} (Div.Head)";
+                    }
+                }
+    
+                return [
+                    'id' => $log->id,
+                    'event' => $log->event,
+                    'description' => $log->description,
+                    'round' => $log->properties->get('round'),
+                    'sequence' => $log->properties->get('sequence'),
+                    'role' => $role,
+                    'note' => $log->properties->get('note'),
+                    'remark' => $log->properties->get('remark'),
+                    'final' => $log->properties->get('final'),
+                    'causer' => $user?->name,
+                    'created_at' => $log->created_at,
+                ];
+            })
             ->values()
             ->all();
-    }
+    }    
 }

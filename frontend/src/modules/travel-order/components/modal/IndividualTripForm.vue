@@ -298,7 +298,11 @@ function validate(isSubmit = true) {
   let valid = true
   if (!isSubmit) return true
 
-  const required = ['employee', 'department', 'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate', 'returnTime', 'purpose', 'travelRegion', 'ferryTicketType', 'ferryArrangement', 'accommodationArrangement']
+  const isDivHead = authStore.user?.roles?.includes('Div Head')
+  const required = ['employee', 'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate', 'returnTime', 'purpose', 'travelRegion', 'ferryTicketType', 'ferryArrangement', 'accommodationArrangement']
+
+  if (!isDivHead) required.push('department')
+
   required.forEach(key => {
     if (!String(form[key] ?? '').trim()) {
       errors[key] = 'This field is required.'
@@ -312,22 +316,10 @@ function validate(isSubmit = true) {
   }
 
   if (hasAdvance.value) {
-    if (!String(form.pocketMoney || '').trim()) {
-      errors.pocketMoney = 'This field is required.'
-      valid = false
-    }
-    if (!String(form.mealAllowance || '').trim()) {
-      errors.mealAllowance = 'This field is required.'
-      valid = false
-    }
-    if (mealExceeded.value) {
-      errors.mealAllowance = `Maximum allowed is ${mealMax.value} ${mealCurrency.value}.`
-      valid = false
-    }
-    if (pocketExceeded.value) {
-      errors.pocketMoney = `Maximum allowed is ${pocketMax.value} ${pocketCurrency.value}.`
-      valid = false
-    }
+    if (!String(form.pocketMoney || '').trim()) { errors.pocketMoney = 'This field is required.'; valid = false }
+    if (!String(form.mealAllowance || '').trim()) { errors.mealAllowance = 'This field is required.'; valid = false }
+    if (mealExceeded.value) { errors.mealAllowance = `Maximum allowed is ${mealMax.value} ${mealCurrency.value}.`; valid = false }
+    if (pocketExceeded.value) { errors.pocketMoney = `Maximum allowed is ${pocketMax.value} ${pocketCurrency.value}.`; valid = false }
   }
 
   return valid

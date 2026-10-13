@@ -13,6 +13,7 @@ import { getTravelOrders, getTravelOrder, getTravelOrderPdf, getTravelOrderHisto
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
+import GmoETicketModal from '../components/modal/GmoETicketModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,30 +44,34 @@ const approvalLoading = ref(false)
 const processDialog = ref(false)
 const processLoading = ref(false)
 const bookingDialog = ref(false)
+const eticketDialog = ref(false)
+const eticketLoading = ref(false)
 const bookingLoading = ref(false)
+const bookingStage = ref('booking')
+const savedBooking = ref(null)
 const noteDialog = ref(false)
 const noteAction = ref('reject')
 const historyDialog = ref(false)
 const historyLoading = ref(false)
 const historyLogs = ref([])
 const filters = reactive({ search: '', status: null })
+const processMode = ref('processing')
+const processSubmitting = ref(false)
 
-const statusOptions = ['Awaiting Approval', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking Preparation', 'Awaiting GMO Document Issuance', 'Processed by GMO']
+const statusOptions = ['Awaiting Approval', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking & Document Issuance', 'Processed by GMO']
 
 const statusColor = {
   'Awaiting Approval': 'warning', 'Processed by GMO': 'success',
   'Awaiting Approval GMO': 'warning', 'Awaiting GMO Processing': 'warning',
-  'Awaiting GMO Booking Preparation': 'warning', 'Awaiting GMO Document Issuance': 'warning',
+  'Awaiting GMO Booking & Document Issuance': 'warning',
   'Revision Required': 'warning', 'Cancelled': 'error',
 }
 
 const statusLabel = {
-  awaiting_approval: 'Awaiting Approval', awaiting_approval_gmo: 'Awaiting Approval GMO',
-  revision_required: 'Revision Required', draft: 'Draft', cancelled: 'Cancelled',
-  rejected: 'Rejected', revision: 'Revision Required',
+  awaiting_approval: 'Awaiting Approval', awaiting_approval_gmo: 'Awaiting Approval GMO', revision_required: 'Revision Required',
+  draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required',
   awaiting_gmo_processing: 'Awaiting GMO Processing',
-  awaiting_gmo_booking_preparation: 'Awaiting GMO Booking Preparation',
-  awaiting_gmo_document_issuance: 'Awaiting GMO Document Issuance',
+  awaiting_gmo_booking_document_issuance: 'Awaiting GMO Booking & Document Issuance',
   processed_by_gmo: 'Processed by GMO',
 }
 
@@ -119,6 +124,37 @@ function toStatusLabel(status) { return status ? statusLabel[status] || status :
 const canApprove = computed(() => selected.value?.can_approve === true)
 const canDecide = computed(() => detailMode.value === 'review' && canApprove.value)
 
+function handleSubmitBooking(payload) {
+  if (!selected.value?.id || bookingLoading.value) return
+  bookingLoading.value = true
+  try {
+    savedBooking.value = { ...payload.bookingItems, adjustTime: payload.adjustTime, stage: 'booking' }
+    bookingDialog.value = false
+    showMessage('Booking information saved successfully.', 'success')
+    eticketDialog.value = true
+  } catch (error) {
+    console.error(error)
+    showMessage('Failed to save booking information.', 'error')
+  } finally {
+    bookingLoading.value = false
+  }
+}
+
+function handleSubmitETicket(file) {
+  if (!selected.value?.id || !file || eticketLoading.value) return
+  eticketLoading.value = true
+  try {
+    eticketDialog.value = false
+    savedBooking.value = null
+    showMessage('E-Ticket submitted successfully. FE simulation only.', 'success')
+  } catch (error) {
+    console.error('Submit E-Ticket error:', error)
+    showMessage('Failed to submit E-Ticket.', 'error')
+  } finally {
+    eticketLoading.value = false
+  }
+}
+
 function formatDate(value) {
   if (!value) return '-'
   const date = new Date(value)
@@ -143,11 +179,19 @@ function resolveArrangement(order) {
 }
 
 function normalize(order) {
+  const organization = order.requester_role === 'Div Head'
+    ? order.requester_division_name || '-'
+    : order.department?.name || order.department_name || '-'
+
   return {
-    raw: order, id: order.id, type: typeLabel[order.trip_type] || 'Business Trip - Individual',
-    subject: order.subject || order.user?.name || '-', department: order.department?.name || order.department_name || '',
+    raw: order,
+    id: order.id,
+    type: typeLabel[order.trip_type] || 'Business Trip - Individual',
+    subject: order.subject || order.user?.name || '-',
+    department: organization,
     period: `${formatDate(order.departure_date)} – ${formatDate(order.return_date)}`,
-    arrangement: resolveArrangement(order), status: toStatusLabel(order.status),
+    arrangement: resolveArrangement(order),
+    status: toStatusLabel(order.status),
   }
 }
 
@@ -174,7 +218,7 @@ function selectRequest(type) {
 
 function backToRequest() { businessDialog.value = false; requestDialog.value = true }
 function backToBusiness() { dialog.value = false; dialogType.value = null; businessDialog.value = true }
-
+function backToBooking() { eticketDialog.value = false; bookingStage.value = 'booking'; bookingDialog.value = true }
 function selectBusinessType(type) { businessDialog.value = false; dialogType.value = type; dialog.value = true }
 function closeDialog() { dialog.value = false; dialogType.value = null }
 
@@ -228,18 +272,23 @@ async function openApproval(row) {
 
 async function openProcess(row) {
   selected.value = row.raw
-
-  if (row.raw.status === 'awaiting_gmo_booking_preparation') {
-    bookingDialog.value = true
-    bookingLoading.value = true
-    try { await refreshDetail(row.id) } finally { bookingLoading.value = false }
-    return
-  }
-
-  processDialog.value = true
+  savedBooking.value = null
+  bookingStage.value = 'booking'
   processLoading.value = true
-  try { await refreshDetail(row.id) } finally { processLoading.value = false }
+  try {
+    await refreshDetail(row.id)
+    const order = selected.value
+    const arrangement = order?.ferry_arrangement ?? order?.ticket_arrangement
+    const isDirectPayment = arrangement === 'Direct Payment' && order?.accommodation_arrangement === 'Direct Payment'
+    processMode.value = order?.status === 'awaiting_gmo_processing' && isDirectPayment ? 'direct-payment' : 'review'
+    await loadPdf(row.id)
+    processDialog.value = true
+  } finally {
+    processLoading.value = false
+  }
 }
+
+function continueToBooking() { bookingStage.value = 'booking'; processDialog.value = false; bookingDialog.value = true }
 
 async function openHistory(row) {
   selected.value = row.raw
@@ -299,10 +348,22 @@ const noteMeta = {
 }
 
 const currentNoteMeta = computed(() => noteMeta[noteAction.value])
-function openNote(action) { noteAction.value = action; noteDialog.value = true }
+
+function openNote(action) {
+  noteAction.value = action
+  noteDialog.value = true
+}
+
 const handleReject = () => openNote('reject')
 const handleRevision = () => openNote('revision')
+const handleGmoReject = () => openNote('reject')
+const handleGmoRevision = () => openNote('revision')
 
+function backToReview() {
+  bookingDialog.value = false
+  processMode.value = 'review'
+  processDialog.value = true
+}
 async function handleNoteSubmit(text) {
   if (approving.value) return
   const meta = currentNoteMeta.value
@@ -334,15 +395,13 @@ const approvalChip = {
   cancelled: { text: 'Cancelled', color: 'grey', caption: 'Not processed' },
 }
 
-
-
 const approvalCards = computed(() => {
   const all = selected.value?.approvals || []
   const lastRound = all.map(step => step.status).lastIndexOf('submitted')
   const steps = lastRound > 0 ? all.slice(lastRound) : all
   const currentIndex = steps.findIndex(step => step.status === 'pending')
   const department = selected.value?.department?.name || ''
-  const division = selected.value?.department?.division_head?.division_name || ''
+  const division = selected.value?.requester_division_name || selected.value?.department?.division_head?.division_name || ''
   const section = selected.value?.requester_section_name || ''
 
   return steps.map((step, index) => {
@@ -378,7 +437,7 @@ const historyChip = {
 const historyRounds = computed(() => {
   const groups = new Map()
   const department = selected.value?.department?.name || ''
-  const division = selected.value?.department?.division_head?.division_name || ''
+  const division = selected.value?.requester_division_name || selected.value?.department?.division_head?.division_name || ''
   const section = selected.value?.requester_section_name || ''
 
   for (const log of historyLogs.value) {
@@ -461,14 +520,14 @@ onMounted(() => {
 <template>
   <div>
     <VCard rounded="lg" elevation="1">
-  <VCardText class="px-6 py-4">
-    <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
-    <div class="d-flex align-center justify-space-between ga-4">
-      <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
-      <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable style="max-width: 200px" />
-    </div>
-  </VCardText>
-  <VDivider />
+      <VCardText class="px-6 py-4">
+        <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
+        <div class="d-flex align-center justify-space-between ga-4">
+          <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
+          <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable style="max-width: 200px" />
+        </div>
+      </VCardText>
+      <VDivider />
 
       <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No travel orders found.">
         <template #item.id="{ item }"><span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span></template>
@@ -476,20 +535,18 @@ onMounted(() => {
         <template #item.subject="{ item }"><div class="font-weight-bold text-body-2">{{ item.subject }}</div><div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div></template>
         <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.period }}</span></template>
         <template #item.arrangement="{ item }"><span class="text-body-2 text-no-wrap">{{ item.arrangement }}</span></template>
-        <template #item.status="{ item }">
-          <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip>
+        <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip></template>
+        <template #item.action="{ item }">
+          <VBtnGroup density="comfortable" variant="tonal">
+            <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
+            <template v-else>
+              <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+              <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+              <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+            </template>
+            <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
+          </VBtnGroup>
         </template>
-<template #item.action="{ item }">
-  <VBtnGroup density="comfortable" variant="tonal">
-    <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
-    <template v-else>
-      <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-      <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-file-edit-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
-      <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
-    </template>
-    <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
-  </VBtnGroup>
-</template>
       </VDataTable>
     </VCard>
 
@@ -500,7 +557,8 @@ onMounted(() => {
     <ApprovalFlowModal v-model="approvalDialog" :loading="approvalLoading" :cards="approvalCards" :can-approve="canApprove" @review="openReview" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" />
-    <GmoProcessModal v-model="processDialog" title="GMO Travel Order Processing" :status="selected?.status" :order="selected" :loading="processLoading" :processing="false" @cancel="processDialog = false" />
-<GmoBookingModal v-model="bookingDialog" title="GMO Travel Order Booking" :status="selected?.status" :order="selected" :loading="bookingLoading" :processing="false" @cancel="bookingDialog = false" />
+    <GmoProcessModal v-model="processDialog" :title="processMode === 'direct-payment' ? 'Review Travel Order' : 'Review Travel Order'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision" @continue="continueToBooking" @complete="handleCompleteGmo" />
+<GmoBookingModal v-model="bookingDialog" title="GMO Travel Order Booking" :status="selected?.status" :stage="bookingStage" :order="selected" :saved-booking="savedBooking" :loading="bookingLoading" :processing="bookingLoading" @cancel="bookingDialog = false" @back="backToReview" @submit-booking="handleSubmitBooking" />
+<GmoETicketModal v-model="eticketDialog" :order="selected" :loading="eticketLoading" :processing="eticketLoading" @cancel="eticketDialog = false" @back="backToBooking" @submit="handleSubmitETicket" />
   </div>
 </template>
