@@ -9,7 +9,7 @@ const props = defineProps({
   loading: Boolean, processing: Boolean,
 })
 
-const emit = defineEmits(['update:modelValue', 'cancel', 'reject', 'revision', 'continue', 'complete'])
+const emit = defineEmits(['update:modelValue', 'cancel', 'continue', 'complete'])
 
 const adjustTime = reactive({ departure_date: '', departure_time: '', return_date: '', return_time: '' })
 const agreed = ref(false)
@@ -62,11 +62,9 @@ watch(() => [props.modelValue, props.pdfUrl, props.mode], () => {
             </div>
           </VCardText>
           <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
-            <VBtn variant="flat" color="error" :disabled="processing" @click="emit('reject')">Reject</VBtn>
-            <VBtn variant="flat" color="warning" :disabled="processing" @click="emit('revision')">Revision</VBtn>
-            <VBtn v-if="isReview" variant="flat" color="success" :disabled="processing" @click="emit('continue')">Continue</VBtn>
-            <VBtn v-else variant="flat" color="success" :loading="processing" :disabled="processing" @click="emit('complete')">Complete GMO Processing</VBtn>
-          </VCardActions>
+  <VBtn v-if="isReview" variant="flat" color="success" :disabled="processing" @click="emit('continue')">Continue</VBtn>
+  <VBtn v-else variant="flat" color="success" :loading="processing" :disabled="processing" @click="emit('complete')">Complete GMO Processing</VBtn>
+</VCardActions>
         </template>
       </template>
 
@@ -91,12 +89,10 @@ watch(() => [props.modelValue, props.pdfUrl, props.mode], () => {
 
         <template v-if="status === 'awaiting_gmo_processing'">
           <VDivider />
-          <VCardActions class="px-6 py-3 justify-end ga-2">
-            <VBtn variant="flat" color="grey" :disabled="processing" @click="emit('cancel')">Cancel</VBtn>
-            <VBtn variant="flat" color="error" :disabled="processing" @click="emit('reject')">Reject</VBtn>
-            <VBtn variant="flat" color="warning" :disabled="processing" @click="emit('revision')">Request Revision</VBtn>
-            <VBtn variant="flat" color="success" :loading="processing" :disabled="processing" @click="emit('complete')">Complete GMO Processing</VBtn>
-          </VCardActions>
+          <VCardActions v-if="status === 'awaiting_gmo_processing'" class="px-6 py-3 justify-end ga-2">
+  <VBtn variant="flat" color="grey" :disabled="processing" @click="emit('cancel')">Cancel</VBtn>
+  <VBtn variant="flat" color="success" :loading="processing" :disabled="processing" @click="emit('complete')">Complete GMO Processing</VBtn>
+</VCardActions>
         </template>
       </template>
     </VCard>

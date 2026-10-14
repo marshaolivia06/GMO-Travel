@@ -13,7 +13,6 @@ import { getTravelOrders, getTravelOrder, getTravelOrderPdf, getTravelOrderHisto
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
-import GmoETicketModal from '../components/modal/GmoETicketModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,8 +43,6 @@ const approvalLoading = ref(false)
 const processDialog = ref(false)
 const processLoading = ref(false)
 const bookingDialog = ref(false)
-const eticketDialog = ref(false)
-const eticketLoading = ref(false)
 const bookingLoading = ref(false)
 const bookingStage = ref('booking')
 const savedBooking = ref(null)
@@ -129,9 +126,8 @@ function handleSubmitBooking(payload) {
   bookingLoading.value = true
   try {
     savedBooking.value = { ...payload.bookingItems, adjustTime: payload.adjustTime, stage: 'booking' }
-    bookingDialog.value = false
+    bookingStage.value = 'final-documents'
     showMessage('Booking information saved successfully.', 'success')
-    eticketDialog.value = true
   } catch (error) {
     console.error(error)
     showMessage('Failed to save booking information.', 'error')
@@ -139,19 +135,21 @@ function handleSubmitBooking(payload) {
     bookingLoading.value = false
   }
 }
-
+function handleCancelGmo(order) {
+  selected.value = order
+  openNote('cancelled')
+}
 function handleSubmitETicket(file) {
-  if (!selected.value?.id || !file || eticketLoading.value) return
-  eticketLoading.value = true
+  if (!selected.value?.id || !file || bookingLoading.value) return
+  bookingLoading.value = true
   try {
-    eticketDialog.value = false
-    savedBooking.value = null
+    bookingDialog.value = false
     showMessage('E-Ticket submitted successfully. FE simulation only.', 'success')
   } catch (error) {
     console.error('Submit E-Ticket error:', error)
     showMessage('Failed to submit E-Ticket.', 'error')
   } finally {
-    eticketLoading.value = false
+    bookingLoading.value = false
   }
 }
 
@@ -218,7 +216,6 @@ function selectRequest(type) {
 
 function backToRequest() { businessDialog.value = false; requestDialog.value = true }
 function backToBusiness() { dialog.value = false; dialogType.value = null; businessDialog.value = true }
-function backToBooking() { eticketDialog.value = false; bookingStage.value = 'booking'; bookingDialog.value = true }
 function selectBusinessType(type) { businessDialog.value = false; dialogType.value = type; dialog.value = true }
 function closeDialog() { dialog.value = false; dialogType.value = null }
 
@@ -272,23 +269,39 @@ async function openApproval(row) {
 
 async function openProcess(row) {
   selected.value = row.raw
-  savedBooking.value = null
-  bookingStage.value = 'booking'
   processLoading.value = true
   try {
     await refreshDetail(row.id)
-    const order = selected.value
-    const arrangement = order?.ferry_arrangement ?? order?.ticket_arrangement
-    const isDirectPayment = arrangement === 'Direct Payment' && order?.accommodation_arrangement === 'Direct Payment'
-    processMode.value = order?.status === 'awaiting_gmo_processing' && isDirectPayment ? 'direct-payment' : 'review'
-    await loadPdf(row.id)
-    processDialog.value = true
+    const status = selected.value?.status
+    if (status === 'awaiting_gmo_processing') {
+      processMode.value = 'direct-payment'
+      processDialog.value = true
+      await loadPdf(row.id)
+    } else if (status === 'awaiting_gmo_booking_document_issuance') {
+      savedBooking.value = null
+      bookingStage.value = 'booking'
+      bookingDialog.value = true
+    }
+  } catch (error) {
+    console.error('Open GMO process error:', error)
+    showMessage('Failed to open GMO process.', 'error')
   } finally {
     processLoading.value = false
   }
 }
 
 function continueToBooking() { bookingStage.value = 'booking'; processDialog.value = false; bookingDialog.value = true }
+async function handleGmoCancelSubmit() {
+  if (!selected.value?.id || !gmoCancelRemark.value.trim() || gmoCancelSubmitting.value) return
+
+  const ok = await confirm({
+    title: 'Cancel Travel Order',
+    message: `Are you sure you want to cancel ${selected.value.order_number}?`,
+  })
+  if (!ok) return
+
+  showMessage('Cancellation service has not been connected yet.', 'info')
+}
 
 async function openHistory(row) {
   selected.value = row.raw
@@ -335,15 +348,19 @@ async function handleApprove() {
 
 const noteMeta = {
   reject: {
-    title: 'Reject Travel Order', label: 'Reason for rejection', button: 'Reject', color: 'error',
-    message: 'Travel order has been rejected.', type: 'success',
-    confirmTitle: 'Reject Travel Order',
+    action: 'reject', title: 'Reject Travel Order', label: 'Reason for rejection', button: 'Reject', color: 'error',
+    message: 'Travel order has been rejected.', type: 'success', confirmTitle: 'Reject Travel Order',
     confirmMessage: order => `Are you sure you want to reject ${order}?`,
   },
   revision: {
-    title: 'Return for Revision', label: 'What needs to be revised', button: 'Revision', color: 'warning',
-    message: 'Travel order has been returned for revision.', type: 'warning',
-    confirmTitle: 'Return for Revision', confirmMessage: order => `Are you sure you want to return ${order} for revision?`,
+    action: 'revision', title: 'Return for Revision', label: 'What needs to be revised', button: 'Revision', color: 'warning',
+    message: 'Travel order has been returned for revision.', type: 'warning', confirmTitle: 'Return for Revision',
+    confirmMessage: order => `Are you sure you want to return ${order} for revision?`,
+  },
+  cancelled: {
+    action: 'cancelled', title: 'Cancel Travel Order', label: 'Reason for cancellation', button: 'Cancelled', color: 'error',
+    message: 'Travel order has been cancelled.', type: 'success', confirmTitle: 'Cancel Travel Order',
+    confirmMessage: order => `Are you sure you want to cancel ${order}?`,
   },
 }
 
@@ -366,21 +383,42 @@ function backToReview() {
 }
 async function handleNoteSubmit(text) {
   if (approving.value) return
+
   const meta = currentNoteMeta.value
-  const ok = await confirm({ title: meta.confirmTitle, message: meta.confirmMessage(selected.value?.order_number) })
+  const ok = await confirm({
+    title: meta.confirmTitle,
+    message: meta.confirmMessage(selected.value?.order_number),
+  })
+
   if (!ok) return
 
   approving.value = true
+
   try {
-    const call = noteAction.value === 'reject' ? rejectTravelOrder : revisionTravelOrder
+    if (noteAction.value === 'cancelled') {
+      showMessage('Service pembatalan belum tersedia.', 'error')
+      return
+    }
+
+    const call = noteAction.value === 'reject'
+      ? rejectTravelOrder
+      : revisionTravelOrder
+
     await call(selected.value.id, text)
+
     noteDialog.value = false
     detailDialog.value = false
     approvalDialog.value = false
+
     await loadOrders()
     showMessage(meta.message, meta.type)
   } catch (error) {
-    showMessage(error?.response?.data?.errors?.remark?.[0] || error?.response?.data?.message || 'Failed to process travel order.', 'error')
+    showMessage(
+      error?.response?.data?.errors?.remark?.[0] ||
+      error?.response?.data?.message ||
+      'Failed to process travel order.',
+      'error',
+    )
   } finally {
     approving.value = false
   }
@@ -541,10 +579,11 @@ onMounted(() => {
             <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
             <template v-else>
               <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-              <VBtn v-if="isAdminGmo" color="success" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+<VBtn v-if="isAdminGmo" color="success" :loading="processLoading" :disabled="processLoading" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
               <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
             </template>
             <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
+            <VBtn v-if="isAdminGmo" color="error" @click="handleCancelGmo(item.raw)"><VIcon icon="ri-close-circle-line" /><VTooltip activator="parent" location="top">Cancelled</VTooltip></VBtn>
           </VBtnGroup>
         </template>
       </VDataTable>
@@ -558,7 +597,6 @@ onMounted(() => {
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" />
     <GmoProcessModal v-model="processDialog" :title="processMode === 'direct-payment' ? 'Review Travel Order' : 'Review Travel Order'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision" @continue="continueToBooking" @complete="handleCompleteGmo" />
-<GmoBookingModal v-model="bookingDialog" title="GMO Travel Order Booking" :status="selected?.status" :stage="bookingStage" :order="selected" :saved-booking="savedBooking" :loading="bookingLoading" :processing="bookingLoading" @cancel="bookingDialog = false" @back="backToReview" @submit-booking="handleSubmitBooking" />
-<GmoETicketModal v-model="eticketDialog" :order="selected" :loading="eticketLoading" :processing="eticketLoading" @cancel="eticketDialog = false" @back="backToBooking" @submit="handleSubmitETicket" />
+<GmoBookingModal v-model="bookingDialog" title="Booked by Company" :status="selected?.status" :stage="bookingStage" :order="selected" :saved-booking="savedBooking" :loading="bookingLoading" :processing="bookingLoading" @cancel="bookingDialog = false" @submit-booking="handleSubmitBooking" @submit-eticket="handleSubmitETicket" />
   </div>
 </template>
