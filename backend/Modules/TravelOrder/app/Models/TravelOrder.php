@@ -33,11 +33,12 @@ class TravelOrder extends Model
         'remarks',
         'travel_region',
         'country',
-        'ferry_ticket_type',
-        'ferry_arrangement',
+        'ticket_type',
+        'ticket_arrangement',
         'accommodation_arrangement',
         'created_by',
-        'approval_remark',
+        'cancellation_remark',
+        'cancellation_evidence',
     ];
 
     protected $casts = [
@@ -65,6 +66,10 @@ class TravelOrder extends Model
         return $this->hasOne(TravelOrderAdvance::class);
     }
 
+    public function booking(): HasOne
+    {
+    return $this->hasOne(TravelOrderBooking::class, 'travel_order_id');
+    }
     public function approvals(): HasMany
     {
     return $this->hasMany(TravelOrderApproval::class)->orderBy('sequence');

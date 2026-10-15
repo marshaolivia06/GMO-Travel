@@ -14,8 +14,6 @@ return new class extends Migration
             $table->string('trip_type')->default('individual');
             $table->string('status')->default('submitted');
 
-            // Employee information
-            // User information
             $table->foreignId('user_id')->constrained('users');
             $table->foreignId('department_id')->constrained('departments');
 

@@ -30,8 +30,8 @@ const toPayload = form => {
     travel_region: form.travelRegion,
     country: form.country,
 
-    ferry_ticket_type: form.ferryTicketType,
-    ferry_arrangement: form.ferryArrangement,
+    ticket_type: form.ferryTicketType,
+    ticket_arrangement: form.ferryArrangement,
     accommodation_arrangement: form.accommodationArrangement,
 
     meal_allowance: hasAdvance
@@ -71,26 +71,62 @@ export const getTravelOrders = params =>
           http
             .get(`${BASE}/${id}/history`)
             .then(res => res.data)
+        
+            export const saveTravelOrderBooking = (id, form) => {
+              const payload = new FormData()
             
-        export const getDepartmentLock = () =>
-          http
-          .get(`${BASE}/department-lock`)
-          .then(res => res.data)
+              Object.entries(form).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                  payload.append(key, value)
+                }
+              })
+            
+              return http
+                .post(`${BASE}/${id}/booking`, payload)
+                .then(res => res.data)
+            }
+            
+            export const uploadTravelOrderETicket = (id, files) => {
+              const payload = new FormData()
+            
+              if (files?.eTicket) payload.append('e_ticket', files.eTicket)
+              if (files?.hotelReservation) payload.append('hotel_reservation', files.hotelReservation)
+            
+              return http
+                .post(`${BASE}/${id}/e-ticket`, payload)
+                .then(res => res.data)
+            }
+            
+            export const completeGmoProcessing = id =>
+              http
+                .post(`${BASE}/${id}/complete-gmo-processing`)
+                .then(res => res.data)
 
-    export const approveTravelOrder = id =>
-      http
-        .post(`${BASE}/${id}/approve`)
-        .then(res => res.data)
+             export const getDepartmentLock = () =>
+              http
+                .get(`${BASE}/department-lock`)
+                .then(res => res.data)
+
+              export const approveTravelOrder = id =>
+              http
+                .post(`${BASE}/${id}/approve`)
+                .then(res => res.data)
     
     export const rejectTravelOrder = (id, remark) =>
       http
         .post(`${BASE}/${id}/reject`, { remark })
         .then(res => res.data)
     
-    export const cancelTravelOrder = id =>
-      http
-        .post(`${BASE}/${id}/cancel`)
-        .then(res => res.data)
+        
+export const cancelTravelOrder = (id, remark, evidence) => {
+  const formData = new FormData()
+
+  formData.append('remark', remark)
+  formData.append('evidence', evidence)
+
+  return http.post(`${BASE}/${id}/cancel`, formData)
+    .then(res => res.data)
+}
     
     export const revisionTravelOrder = (id, remark) =>
       http

@@ -1,6 +1,7 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
+const isProcessed = computed(() => props.status === 'processed_by_gmo')
 const props = defineProps({
   modelValue: Boolean, title: String, status: String,
   mode: { type: String, default: 'processing' },
@@ -11,88 +12,70 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'cancel', 'continue', 'complete'])
 
-const adjustTime = reactive({ departure_date: '', departure_time: '', return_date: '', return_time: '' })
 const agreed = ref(false)
 const pdfReady = ref(false)
 const isDirectPayment = computed(() => props.mode === 'direct-payment')
 const isReview = computed(() => props.mode === 'review')
+const isCompleted = computed(() => props.status === 'processed_by_gmo')
 
-function normalizeTime(value) {
-  if (!value) return ''
-  const match = String(value).match(/^(\d{2}):(\d{2})/)
-  return match ? `${match[1]}:${match[2]}` : ''
-}
-
-watch(() => props.order, order => {
-  if (!order) return
-  adjustTime.departure_date = order.departure_date?.slice(0, 10) || ''
-  adjustTime.departure_time = normalizeTime(order.departure_time)
-  adjustTime.return_date = order.return_date?.slice(0, 10) || ''
-  adjustTime.return_time = normalizeTime(order.return_time)
-}, { immediate: true })
-
-watch(() => [props.modelValue, props.pdfUrl, props.mode], () => {
-  agreed.value = false
+watch(() => [props.modelValue, props.pdfUrl, props.mode, props.status], () => {
+  agreed.value = isProcessed.value
   pdfReady.value = false
 })
 </script>
 
 <template>
-  <VDialog :model-value="modelValue" max-width="1100" scrollable @update:model-value="emit('update:modelValue', $event)">
+ <VDialog :model-value="modelValue" :max-width="isDirectPayment ? 450 : 1100" scrollable @update:model-value="emit('update:modelValue', $event)">
     <VCard rounded="lg">
       <VCardItem class="px-4 py-2">
         <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">{{ title }}</VCardTitle>
-        <template #append><VBtn icon="ri-close-line" size="small" variant="text" :disabled="processing" @click="emit('cancel')" /></template>
+        <template #append>
+          <VBtn icon="ri-close-line" size="small" variant="text" :disabled="processing" @click="emit('cancel')" />
+        </template>
       </VCardItem>
       <VDivider />
 
-      <template v-if="isDirectPayment || isReview">
+<template v-if="isDirectPayment">
+  <VCardText class="px-6 pt-5 pb-4">
+    <div class="text-body-2 text-medium-emphasis mb-5" style="line-height: 1.7">
+      This trip uses Direct Payment and is not covered by company payment through GMO.
+    </div>
+
+    <label class="d-flex align-start ga-3 pa-3 rounded-lg border text-body-2" style="cursor: pointer; line-height: 1.6">
+      <input v-model="agreed" type="checkbox" class="mt-1 flex-shrink-0" :disabled="processing || isProcessed" />
+      <span>I confirm that all required GMO processing is complete.</span>
+    </label>
+  </VCardText>
+
+  <VDivider />
+
+  <VCardActions class="px-6 py-4 justify-end ga-2">
+    <VBtn variant="text" color="medium-emphasis" :disabled="processing" @click="emit('cancel')">
+      Cancel
+    </VBtn>
+    <VBtn v-if="agreed && !isProcessed" variant="flat" color="success" rounded="lg" :loading="processing" :disabled="processing" @click="emit('complete')">
+  Complete GMO Processing
+</VBtn>
+  </VCardActions>
+</template>
+
+      <template v-else-if="isReview">
         <VCardText class="bg-grey-lighten-3 pa-0">
           <VProgressLinear v-if="loading || (pdfUrl && !pdfReady)" indeterminate />
           <iframe v-if="pdfUrl" :key="pdfUrl" :src="pdfUrl" title="Travel Order PDF" height="750" class="d-block w-100 border-0" @load="pdfReady = true"></iframe>
           <div v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
         </VCardText>
-
-        <template v-if="pdfUrl && pdfReady && !loading">
+        <template v-if="pdfUrl && pdfReady && !loading && !isCompleted">
           <VDivider />
           <VCardText class="px-8 py-5">
             <div class="d-flex align-start ga-3">
-              <input v-model="agreed" type="checkbox" class="mt-1 flex-shrink-0">
+              <input v-model="agreed" type="checkbox" class="mt-1 flex-shrink-0" />
               <div class="text-body-2">I confirm that I have reviewed the Travel Order document.</div>
             </div>
           </VCardText>
           <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
-  <VBtn v-if="isReview" variant="flat" color="success" :disabled="processing" @click="emit('continue')">Continue</VBtn>
-  <VBtn v-else variant="flat" color="success" :loading="processing" :disabled="processing" @click="emit('complete')">Complete GMO Processing</VBtn>
-</VCardActions>
-        </template>
-      </template>
-
-      <template v-else>
-        <VProgressLinear v-if="loading" indeterminate />
-        <VCardText v-if="order" class="bg-grey-lighten-5 pa-5">
-          <VCard rounded="lg" elevation="1">
-            <div class="bg-grey-lighten-4 border-b px-4 py-3 d-flex align-center justify-space-between">
-              <div class="text-subtitle-2 font-weight-bold">Adjust Time (Departure and Return)</div>
-              <span class="text-caption text-medium-emphasis">Editable by GMO</span>
-            </div>
-            <VDivider />
-            <VCardText class="pa-4">
-              <VRow dense>
-                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Departure</div><div class="d-flex ga-3"><VTextField v-model="adjustTime.departure_date" type="date" density="comfortable" hide-details /><VTextField v-model="adjustTime.departure_time" type="time" density="comfortable" hide-details /></div></VCol>
-                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Return</div><div class="d-flex ga-3"><VTextField v-model="adjustTime.return_date" type="date" density="comfortable" hide-details /><VTextField v-model="adjustTime.return_time" type="time" density="comfortable" hide-details /></div></VCol>
-              </VRow>
-            </VCardText>
-          </VCard>
-        </VCardText>
-        <VCardText v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">Data is not available.</VCardText>
-
-        <template v-if="status === 'awaiting_gmo_processing'">
-          <VDivider />
-          <VCardActions v-if="status === 'awaiting_gmo_processing'" class="px-6 py-3 justify-end ga-2">
-  <VBtn variant="flat" color="grey" :disabled="processing" @click="emit('cancel')">Cancel</VBtn>
-  <VBtn variant="flat" color="success" :loading="processing" :disabled="processing" @click="emit('complete')">Complete GMO Processing</VBtn>
-</VCardActions>
+            <VBtn variant="flat" color="success" :disabled="processing" @click="emit('continue')">Continue</VBtn>
+          </VCardActions>
         </template>
       </template>
     </VCard>

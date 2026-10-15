@@ -25,10 +25,10 @@
     ];
 
     $ticket = [
-        [['Ticket Type', $val($order->ferry_ticket_type)], ['Ticket Arrangement', $val($order->ferry_arrangement)]],
-        [['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)], ['Accommodation', $val($order->accommodation_arrangement)]],
-        [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
-    ];
+    [['Ticket Type', $val($order->ticket_type)], ['Ticket Arrangement', $val($order->ticket_arrangement)]],
+    [['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)], ['Accommodation', $val($order->accommodation_arrangement)]],
+    [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
+];
 @endphp
 
 <!DOCTYPE html>

@@ -107,6 +107,16 @@ private function logActivity(TravelOrder $order, ?User $causer, string $event, s
         ->log($description);
 }
 
+public function logGmoActivity(
+    TravelOrder $order,
+    User $user,
+    string $event,
+    string $description,
+    array $props = []
+): void {
+    $this->logActivity($order, $user, $event, $description, $props);
+}
+
 public function notifyCurrentApprovers(TravelOrder $order): void
 {
     $stage = $this->currentStage($order);
@@ -202,25 +212,25 @@ public function notifyCurrentApprovers(TravelOrder $order): void
             ]);
 
             
-if (!$hasNext) {
-    $ferry = $order->ferry_arrangement;
-    $accommodation = $order->accommodation_arrangement;
-
-    if (
-        $ferry === 'Direct Payment' &&
-        $accommodation === 'Direct Payment'
-    ) {
-        $nextStatus = 'awaiting_gmo_processing';
-    } else {
-        $nextStatus = 'awaiting_gmo_booking_document_issuance';
-    }
-
-    $order->update([
-        'status' => $nextStatus,
-    ]);
-
-    return;
-}
+            if (!$hasNext) {
+                $ticket = $order->ticket_arrangement;
+                $accommodation = $order->accommodation_arrangement;
+            
+                if (
+                    $ticket === 'Direct Payment' &&
+                    in_array($accommodation, ['Direct Payment', 'Not Required'], true)
+                ) {
+                    $nextStatus = 'awaiting_gmo_processing';
+                } else {
+                    $nextStatus = 'awaiting_gmo_booking_document_issuance';
+                }
+            
+                $order->update([
+                    'status' => $nextStatus,
+                ]);
+            
+                return;
+            }
 
             DB::afterCommit(fn() => $this->notifyCurrentApprovers($order));
         });
@@ -331,6 +341,7 @@ if (!$hasNext) {
                     'role' => $role,
                     'note' => $log->properties->get('note'),
                     'remark' => $log->properties->get('remark'),
+                    'evidence' => $log->properties->get('evidence'),
                     'final' => $log->properties->get('final'),
                     'causer' => $user?->name,
                     'created_at' => $log->created_at,

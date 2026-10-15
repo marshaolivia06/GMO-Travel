@@ -85,8 +85,8 @@ function fillInitialData(order) {
     purpose: order.purpose || '', remarks: order.remarks || '', travelRegion: order.travel_region || '',
     country: order.country || '', customCountry: '', pocketMoney: advance.pocket_money ?? order.pocket_money ?? '',
     mealAllowance: advance.meal_allowance ?? order.meal_allowance ?? '',
-    ferryTicketType: ticket.ticket_type || order.ferry_ticket_type || '',
-    ferryArrangement: ticket.arrangement || order.ferry_arrangement || '',
+    ferryTicketType: ticket.ticket_type || order.ticket_type || '',
+    ferryArrangement: ticket.arrangement || order.ticket_arrangement || '',
     accommodationArrangement: accommodation.arrangement || order.accommodation_arrangement || '',
   })
 

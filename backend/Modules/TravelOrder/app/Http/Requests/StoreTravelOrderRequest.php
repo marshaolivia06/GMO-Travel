@@ -122,24 +122,23 @@ class StoreTravelOrderRequest extends FormRequest
     'max:255',
 ],
 
+'ticket_type' => [
+    'required_if:status,submitted',
+    'nullable',
+    Rule::in([
+        'Ferry',
+        'Airplane',
+    ]),
+],
 
-            'ferry_ticket_type' => [
-                'required_if:status,submitted',
-                'nullable',
-                Rule::in([
-                    'Ferry',
-                    'Airplane',
-                ]),
-            ],
-
-            'ferry_arrangement' => [
-                'required_if:status,submitted',
-                'nullable',
-                Rule::in([
-                    'Direct Payment',
-                    'Booked by Company',
-                ]),
-            ],
+'ticket_arrangement' => [
+    'required_if:status,submitted',
+    'nullable',
+    Rule::in([
+        'Direct Payment',
+        'Booked by Company',
+    ]),
+],
 
             'accommodation_arrangement' => [
                 'required_if:status,submitted',

@@ -13,6 +13,8 @@ use Modules\TravelOrder\Models\TravelOrder;
 use Modules\TravelOrder\Repositories\TravelOrderAdvanceRepository;
 use Modules\TravelOrder\Repositories\TravelOrderRepository;
 use Modules\UserManagement\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class TravelOrderService
 {
@@ -42,7 +44,7 @@ class TravelOrderService
                 'awaiting_gmo_booking_document_issuance',
                 'processed_by_gmo',
             ];
-        } elseif ($isDeptHead) {
+        }elseif ($isDeptHead) {
             $department = Department::where('dept_head_id', $user->id)->first();
 
             if ($department) {
@@ -104,6 +106,7 @@ public function find(int $id, ?User $user = null): TravelOrder
         'approvals.role',
         'approvals.user',
         'department.divisionHead',
+        'booking',
     ]);
 
     $order->setAttribute(
@@ -359,4 +362,69 @@ public function getDepartmentLockInfo(User $user): array
 
         return $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
+public function cancel(
+    int $id,
+    User $user,
+    string $remark,
+    UploadedFile $evidence
+): TravelOrder {
+    $travelOrder = $this->repository->findById($id);
+    $remark = trim($remark);
+
+    abort_unless(
+        $user->hasRole('Admin-GMO'),
+        403,
+        'You are not authorized to cancel this Travel Order.'
+    );
+
+    abort_unless(
+        in_array($travelOrder->status, [
+            'awaiting_gmo_processing',
+            'awaiting_gmo_booking_document_issuance',
+        ], true),
+        422,
+        'The Travel Order cannot be cancelled in its current status.'
+    );
+
+    abort_if($remark === '', 422, 'Cancellation remark is required.');
+
+    $evidencePath = $evidence->store(
+        'travel-order/cancellation-evidence',
+        'public'
+    );
+
+    try {
+        DB::transaction(function () use (
+            $travelOrder,
+            $user,
+            $remark,
+            $evidencePath
+        ) {
+            $travelOrder->update([
+                'status' => 'draft',
+                'cancellation_remark' => $remark,
+                'cancellation_evidence' => $evidencePath,
+            ]);
+
+$this->approvalService->logGmoActivity(
+    $travelOrder,
+    $user,
+    'cancelled',
+    'Travel Order cancelled: ' . $remark,
+    [
+        'role' => 'Admin-GMO',
+        'remark' => $remark,
+        'evidence' => $evidencePath,
+    ]
+);
+
+        });
+    } catch (\Throwable $e) {
+        Storage::disk('public')->delete($evidencePath);
+
+        throw $e;
+    }
+
+    return $this->find($id, $user);
+}
 }
