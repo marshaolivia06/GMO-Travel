@@ -10,7 +10,7 @@ const props = defineProps({
   loading: Boolean, processing: Boolean,
 })
 
-const emit = defineEmits(['update:modelValue', 'cancel', 'continue', 'complete'])
+const emit = defineEmits(['update:modelValue', 'cancel', 'continue', 'complete', 'revision'])
 
 const agreed = ref(false)
 const pdfReady = ref(false)
@@ -48,15 +48,12 @@ watch(() => [props.modelValue, props.pdfUrl, props.mode, props.status], () => {
   </VCardText>
 
   <VDivider />
-
   <VCardActions class="px-6 py-4 justify-end ga-2">
-    <VBtn variant="text" color="medium-emphasis" :disabled="processing" @click="emit('cancel')">
-      Cancel
-    </VBtn>
-    <VBtn v-if="agreed && !isProcessed" variant="flat" color="success" rounded="lg" :loading="processing" :disabled="processing" @click="emit('complete')">
-  Complete GMO Processing
-</VBtn>
-  </VCardActions>
+  <VBtn v-if="!isCompleted" color="warning" variant="flat" :disabled="processing" @click="emit('revision')"> Revision</VBtn>
+  <VBtn v-if="agreed && !isProcessed" color="success" variant="flat" rounded="lg" :loading="processing" :disabled="processing" @click="emit('complete')">
+    Complete GMO Processing
+  </VBtn>
+</VCardActions>
 </template>
 
       <template v-else-if="isReview">

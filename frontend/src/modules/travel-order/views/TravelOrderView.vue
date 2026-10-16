@@ -49,6 +49,7 @@ const bookingStage = ref('booking')
 const savedBooking = ref(null)
 const noteDialog = ref(false)
 const noteAction = ref('reject')
+const noteSource = ref('approval')
 const historyDialog = ref(false)
 const historyLoading = ref(false)
 const historyLogs = ref([])
@@ -88,7 +89,7 @@ const headers = computed(() => [
   col('REQUEST TYPE', 'type', { align: 'center' }),
   col('SUBJECT', 'subject'),
   col('PERIOD', 'period', { align: 'center' }),
-  col('ARRANGEMENT', 'arrangement'),
+  col('ARRANGEMENT', 'arrangement', { align: 'center' }),
 ])
 
 const requestTypes = [
@@ -195,7 +196,7 @@ async function handleSubmitBooking(payload) {
 
 function handleCancelGmo(order) {
   selected.value = order
-  openNote('cancelled')
+  openNote('cancelled', 'gmo')
 }
 
 async function handleSubmitETicket(payload) {
@@ -468,41 +469,40 @@ async function handleApprove() {
     approving.value = false
   }
 }
+const noteReturnTo = ref('process')
+
+function handleGmoRevision(from = 'process') {
+  noteReturnTo.value = from
+  processDialog.value = false
+  bookingDialog.value = false
+  openNote('revision', 'gmo')
+}
 
 const noteMeta = {
-  reject: {
-    action: 'reject', title: 'Reject Travel Order', label: 'Reason for rejection', button: 'Reject', color: 'error',
-    message: 'Travel order has been rejected.', type: 'success', confirmTitle: 'Reject Travel Order',
-    confirmMessage: order => `Are you sure you want to reject ${order}?`,
-  },
-  revision: {
-    action: 'revision', title: 'Return for Revision', label: 'What needs to be revised', button: 'Revision', color: 'warning',
-    message: 'Travel order has been returned for revision.', type: 'warning', confirmTitle: 'Return for Revision',
-    confirmMessage: order => `Are you sure you want to return ${order} for revision?`,
-  },
-  cancelled: {
-    action: 'cancelled', title: 'Cancel Travel Order', label: 'Reason for cancellation', button: 'Cancelled', color: 'error',
-    message: 'Travel order has been cancelled.', type: 'success', confirmTitle: 'Cancel Travel Order',
-    confirmMessage: order => `Are you sure you want to cancel ${order}?`,
-  },
+  reject: { action: 'reject', title: 'Reject Travel Order', label: 'Reason for rejection', button: 'Reject', color: 'error', message: 'Travel order has been rejected.', type: 'success', confirmTitle: 'Reject Travel Order', confirmMessage: order => `Are you sure you want to reject ${order}?`, requireEvidence: false },
+  revision: { action: 'revision', title: 'Return for Revision', label: 'What needs to be revised', button: 'Revision', color: 'warning', message: 'Travel order has been returned for revision.', type: 'warning', confirmTitle: 'Return for Revision', confirmMessage: order => `Are you sure you want to return ${order} for revision?`, requireEvidence: false },
+  cancelled: { action: 'cancelled', title: 'Cancel Travel Order', label: 'Reason for cancellation', button: 'Cancel', color: 'error', message: 'Travel order has been cancelled.', type: 'success', confirmTitle: 'Cancel Travel Order', confirmMessage: order => `Are you sure you want to cancel ${order}?`, requireEvidence: true },
 }
 
-const currentNoteMeta = computed(() => noteMeta[noteAction.value])
+const currentNoteMeta = computed(() => {
+  const meta = noteMeta[noteAction.value] || noteMeta.reject
+  return {...meta, source: noteSource.value, ...(noteSource.value === 'gmo' && noteAction.value === 'revision'
+      ? { title: 'Return Travel Order for Revision', label: 'Reason for revision', requireEvidence: true }
+      : {}),
+  }
+})
 
-function openNote(action) {
-  noteAction.value = action
-  noteDialog.value = true
-}
-
+function openNote(action, source = 'approval') { noteAction.value = action; noteSource.value = source; noteDialog.value = true }
 const handleReject = () => openNote('reject')
 const handleRevision = () => openNote('revision')
-const handleGmoReject = () => openNote('reject')
-const handleGmoRevision = () => openNote('revision')
+function backToGmoModal() {
+  noteDialog.value = false
 
-function backToReview() {
-  bookingDialog.value = false
-  processMode.value = 'review'
-  processDialog.value = true
+  if (noteReturnTo.value === 'booking') {
+    bookingDialog.value = true
+  } else {
+    processDialog.value = true
+  }
 }
 
 async function handleNoteSubmit({ text, evidence }) {
@@ -519,13 +519,15 @@ async function handleNoteSubmit({ text, evidence }) {
   approving.value = true
 
   try {
-    if (noteAction.value === 'cancelled') {
-      await cancelTravelOrder(selected.value.id, text, evidence)
-    } else if (noteAction.value === 'reject') {
-      await rejectTravelOrder(selected.value.id, text)
-    } else {
-      await revisionTravelOrder(selected.value.id, text)
-    }
+if (noteAction.value === 'cancelled') {
+  await cancelTravelOrder(selected.value.id, text, evidence)
+} else if (noteAction.value === 'reject') {
+  await rejectTravelOrder(selected.value.id, text)
+} else if (noteSource.value === 'gmo' && noteAction.value === 'revision') {
+  await revisionTravelOrder(selected.value.id, text, evidence)
+} else {
+  await revisionTravelOrder(selected.value.id, text)
+}
 
     noteDialog.value = false
     detailDialog.value = false
@@ -712,7 +714,7 @@ onMounted(() => {
       <VCardText class="px-6 py-4">
         <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
         <div class="d-flex align-center justify-space-between ga-4">
-          <VBtn color="primary" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
+          <VBtn color="success" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
           <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable style="max-width: 200px" />
         </div>
       </VCardText>
@@ -723,21 +725,21 @@ onMounted(() => {
         <template #item.type="{ item }"><VChip size="small" variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip></template>
         <template #item.subject="{ item }"><div class="font-weight-bold text-body-2">{{ item.subject }}</div><div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div></template>
         <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.period }}</span></template>
-        <template #item.arrangement="{ item }"><span class="text-body-2 text-no-wrap">{{ item.arrangement }}</span></template>
+        <template #item.arrangement="{ item }"><span class="text-body-2 text-no-wrap d-block text-center">{{ item.arrangement }}</span></template>
         <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip></template>
-        <template #item.action="{ item }">
-<VBtnGroup density="comfortable" variant="tonal">
-  <VBtn v-if="item.raw.status === 'draft'" color="success" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
-  <template v-else>
-<VBtn v-if="item.raw.status === 'processed_by_gmo' && (item.raw.ticket_arrangement === 'Booked by Company' || item.raw.accommodation_arrangement === 'Booked by Company')" color="warning" @click="openAttachments(item)"><VIcon icon="ri-attachment-2" /><VTooltip activator="parent" location="top">View Attachments</VTooltip></VBtn>
-    <VBtn color="info" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
-    <VBtn v-if="isAdminGmo" color="success" :loading="processLoading" :disabled="processLoading" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
-    <VBtn v-else color="success" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
-  </template>
-  <VBtn color="secondary" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
-  <VBtn v-if="isAdminGmo && ['awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance'].includes(item.raw.status)" color="error" @click="handleCancelGmo(item.raw)"><VIcon icon="ri-close-circle-line" /><VTooltip activator="parent" location="top">Cancel</VTooltip></VBtn>
-</VBtnGroup>
-        </template>
+<template #item.action="{ item }">
+  <VBtnGroup density="comfortable" variant="tonal">
+    <VBtn v-if="item.raw.status === 'draft'" color="green-darken-1" :loading="draftLoading" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
+    <template v-else>
+      <VBtn v-if="item.raw.status === 'processed_by_gmo' && (item.raw.ticket_arrangement === 'Booked by Company' || item.raw.accommodation_arrangement === 'Booked by Company')" color="deep-purple-darken-1" @click="openAttachments(item)"><VIcon icon="ri-attachment-2" /><VTooltip activator="parent" location="top">View Attachments</VTooltip></VBtn>
+      <VBtn color="blue-darken-1" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+      <VBtn v-if="isAdminGmo" color="teal-darken-1" :loading="processLoading" :disabled="processLoading" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+      <VBtn v-else color="green-darken-1" @click="openApproval(item)"><VIcon icon="ri-check-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+    </template>
+    <VBtn color="blue-grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
+    <VBtn v-if="isAdminGmo && ['awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance'].includes(item.raw.status)" color="red-darken-1" @click="handleCancelGmo(item.raw)"><VIcon icon="ri-close-circle-line" /><VTooltip activator="parent" location="top">Cancel</VTooltip></VBtn>
+  </VBtnGroup>
+</template>
       </VDataTable>
     </VCard>
 
@@ -747,13 +749,9 @@ onMounted(() => {
     <PdfViewerModal v-model="detailDialog" :title="detailMode === 'review' ? 'Review Travel Order' : 'Travel Order Detail'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="canDecide" :approving="approving" @back="backToApproval" @reject="handleReject" @revision="handleRevision" @approve="handleApprove" />
     <ApprovalFlowModal v-model="approvalDialog" :loading="approvalLoading" :cards="approvalCards" :can-approve="canApprove" @review="openReview" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
-    <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" />
-    <GmoProcessModal v-model="processDialog" :title="processMode === 'direct-payment' ? 'Confirm Direct Payment' : 'Review Travel Order'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision" @continue="continueToBooking" @complete="handleCompleteGmo" />
-<GmoBookingModal v-model="bookingDialog" title="Booked by Company" :status="selected?.status" :stage="bookingStage" :order="selected" :saved-booking="savedBooking" :loading="bookingLoading" :processing="bookingLoading" @cancel="bookingDialog = false" @submit-booking="handleSubmitBooking" @submit-eticket="handleSubmitETicket" />
-<GmoAttachmentsModal
-  v-model="attachmentsDialog"
-  :booking="attachmentsBooking"
-  :loading="attachmentsLoading"
-/>
+    <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" @back="backToGmoModal" />
+    <GmoProcessModal v-model="processDialog" :title="processMode === 'direct-payment' ? 'Direct Payment' : 'Review Travel Order'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision('process')" @continue="continueToBooking" @complete="handleCompleteGmo" />
+<GmoBookingModal v-model="bookingDialog" title="Booked by Company" :status="selected?.status" :stage="bookingStage" :order="selected" :saved-booking="savedBooking" :loading="bookingLoading" :processing="bookingLoading" @cancel="bookingDialog = false" @submit-booking="handleSubmitBooking" @submit-eticket="handleSubmitETicket" @revision="handleGmoRevision('booking')"/>
+<GmoAttachmentsModal v-model="attachmentsDialog" :booking="attachmentsBooking" :loading="attachmentsLoading"/>
   </div>
 </template>

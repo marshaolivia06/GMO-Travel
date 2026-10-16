@@ -37,8 +37,8 @@ class TravelOrder extends Model
         'ticket_arrangement',
         'accommodation_arrangement',
         'created_by',
-        'cancellation_remark',
-        'cancellation_evidence',
+        'gmo_remark',
+        'gmo_evidence',
     ];
 
     protected $casts = [

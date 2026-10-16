@@ -2,18 +2,28 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>E-Ticket Available</title>
+    <title>Travel Booking Confirmation</title>
 </head>
 <body style="margin: 0; padding: 24px; font-family: Arial, sans-serif; color: #333;">
     <div style="max-width: 600px; margin: 0 auto;">
-        <h2 style="margin-bottom: 8px;">TRAVEL ORDER E-TICKET AVAILABLE</h2>
+        <h2 style="margin-bottom: 8px;">TRAVEL BOOKING COMPLETED</h2>
 
         <p>Hello {{ $order->user->name ?? 'Employee' }},</p>
 
         <p>
-            The GMO team has completed the travel booking process.
-            Your final E-Ticket is now available.
+            The GMO team has completed the travel booking process for your
+            Travel Order. The following travel documents are now available:
         </p>
+
+        <ul>
+            @if ($order->ticket_arrangement === 'Booked by Company')
+                <li>Final E-Ticket</li>
+            @endif
+
+            @if ($order->accommodation_arrangement === 'Booked by Company')
+                <li>Final Hotel Reservation</li>
+            @endif
+        </ul>
 
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
             <tr>
@@ -36,7 +46,7 @@
 
         <p>
             Please log in to the Travel Management System to view your
-            Travel Order details and access the E-Ticket.
+            Travel Order details and access the available travel documents.
         </p>
 
         <p>Thank you.</p>

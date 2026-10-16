@@ -9,7 +9,7 @@ const props = defineProps({
   loading: Boolean, processing: Boolean,
 })
 
-const emit = defineEmits(['update:modelValue', 'cancel', 'submit-booking', 'submit-eticket'])
+const emit = defineEmits(['update:modelValue', 'cancel', 'submit-booking', 'submit-eticket', 'revision'])
 
 const activeTab = ref('booking')
 const eTicket = ref(null)
@@ -39,6 +39,9 @@ const isAccommodationBookedByCompany = computed(() => {
   return order.accommodation?.arrangement === 'Booked by Company' || order.accommodation_arrangement === 'Booked by Company'
 })
 
+const canOpenDocuments = computed(() =>
+  isBookingSaved.value || isCompleted.value
+)
 const isBookedByCompany = computed(() => isTicketBookedByCompany.value || isAccommodationBookedByCompany.value)
 const travelRegion = computed(() => props.order?.travel_region || '')
 const dialogWidth = computed(() => activeTab.value === 'booking' ? 1100 : 600)
@@ -124,9 +127,19 @@ watch(bookingCurrencyItems, items => {
 
 watch(() => props.modelValue, open => {
   if (!open) return
-  activeTab.value = props.stage === 'final-documents' ? 'documents' : 'booking'
+
+  activeTab.value = props.stage === 'final-documents' && canOpenDocuments.value
+    ? 'documents'
+    : 'booking'
+
   eTicket.value = null
   hotelReservation.value = null
+})
+
+watch(canOpenDocuments, allowed => {
+  if (!allowed && activeTab.value === 'documents') {
+    activeTab.value = 'booking'
+  }
 })
 
 const setAirplaneFile = event => { bookingItems.airplane_attachment = event.target.files?.[0] ?? null }
@@ -163,9 +176,11 @@ function submitETicket() {
       <VDivider />
       <VProgressLinear v-if="loading" indeterminate />
       <VTabs v-model="activeTab" color="primary" grow>
-        <VTab value="booking">Step 1 — Booking Ticket</VTab>
-        <VTab value="documents">Step 2 — Final Travel Documents</VTab>
-      </VTabs>
+  <VTab value="booking">Step 1 — Booking Ticket</VTab>
+  <VTab value="documents" :disabled="!canOpenDocuments">
+    Step 2 — Final Travel Documents
+  </VTab>
+</VTabs>
       <VDivider />
 
       <VWindow v-model="activeTab">
@@ -273,20 +288,9 @@ function submitETicket() {
 
           <VDivider />
           <VCardActions class="px-6 py-3 justify-end ga-2">
-            <VBtn variant="tonal" :disabled="processing" @click="emit('cancel')">Cancel</VBtn>
-            <VBtn
-              v-if="!isCompleted"
-              color="success"
-              variant="flat"
-              :loading="processing"
-              :disabled="processing || loading || isBookingSaved || !order ||
-                (isTicketBookedByCompany && stage === 'booking' && bookingItems.airplane_amount <= 0) ||
-                (isAccommodationBookedByCompany && stage === 'booking' && bookingItems.accommodation_amount <= 0) ||
-                (isTicketBookedByCompany && stage === 'booking' && !savedBooking && !bookingItems.airplane_attachment) ||
-                (isAccommodationBookedByCompany && stage === 'booking' && !savedBooking && !bookingItems.accommodation_attachment)"
-              @click="submitBooking"
-            >Booking</VBtn>
-          </VCardActions>
+            <VBtn v-if="!isCompleted && !isBookingSaved" color="warning" variant="flat" :disabled="processing" @click="emit('revision')"> Revision </VBtn>
+  <VBtn v-if="!isCompleted" color="success" variant="flat" :loading="processing" :disabled="processing || loading || isBookingSaved || !order || (isTicketBookedByCompany && stage === 'booking' && bookingItems.airplane_amount <= 0) || (isAccommodationBookedByCompany && stage === 'booking' && bookingItems.accommodation_amount <= 0) || (isTicketBookedByCompany && stage === 'booking' && !savedBooking && !bookingItems.airplane_attachment) || (isAccommodationBookedByCompany && stage === 'booking' && !savedBooking && !bookingItems.accommodation_attachment)" @click="submitBooking">Booking</VBtn>
+</VCardActions>
         </VWindowItem>
 
         <!-- Final Travel Documents -->

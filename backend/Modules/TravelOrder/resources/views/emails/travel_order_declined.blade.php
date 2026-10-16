@@ -3,6 +3,8 @@
         <div style="font-size:18px;font-weight:700;letter-spacing:.2px;">
             @if ($status === 'revision')
                 TRAVEL ORDER REQUIRES REVISION
+            @elseif ($status === 'cancelled')
+                TRAVEL ORDER CANCELLED
             @else
                 TRAVEL ORDER REJECTED
             @endif
@@ -18,6 +20,8 @@
             (Department <strong>{{ $order->department->name ?? '-' }}</strong>)
             @if ($status === 'revision')
                 has been returned for <strong>revision</strong>
+            @elseif ($status === 'cancelled')
+                has been <strong>cancelled</strong>
             @else
                 has been <strong>rejected</strong>
             @endif
@@ -57,7 +61,13 @@
         </div>
 
         <p style="font-size:14px;line-height:1.7;margin:0 0 20px;">
-            The Travel Order has been returned to draft. The requester can review and update the Travel Order before resubmitting it.
+            @if ($status === 'revision')
+                The Travel Order has been returned to draft. Please review the remarks, update the Travel Order, and resubmit it.
+            @elseif ($status === 'cancelled')
+                The Travel Order has been cancelled by Admin-GMO and returned to draft. Please refer to the remarks for details.
+            @else
+                The Travel Order has been rejected and returned to draft. Please review the remarks before making any further changes.
+            @endif
         </p>
 
         <p style="margin:0;">

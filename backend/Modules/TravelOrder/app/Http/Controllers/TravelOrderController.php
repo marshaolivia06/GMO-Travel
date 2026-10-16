@@ -15,7 +15,7 @@ use Modules\TravelOrder\Services\TravelOrderBookingService;
 use Illuminate\Support\Facades\Mail;
 use Modules\TravelOrder\Emails\TravelOrderBookingSubmittedMail;
 use Modules\UserManagement\Models\User;
-use Modules\TravelOrder\Emails\TravelOrderETicketUploadedMail;
+use Modules\TravelOrder\Emails\TravelOrderBookingCompletedMail;
 class TravelOrderController extends Controller
 {
     public function __construct(
@@ -87,14 +87,16 @@ public function reject(Request $request, int $id): JsonResponse
 
 public function revision(Request $request, int $id): JsonResponse
 {
-    $request->validate([
-        'remark' => ['required', 'string'],
+    $validated = $request->validate([
+        'remark' => ['required', 'string', 'max:1000'],
+        'evidence' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
     ]);
 
-    $this->service->revision(
+    $this->service->revisionGmo(
         $id,
         $request->user(),
-        $request->input('remark')
+        $validated['remark'],
+        $request->file('evidence')
     );
 
     return response()->json([
@@ -193,7 +195,7 @@ public function uploadETicket(
 
     if ($order->user && $order->user->email) {
         Mail::to($order->user->email)->queue(
-            new TravelOrderETicketUploadedMail($order)
+            new TravelOrderBookingCompletedMail($order)
         );
     }
 

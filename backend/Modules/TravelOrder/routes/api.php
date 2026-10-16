@@ -35,8 +35,7 @@ Route::middleware(['auth:sanctum'])
             
                 Route::post('/{id}/cancel', [TravelOrderController::class, 'cancel']);
             
-            Route::post('/{id}/revision', [TravelOrderController::class, 'revision'])
-                ->middleware('permission:travel-order.approve');
+                Route::post('/{id}/revision', [TravelOrderController::class, 'revision']);
 
             Route::post('/{id}/booking', [TravelOrderController::class, 'saveBooking'])
                 ->middleware('permission:travel-order.view');

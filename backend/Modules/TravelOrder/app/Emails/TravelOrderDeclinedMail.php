@@ -19,12 +19,17 @@ class TravelOrderDeclinedMail extends Mailable
         public string $remark
     ) {}
 
-    public function build(): self
-    {
-        $label = $this->status === 'revision' ? 'requires revision' : 'declined';
+public function build(): self
+{
+    $label = match ($this->status) {
+        'revision' => 'requires revision',
+        'cancelled' => 'cancelled',
+        default => 'declined',
+    };
 
-        return $this
-            ->subject("Travel Order {$this->order->order_number} {$label}")
-            ->view('travelorder::emails.travel_order_declined');
-    }
+    return $this
+        ->subject("Travel Order {$this->order->order_number} {$label}")
+        ->view('travelorder::emails.travel_order_declined');
+}
+
 }

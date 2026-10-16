@@ -280,35 +280,56 @@ public function notifyCurrentApprovers(TravelOrder $order): void
             DB::afterCommit(fn() => $this->notifyRequesterDeclined($order, $user, $stage, $status, $remark));
         });
     }
+    
+private function notifyRequesterDeclined(
+    TravelOrder $order,
+    User $actor,
+    $stage,
+    string $status,
+    string $remark
+): void {
+    $requester = User::find($order->user_id);
 
-    private function notifyRequesterDeclined(TravelOrder $order, User $actor, $stage, string $status, string $remark): void
-    {
-        // Ambil pengaju langsung dari DB, karena relasi user di $order bisa hanya memuat sebagian kolom
-        $requester = User::find($order->user_id);
-
-        if (!$requester?->email) {
-            return;
-        }
-
-        // Approver yang sudah approve di putaran ini ikut diberi tahu (CC)
-        $roundStart = $order->approvals()->where('status', 'submitted')->max('sequence') ?? 0;
-
-        $ccEmails = $order->approvals()
-            ->with('user')
-            ->where('status', 'approved')
-            ->where('sequence', '>', $roundStart)
-            ->get()
-            ->pluck('user.email')
-            ->filter()
-            ->unique()
-            ->reject(fn($email) => $email === $requester->email)
-            ->values()
-            ->all();
-
-        Mail::to($requester->email)
-            ->cc($ccEmails)
-            ->queue(new TravelOrderDeclinedMail($order, $status, $actor->name, $stage->role->name, $remark));
+    if (!$requester?->email) {
+        return;
     }
+
+    $roundStart = $order->approvals()
+        ->where('status', 'submitted')
+        ->max('sequence') ?? 0;
+
+    $ccEmails = $order->approvals()
+        ->with('user')
+        ->where('status', 'approved')
+        ->where('sequence', '>', $roundStart)
+        ->get()
+        ->pluck('user.email')
+        ->filter()
+        ->unique()
+        ->reject(fn ($email) =>
+            strcasecmp($email, $requester->email) === 0 ||
+            ($actor->email &&
+                strcasecmp($email, $actor->email) === 0)
+        )
+        ->values()
+        ->all();
+
+    $mail = Mail::to($requester->email);
+
+    if (!empty($ccEmails)) {
+        $mail->cc($ccEmails);
+    }
+
+    $mail->queue(
+        new TravelOrderDeclinedMail(
+            $order,
+            $status,
+            $actor->name,
+            $stage->role->name,
+            $remark
+        )
+    );
+}
 
     public function history(TravelOrder $order): array
     {

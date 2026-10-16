@@ -128,10 +128,21 @@ export const cancelTravelOrder = (id, remark, evidence) => {
     .then(res => res.data)
 }
     
-    export const revisionTravelOrder = (id, remark) =>
-      http
-        .post(`${BASE}/${id}/revision`, { remark })
-        .then(res => res.data)
+export const revisionTravelOrder = (id, remark, evidence = null) => {
+  if (evidence) {
+    const formData = new FormData()
+    formData.append('remark', remark)
+    formData.append('evidence', evidence)
+
+    return http
+      .post(`${BASE}/${id}/revision`, formData)
+      .then(res => res.data)
+  }
+
+  return http
+    .post(`${BASE}/${id}/revision`, { remark })
+    .then(res => res.data)
+}
 
 export const getTravelAdvanceLimit = (
   travelRegion,
