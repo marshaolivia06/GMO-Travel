@@ -74,4 +74,8 @@ class TravelOrder extends Model
     {
     return $this->hasMany(TravelOrderApproval::class)->orderBy('sequence');
     }
+    public function emails(): HasMany
+    {
+    return $this->hasMany(TravelOrderEmail::class, 'travel_order_id')->latest();
+}
 }

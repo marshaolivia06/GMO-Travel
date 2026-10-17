@@ -20,10 +20,10 @@ class StoreTravelOrderRequest extends FormRequest
         $isSubmitted = $status === 'submitted';
 
         $isAdvanceRequired = in_array(
-        $travelRegion,
-        ['Domestic', 'Singapore', 'Overseas'],
-        true
-      );
+    $travelRegion,
+    ['Singapore', 'Overseas'],
+    true
+);
 
         $allowedCurrencies = match ($travelRegion) {
     'Domestic' => ['IDR'],

@@ -3,7 +3,6 @@
 namespace Modules\TravelOrder\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\File;
 
 class StoreTravelOrderBookingRequest extends FormRequest
 {
@@ -22,17 +21,9 @@ class StoreTravelOrderBookingRequest extends FormRequest
 
             'ticket_currency' => ['nullable', 'string', 'max:10'],
             'ticket_amount' => ['nullable', 'numeric', 'min:0'],
-            'ticket_attachment' => [
-                'nullable',
-                File::types(['pdf', 'jpg', 'jpeg', 'png'])->max(10 * 1024),
-            ],
 
             'accommodation_currency' => ['nullable', 'string', 'max:10'],
             'accommodation_amount' => ['nullable', 'numeric', 'min:0'],
-            'accommodation_attachment' => [
-                'nullable',
-                File::types(['pdf', 'jpg', 'jpeg', 'png'])->max(10 * 1024),
-            ],
         ];
     }
 }

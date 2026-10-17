@@ -315,12 +315,27 @@ function validate(isSubmit = true) {
     valid = false
   }
 
-  if (hasAdvance.value) {
-    if (!String(form.pocketMoney || '').trim()) { errors.pocketMoney = 'This field is required.'; valid = false }
-    if (!String(form.mealAllowance || '').trim()) { errors.mealAllowance = 'This field is required.'; valid = false }
-    if (mealExceeded.value) { errors.mealAllowance = `Maximum allowed is ${mealMax.value} ${mealCurrency.value}.`; valid = false }
-    if (pocketExceeded.value) { errors.pocketMoney = `Maximum allowed is ${pocketMax.value} ${pocketCurrency.value}.`; valid = false }
+  if (['Singapore', 'Overseas'].includes(form.travelRegion)) {
+  if (!String(form.pocketMoney || '').trim()) {
+    errors.pocketMoney = 'This field is required.'
+    valid = false
   }
+
+  if (!String(form.mealAllowance || '').trim()) {
+    errors.mealAllowance = 'This field is required.'
+    valid = false
+  }
+
+  if (mealExceeded.value) {
+    errors.mealAllowance = `Maximum allowed is ${mealMax.value} ${mealCurrency.value}.`
+    valid = false
+  }
+
+  if (pocketExceeded.value) {
+    errors.pocketMoney = `Maximum allowed is ${pocketMax.value} ${pocketCurrency.value}.`
+    valid = false
+  }
+}
 
   return valid
 }
@@ -467,7 +482,7 @@ onMounted(() => {
     </VCard>
   </VCol>
 
-  <VCol cols="12" md="4">
+  <VCol v-if="['Singapore', 'Overseas'].includes(form.travelRegion)" cols="12" md="4">
     <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
       <VCardItem>
         <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
@@ -561,18 +576,23 @@ onMounted(() => {
           </VCardText>
         </VCard>
       </VCol>
-      <VCol cols="12" md="4">
-        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
-          <VCardText class="pa-3 text-high-emphasis">
-            <div class="text-caption text-medium-emphasis">Travel Advance</div>
-            <div v-if="!hasAdvance" class="text-subtitle-1 font-weight-bold mt-1">Not Requested</div>
-            <div v-else class="mt-1">
-  <div class="text-body-2 font-weight-bold">Meal: {{ mealAllowanceDisplay || '-' }} {{ mealCurrency }}</div>
-  <div class="text-body-2 font-weight-bold">Pocket: {{ pocketMoneyDisplay || '-' }} {{ pocketCurrency }}</div>
-</div>
-          </VCardText>
-        </VCard>
-      </VCol>
+      <VCol
+  v-if="['Singapore', 'Overseas'].includes(form.travelRegion)"
+  cols="12"
+  md="4"
+>
+  <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+    <VCardText class="pa-3 text-high-emphasis">
+      <div class="text-caption text-medium-emphasis">Travel Advance</div>
+      <div class="text-body-2 font-weight-bold mt-1">
+        Meal: {{ mealAllowanceDisplay || '-' }} {{ mealCurrency }}
+      </div>
+      <div class="text-body-2 font-weight-bold">
+        Pocket: {{ pocketMoneyDisplay || '-' }} {{ pocketCurrency }}
+      </div>
+    </VCardText>
+  </VCard>
+</VCol>
     </VRow>
   </VCardText>
 </VCard>

@@ -17,11 +17,9 @@ class TravelOrderBooking extends Model
         'return_time',
         'ticket_currency',
         'ticket_amount',
-        'ticket_attachment',
+        'e_ticket_path',
         'accommodation_currency',
         'accommodation_amount',
-        'accommodation_attachment',
-        'e_ticket_path',
         'hotel_reservation_path',
     ];
 

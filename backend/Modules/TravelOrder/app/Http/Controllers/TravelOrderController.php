@@ -8,14 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Modules\TravelOrder\Http\Requests\StoreTravelOrderRequest;
 use Modules\TravelOrder\Services\TravelOrderService;
-use Modules\TravelOrder\Http\Requests\StoreTravelOrderBookingRequest;
-use Modules\TravelOrder\Http\Requests\UploadTravelOrderETicketRequest;
 use Modules\TravelOrder\Models\TravelOrder;
 use Modules\TravelOrder\Services\TravelOrderBookingService;
-use Illuminate\Support\Facades\Mail;
-use Modules\TravelOrder\Emails\TravelOrderBookingSubmittedMail;
-use Modules\UserManagement\Models\User;
-use Modules\TravelOrder\Emails\TravelOrderBookingCompletedMail;
 class TravelOrderController extends Controller
 {
     public function __construct(
@@ -89,7 +83,7 @@ public function revision(Request $request, int $id): JsonResponse
 {
     $validated = $request->validate([
         'remark' => ['required', 'string', 'max:1000'],
-        'evidence' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'evidence' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
     ]);
 
     $this->service->revisionGmo(
@@ -148,62 +142,6 @@ public function revision(Request $request, int $id): JsonResponse
         ]);
     }
 
-public function saveBooking(StoreTravelOrderBookingRequest $request, int $id): JsonResponse
-{
-    $order = TravelOrder::with(['user', 'department', 'booking'])->findOrFail($id);
-
-$booking = $this->bookingService->saveBooking(
-    $order,
-    $request->user(),
-    $request->validated(),
-    $request->file('ticket_attachment'),
-    $request->file('accommodation_attachment')
-);
-
-    $order->refresh()->load(['user', 'department', 'booking']);
-
-    $financeUsers = User::role('Finance & Accounting')
-        ->whereNotNull('email')
-        ->get();
-
-    foreach ($financeUsers as $financeUser) {
-        Mail::to($financeUser->email)->queue(
-            new TravelOrderBookingSubmittedMail($order)
-        );
-    }
-
-    return response()->json([
-        'message' => 'Booking information has been saved successfully.',
-        'data' => $booking,
-    ]);
-}
-
-public function uploadETicket(
-    UploadTravelOrderETicketRequest $request,
-    int $id
-): JsonResponse {
-    $order = TravelOrder::with(['user', 'department', 'booking'])->findOrFail($id);
-
-    $booking = $this->bookingService->saveETicket(
-        $order,
-        $request->user(),
-        $request->file('e_ticket'),
-        $request->file('hotel_reservation')
-    );
-
-    $order->refresh()->load(['user', 'department', 'booking']);
-
-    if ($order->user && $order->user->email) {
-        Mail::to($order->user->email)->queue(
-            new TravelOrderBookingCompletedMail($order)
-        );
-    }
-
-    return response()->json([
-        'message' => 'Final travel documents have been uploaded successfully.',
-        'data' => $booking,
-    ]);
-}
 public function cancel(Request $request, int $id): JsonResponse
 {
     $validated = $request->validate([
@@ -226,16 +164,24 @@ public function cancel(Request $request, int $id): JsonResponse
 
 public function completeGmoProcessing(Request $request, int $id): JsonResponse
 {
-    $order = TravelOrder::findOrFail($id);
+    $order = TravelOrder::with(['user', 'department', 'booking'])
+        ->findOrFail($id);
 
     $order = $this->bookingService->completeGmoProcessing(
         $order,
-        $request->user()
+        $request->user(),
+        $request->all(),
+        $request->file('e_ticket'),
+        $request->file('hotel_reservation')
     );
 
     return response()->json([
         'message' => 'GMO processing has been completed successfully.',
-        'data' => $order,
+        'data' => $order->refresh()->load([
+            'user',
+            'department',
+            'booking',
+        ]),
     ]);
 }
 
