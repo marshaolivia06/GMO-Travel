@@ -159,19 +159,31 @@ watch(bookingCurrencyItems, items => {
         </VCardText>
 
         <template v-if="pdfUrl && pdfReady && !loading && !isCompleted && mode !== 'view-only'">
-          <VDivider />
-          <VCardText class="px-6 py-4">
-            <div class="d-flex align-start ga-3">
-              <input v-model="agreed" type="checkbox" class="mt-1 flex-shrink-0" :disabled="processing" />
-              <div class="text-body-2">{{ isDirectPayment ? 'I confirm that all required GMO processing is complete.' : 'I confirm that I have reviewed the Travel Order document.' }}</div>
-            </div>
-          </VCardText>
-          <VCardActions v-if="agreed" class="px-6 pb-5 pt-0 justify-end ga-2">
-            <VBtn color="error" variant="flat" :disabled="processing" @click="emit('reject')">Cancel</VBtn>
-            <VBtn color="warning" variant="flat" :disabled="processing" @click="emit('revision')">Revision</VBtn>
-            <VBtn color="success" variant="flat" :loading="processing" :disabled="!canContinue" @click="continueToBooking">{{ isDirectPayment ? 'Complete GMO Processing' : 'Continue' }}</VBtn>
-          </VCardActions>
-        </template>
+  <VDivider />
+  <VCardText class="px-6 py-4">
+    <div class="d-flex align-start ga-3">
+      <input
+        v-model="agreed"
+        type="checkbox"
+        class="mt-1 flex-shrink-0"
+        :disabled="processing"
+      />
+      <div class="text-body-2">
+        {{ isDirectPayment
+          ? 'I confirm that all required GMO processing is complete.'
+          : 'I confirm that I have reviewed the Travel Order document.'
+        }}
+      </div>
+    </div>
+  </VCardText>
+  <VCardActions v-if="agreed" class="px-6 pb-5 pt-0 justify-end ga-2">
+    <VBtn color="error" variant="flat" :disabled="processing" @click="emit('reject')">Cancel</VBtn>
+    <VBtn color="warning" variant="flat" :disabled="processing" @click="emit('revision')">Revision</VBtn>
+    <VBtn color="success" variant="flat" :loading="processing" :disabled="!canContinue" @click="continueToBooking">
+      {{ isDirectPayment ? 'Complete GMO Processing' : 'Continue' }}
+    </VBtn>
+  </VCardActions>
+</template>
       </template>
 
       <template v-else-if="step === 2 && isBookedByCompany">

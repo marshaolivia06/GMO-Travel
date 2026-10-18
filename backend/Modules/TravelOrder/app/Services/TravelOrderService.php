@@ -17,6 +17,7 @@ use Modules\TravelOrder\Models\TravelOrder;
 use Modules\TravelOrder\Repositories\TravelOrderAdvanceRepository;
 use Modules\TravelOrder\Repositories\TravelOrderRepository;
 use Modules\UserManagement\Models\User;
+use Modules\TravelOrder\Models\TravelOrderMember;
 
 class TravelOrderService
 {
@@ -89,7 +90,7 @@ class TravelOrderService
         $order = $this->repository->findById($id);
         $order->load([
             'approvals' => fn ($query) => $query->orderBy('sequence'),
-            'approvals.role', 'approvals.user', 'department.divisionHead', 'booking',
+            'approvals.role', 'approvals.user', 'department.divisionHead', 'booking',  'emails',
         ]);
 
         $order->setAttribute('requester_section_name', Section::where('section_head_id', $order->created_by)->value('name'));
@@ -161,107 +162,259 @@ class TravelOrderService
             : ['locked' => false, 'department' => null];
     }
 
-    public function create(array $data, User $user): TravelOrder
-    {
-        $lockInfo = $this->getDepartmentLockInfo($user);
-        $isDivHead = $user->getRoleNames()->contains('Div Head');
-        $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHead ? null : ($data['department_id'] ?? null));
+    
+private function getGroupTripMembers(array $memberIds): array
+{
+    $memberIds = array_values(array_unique(array_map('intval', $memberIds)));
 
-        abort_if(!$departmentId && !$isDivHead, 422, 'Department wajib dipilih.');
+    abort_if(empty($memberIds), 422, 'Pilih minimal satu member untuk Group Trip.');
 
-        if (($data['status'] ?? 'draft') === 'submitted') {
-            $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()
-                ->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
+    $members = User::query()
+        ->whereIn('id', $memberIds)
+        ->where('status', 1)
+        ->get()
+        ->keyBy('id');
 
-            $validation = $this->advanceService->validateAdvance(
-                $data['travel_region'], $data['currency'] ?? null,
-                (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0),
-                (int) $user->grade, $days
-            );
+    abort_if(
+        $members->count() !== count($memberIds),
+        422,
+        'Satu atau lebih member tidak valid atau tidak aktif.'
+    );
 
-            abort_if(!$validation['valid'], 422, $validation['message']);
+    $sections = Section::query()
+        ->with('department')
+        ->where('status', 1)
+        ->whereIn('section_head_id', $memberIds)
+        ->whereHas('department', fn ($query) => $query->where('status', 1))
+        ->get()
+        ->unique('section_head_id')
+        ->keyBy('section_head_id');
+
+    return collect($memberIds)->map(function ($memberId) use ($members, $sections) {
+        $member = $members->get($memberId);
+        $roles = $member->getRoleNames();
+
+        if ($roles->contains('Div Head')) {
+            return [
+                'user_id' => $memberId,
+                'department_id' => null,
+            ];
         }
 
-        return DB::transaction(function () use ($data, $user, $departmentId) {
-            $data['order_number'] = $this->generateOrderNumber();
-            $data['trip_type'] = 'individual';
-            $data['user_id'] = $user->id;
-            $data['department_id'] = $departmentId;
-            $data['created_by'] = $user->id;
+        if ($roles->contains('Sect Head')) {
+            $section = $sections->get($memberId);
 
-            $advanceData = [
-                'meal_allowance' => $data['meal_allowance'] ?? null,
-                'pocket_money' => $data['pocket_money'] ?? null,
-                'currency' => $data['currency'] ?? null,
+            abort_if(
+                !$section,
+                422,
+                "Section atau department aktif tidak ditemukan untuk user ID {$memberId}."
+            );
+
+            return [
+                'user_id' => $memberId,
+                'department_id' => $section->department_id,
             ];
+        }
 
-            unset($data['meal_allowance'], $data['pocket_money'], $data['currency']);
-            $travelOrder = $this->repository->create($data);
-            $advanceData['travel_order_id'] = $travelOrder->id;
-            $this->advanceRepository->create($advanceData);
+        if ($roles->contains('Dept Head')) {
+            $department = Department::query()
+                ->where('status', 1)
+                ->where('dept_head_id', $memberId)
+                ->first();
 
-            if (($data['status'] ?? 'draft') === 'submitted') {
-                $this->approvalService->initFlow($travelOrder);
-            }
+            abort_if(
+                !$department,
+                422,
+                "Department aktif tidak ditemukan untuk user ID {$memberId}."
+            );
 
-            return $travelOrder->fresh();
-        });
+            return [
+                'user_id' => $memberId,
+                'department_id' => $department->id,
+            ];
+        }
+
+        abort(422, "User ID {$memberId} bukan Sect Head, Dept Head, atau Div Head.");
+    })->all();
+}
+
+    public function create(array $data, User $user): TravelOrder
+{
+    $tripType = $data['trip_type'] ?? 'individual';
+    $isGroupTrip = $tripType === 'group';
+    $memberIds = $data['members'] ?? [];
+    $groupMembers = $isGroupTrip ? $this->getGroupTripMembers($memberIds) : [];
+
+    $lockInfo = $this->getDepartmentLockInfo($user);
+    $isDivHead = $user->getRoleNames()->contains('Div Head');
+
+   $departmentId = $isGroupTrip
+    ? (collect($groupMembers)->firstWhere('department_id', '!=', null)['department_id'] ?? null)
+    : ($lockInfo['locked']
+        ? $lockInfo['department']['id']
+        : ($isDivHead ? null : ($data['department_id'] ?? null)));
+
+    abort_if(
+    !$departmentId && !$isDivHead && !$isGroupTrip,
+    422,
+    'Department wajib dipilih.'
+);
+
+    if (($data['status'] ?? 'draft') === 'submitted') {
+        $days = max(
+            1,
+            (int) Carbon::parse($data['departure_date'])->startOfDay()
+                ->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1
+        );
+
+        $validation = $this->advanceService->validateAdvance(
+            $data['travel_region'],
+            $data['currency'] ?? null,
+            (float) ($data['pocket_money'] ?? 0),
+            (float) ($data['meal_allowance'] ?? 0),
+            (int) $user->grade,
+            $days
+        );
+
+        abort_if(!$validation['valid'], 422, $validation['message']);
     }
+
+    return DB::transaction(function () use ($data, $user, $departmentId, $tripType, $groupMembers) {
+        $data['order_number'] = $this->generateOrderNumber();
+        $data['trip_type'] = $tripType;
+        $data['user_id'] = $user->id;
+        $data['department_id'] = $departmentId;
+        $data['created_by'] = $user->id;
+
+        $advanceData = [
+            'meal_allowance' => $data['meal_allowance'] ?? null,
+            'pocket_money' => $data['pocket_money'] ?? null,
+            'currency' => $data['currency'] ?? null,
+        ];
+
+        unset(
+            $data['meal_allowance'],
+            $data['pocket_money'],
+            $data['currency'],
+            $data['members']
+        );
+
+        $travelOrder = $this->repository->create($data);
+
+        if ($tripType === 'group') {
+            $travelOrder->members()->createMany($groupMembers);
+        }
+
+        $advanceData['travel_order_id'] = $travelOrder->id;
+        $this->advanceRepository->create($advanceData);
+
+        if (($data['status'] ?? 'draft') === 'submitted') {
+            $this->approvalService->initFlow($travelOrder);
+        }
+
+        return $travelOrder->fresh()->load('members.user', 'members.department');
+    });
+}
 
     public function update(int $id, array $data, User $user): TravelOrder
-    {
-        $travelOrder = $this->repository->findById($id);
+{
+    $travelOrder = $this->repository->findById($id);
 
-        abort_if($travelOrder->user_id !== $user->id, 403, 'Anda tidak memiliki akses untuk mengubah Travel Order ini.');
-        abort_if($travelOrder->status !== 'draft', 422, 'Hanya Travel Order dengan status draft yang dapat diubah.');
+    abort_if(
+        $travelOrder->user_id !== $user->id,
+        403,
+        'Anda tidak memiliki akses untuk mengubah Travel Order ini.'
+    );
 
-        $lockInfo = $this->getDepartmentLockInfo($user);
-        $isDivHead = $user->getRoleNames()->contains('Div Head');
-        $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHead ? null : ($data['department_id'] ?? $travelOrder->department_id));
+    abort_if(
+        $travelOrder->status !== 'draft',
+        422,
+        'Hanya Travel Order dengan status draft yang dapat diubah.'
+    );
 
-        abort_if(!$departmentId && !$isDivHead, 422, 'Department wajib dipilih.');
+    $tripType = $data['trip_type'] ?? $travelOrder->trip_type ?? 'individual';
+    $isGroupTrip = $tripType === 'group';
+    $memberIds = $data['members'] ?? [];
+    $groupMembers = $isGroupTrip ? $this->getGroupTripMembers($memberIds) : [];
 
-        if (($data['status'] ?? 'draft') === 'submitted') {
-            $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()
-                ->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
+    $lockInfo = $this->getDepartmentLockInfo($user);
+    $isDivHead = $user->getRoleNames()->contains('Div Head');
 
-            $validation = $this->advanceService->validateAdvance(
-                $data['travel_region'], $data['currency'] ?? null,
-                (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0),
-                (int) $user->grade, $days
-            );
+    $departmentId = $isGroupTrip
+    ? (collect($groupMembers)->firstWhere('department_id', '!=', null)['department_id'] ?? null)
+    : ($lockInfo['locked']
+        ? $lockInfo['department']['id']
+        : ($isDivHead ? null : ($data['department_id'] ?? $travelOrder->department_id ?? null)));
 
-            abort_if(!$validation['valid'], 422, $validation['message']);
+    abort_if(
+    !$departmentId && !$isDivHead && !$isGroupTrip,
+    422,
+    'Department wajib dipilih.'
+);
+
+    if (($data['status'] ?? 'draft') === 'submitted') {
+        $days = max(
+            1,
+            (int) Carbon::parse($data['departure_date'])->startOfDay()
+                ->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1
+        );
+
+        $validation = $this->advanceService->validateAdvance(
+            $data['travel_region'],
+            $data['currency'] ?? null,
+            (float) ($data['pocket_money'] ?? 0),
+            (float) ($data['meal_allowance'] ?? 0),
+            (int) $user->grade,
+            $days
+        );
+
+        abort_if(!$validation['valid'], 422, $validation['message']);
+    }
+
+    return DB::transaction(function () use ($travelOrder, $data, $departmentId, $tripType, $groupMembers) {
+        $advanceData = [
+            'meal_allowance' => $data['meal_allowance'] ?? null,
+            'pocket_money' => $data['pocket_money'] ?? null,
+            'currency' => $data['currency'] ?? null,
+        ];
+
+        unset(
+            $data['meal_allowance'],
+            $data['pocket_money'],
+            $data['currency'],
+            $data['members'],
+            $data['user_id'],
+            $data['created_by'],
+            $data['order_number']
+        );
+
+        $data['trip_type'] = $tripType;
+        $data['department_id'] = $departmentId;
+
+        $travelOrder->update($data);
+
+        $travelOrder->members()->delete();
+
+        if ($tripType === 'group') {
+            $travelOrder->members()->createMany($groupMembers);
         }
 
-        return DB::transaction(function () use ($travelOrder, $data, $departmentId) {
-            $advanceData = [
-                'meal_allowance' => $data['meal_allowance'] ?? null,
-                'pocket_money' => $data['pocket_money'] ?? null,
-                'currency' => $data['currency'] ?? null,
-            ];
+        $advance = $this->advanceRepository->findByTravelOrderId($travelOrder->id);
 
-            unset($data['meal_allowance'], $data['pocket_money'], $data['currency']);
-            $data['department_id'] = $departmentId;
-            unset($data['user_id'], $data['created_by'], $data['order_number'], $data['trip_type']);
-            $travelOrder->update($data);
+        if ($advance) {
+            $advance->update($advanceData);
+        } else {
+            $advanceData['travel_order_id'] = $travelOrder->id;
+            $this->advanceRepository->create($advanceData);
+        }
 
-            $advance = $this->advanceRepository->findByTravelOrderId($travelOrder->id);
+        if (($data['status'] ?? 'draft') === 'submitted') {
+            $this->approvalService->initFlow($travelOrder);
+        }
 
-            if ($advance) {
-                $advance->update($advanceData);
-            } else {
-                $advanceData['travel_order_id'] = $travelOrder->id;
-                $this->advanceRepository->create($advanceData);
-            }
-
-            if (($data['status'] ?? 'draft') === 'submitted') {
-                $this->approvalService->initFlow($travelOrder);
-            }
-
-            return $travelOrder->fresh();
-        });
-    }
+        return $travelOrder->fresh()->load('members.user', 'members.department');
+    });
+}
 
     private function generateOrderNumber(): string
     {

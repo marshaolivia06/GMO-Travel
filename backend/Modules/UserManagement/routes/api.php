@@ -9,6 +9,12 @@ Route::middleware(['auth:sanctum'])
     ->prefix('v1')
     ->group(function () {
 
+            // GROUP TRIP USERS
+        Route::get(
+            'group-trip/users',
+            [UserController::class, 'groupTripUsers']
+        )->middleware('permission:user-management.view');
+
         // USERS
         Route::apiResource('users', UserController::class)
             ->middlewareFor(['index', 'show'], 'permission:user-management.view')

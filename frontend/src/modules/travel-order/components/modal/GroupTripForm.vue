@@ -1,511 +1,196 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useConfirm } from '../../../../composables/useConfirm'
 
 const emit = defineEmits(['cancel', 'submit'])
+const props = defineProps({
+  loading: { type: Boolean, default: false },
+  initialData: { type: Object, default: null },
+  memberOptions: { type: Array, default: () => [] },
+})
 
-const loading = ref(false)
+const { confirm } = useConfirm()
+const selectedMemberIds = ref([])
 const generalError = ref('')
-const step = ref(1)
+const errors = reactive({ tripName: '', purpose: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', members: '' })
+const form = reactive({ tripName: '', purpose: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '' })
 
-const form = reactive({
-  purpose: '', departureDate: '', arrivalDate: '', department: '', members: [],
-  memberDepartments: {}, employee: '', travelFrom: '', travelTo: '',
-  departureTime: '', returnDate: '', returnTime: '', remarks: '',
-  travelRegion: '', ferryTicketType: 'Ferry', ferryArrangement: 'Direct Payment',
-  accommodationArrangement: 'Direct Payment', mealAllowance: '', pocketMoney: '',
-})
+const memberItems = computed(() => props.memberOptions.map(user => ({ ...user, id: user.id, name: user.name || user.full_name || '', departmentName: user.department?.name || user.department_name || 'No department' })))
+const selectedMembers = computed(() => memberItems.value.filter(user => selectedMemberIds.value.some(id => String(id) === String(user.id))))
+const canCreate = computed(() => !!form.tripName.trim() && !!form.purpose.trim() && !!form.travelFrom.trim() && !!form.travelTo.trim() && !!form.departureDate && !!form.returnDate && form.returnDate >= form.departureDate && selectedMemberIds.value.length > 0 && !props.loading)
 
-const errors = reactive({
-  purpose: '', departureDate: '', arrivalDate: '', department: '', members: '',
-  memberDepartments: '', employee: '', travelFrom: '', travelTo: '',
-  departureTime: '', returnDate: '', returnTime: '', remarks: '', travelRegion: '',
-  mealAllowance: '', pocketMoney: '', ferryTicketType: '', ferryArrangement: '',
-  accommodationArrangement: '',
-})
+function normalizeDate(value) {
+  if (!value) return ''
+  const text = String(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  const date = new Date(text)
+  if (isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
 
-const ldapEmployees = [
-  { id: 1, name: 'Marsha Olivia', employeeId: 'EMP001', department: 'Information Technology' },
-  { id: 2, name: 'Sabrina Rosa Salsyabilla', employeeId: 'EMP002', department: 'Information Technology' },
-  { id: 3, name: 'Andi Pratama', employeeId: 'EMP003', department: 'Engineering' },
-  { id: 4, name: 'Budi Santoso', employeeId: 'EMP004', department: 'Maintenance' },
-  { id: 5, name: 'Rina Amelia', employeeId: 'EMP005', department: 'HSE' },
-  { id: 6, name: 'Dedi Kurniawan', employeeId: 'EMP006', department: 'HSE' },
-  { id: 7, name: 'Fajar Ramadhan', employeeId: 'EMP007', department: 'Production' },
-]
+function fillInitialData(data) {
+  if (!data) return
+  Object.assign(form, {
+    tripName: data.trip_name || data.tripName || '',
+    purpose: data.purpose || '',
+    travelFrom: data.travel_from || data.travelFrom || '',
+    travelTo: data.travel_to || data.travelTo || '',
+    departureDate: normalizeDate(data.departure_date || data.departureDate),
+    returnDate: normalizeDate(data.return_date || data.returnDate || data.arrival_date || data.arrivalDate),
+  })
+  selectedMemberIds.value = (data.members || data.group_members || []).map(member => member.user_id ?? member.user?.id ?? member.id).filter(id => id != null)
+}
 
-const departments = ['Information Technology', 'Engineering', 'Maintenance', 'HSE', 'Production', 'Finance']
-const travelRegions = ['Indonesia', 'Singapore', 'Non Singapore']
-const ferryTicketTypes = ['Ferry', 'Airplane']
-const ferryArrangements = ['Direct Payment', 'Booked by Company']
-const accommodationArrangements = ['Direct Payment', 'Booked by Company', 'Not Required']
-const nonSingaporeCurrencies = ['USD', 'EUR', 'MYR', 'JPY']
+function filterMember(_, query, item) {
+  const text = String(query || '').trim().toLowerCase()
+  if (!text) return true
+  return `${item.raw.name} ${item.raw.departmentName}`.toLowerCase().includes(text)
+}
 
-const mealCurrency = ref('')
-const pocketCurrency = ref('')
+function updateMembers(ids) {
+  selectedMemberIds.value = ids || []
+  errors.members = ''
+}
 
-const isOverseas = computed(() => ['Singapore', 'Non Singapore'].includes(form.travelRegion))
-const isFerryReimbursable = computed(() => form.ferryArrangement === 'Direct Payment')
-const isAccommodationReimbursable = computed(() => form.accommodationArrangement === 'Direct Payment')
-
-function getMember(id) {
-  return ldapEmployees.find(member => member.id === id)
+function removeMember(id) {
+  selectedMemberIds.value = selectedMemberIds.value.filter(value => String(value) !== String(id))
+  errors.members = ''
 }
 
 function clearErrors() {
-  Object.keys(errors).forEach(key => errors[key] = '')
+  Object.keys(errors).forEach(key => { errors[key] = '' })
   generalError.value = ''
 }
 
-function validateCreateGroup() {
+function validate() {
   clearErrors()
   let valid = true
-
-  if (!form.purpose.trim()) {
-    errors.purpose = 'Purpose is required.'
-    valid = false
-  }
-
-  if (!form.departureDate) {
-    errors.departureDate = 'Departure date is required.'
-    valid = false
-  }
-
-  if (!form.arrivalDate) {
-    errors.arrivalDate = 'Arrival date is required.'
-    valid = false
-  }
-
-  if (!form.department) {
-    errors.department = 'Department is required.'
-    valid = false
-  }
-
-  if (!form.members.length) {
-    errors.members = 'Select at least one group member.'
-    valid = false
-  }
-
+  if (!form.tripName.trim()) { errors.tripName = 'This field is required.'; valid = false }
+  if (!form.purpose.trim()) { errors.purpose = 'This field is required.'; valid = false }
+  if (!form.travelFrom.trim()) { errors.travelFrom = 'This field is required.'; valid = false }
+  if (!form.travelTo.trim()) { errors.travelTo = 'This field is required.'; valid = false }
+  if (!form.departureDate) { errors.departureDate = 'This field is required.'; valid = false }
+  if (!form.returnDate) { errors.returnDate = 'This field is required.'; valid = false }
+  if (form.departureDate && form.returnDate && form.returnDate < form.departureDate) { errors.returnDate = 'Return date cannot be before departure date.'; valid = false }
+  if (!selectedMemberIds.value.length) { errors.members = 'Select at least one group member.'; valid = false }
   return valid
 }
 
-function validateForm() {
-  clearErrors()
-  let valid = true
-
-  form.members.forEach(id => {
-    if (!form.memberDepartments[id]) valid = false
-  })
-
-  if (!valid) errors.memberDepartments = 'Please select department for every member.'
-
-  const required = [
-    'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate',
-    'returnTime', 'purpose', 'remarks', 'travelRegion', 'ferryTicketType',
-    'ferryArrangement', 'accommodationArrangement',
-  ]
-
-  required.forEach(field => {
-    if (!String(form[field] || '').trim()) {
-      errors[field] = 'This field is required.'
-      valid = false
-    }
-  })
-
-  if (isOverseas.value) {
-    if (!String(form.mealAllowance || '').trim()) {
-      errors.mealAllowance = 'This field is required.'
-      valid = false
-    }
-
-    if (!String(form.pocketMoney || '').trim()) {
-      errors.pocketMoney = 'This field is required.'
-      valid = false
-    }
+function getPayload() {
+  return {
+    trip_name: form.tripName.trim(),
+    purpose: form.purpose.trim(),
+    travel_from: form.travelFrom.trim(),
+    travel_to: form.travelTo.trim(),
+    departure_date: form.departureDate,
+    return_date: form.returnDate,
+    members: selectedMemberIds.value,
+    request_type: 'business_trip',
+    trip_type: 'group',
+    status: 'submitted',
   }
-
-  return valid
 }
 
-function continueToForm() {
-  if (!validateCreateGroup()) return
-
-  form.members.forEach(id => {
-    if (!form.memberDepartments[id]) form.memberDepartments[id] = getMember(id)?.department || ''
-  })
-
-  form.employee = form.members.map(id => getMember(id)?.name).filter(Boolean).join(', ')
-  step.value = 2
-  clearErrors()
-}
-
-function backToCreateGroup() {
-  if (loading.value) return
-  step.value = 1
-  clearErrors()
-}
-
-function selectRegion(region) {
-  form.travelRegion = region
-
-  if (region === 'Indonesia') {
-    mealCurrency.value = ''
-    pocketCurrency.value = ''
-    form.mealAllowance = ''
-    form.pocketMoney = ''
-  }
-
-  if (region === 'Singapore') {
-    mealCurrency.value = 'SGD'
-    pocketCurrency.value = 'SGD'
-  }
-
-  if (region === 'Non Singapore') {
-    mealCurrency.value = 'USD'
-    pocketCurrency.value = 'USD'
-  }
-
-  errors.travelRegion = ''
+async function createGroup() {
+  if (props.loading || !validate()) return
+  const confirmed = await confirm({ title: 'Create Group Trip?', text: 'Are you sure you want to create this Group Trip?', color: 'primary' })
+  if (confirmed) emit('submit', getPayload())
 }
 
 function cancel() {
-  if (!loading.value) emit('cancel')
+  if (!props.loading) emit('cancel')
 }
 
-async function submitForm() {
-  if (loading.value || !validateForm()) return
-
-  loading.value = true
-
-  try {
-    emit('submit', {
-      groupTrip: {
-        purpose: form.purpose,
-        departureDate: form.departureDate,
-        arrivalDate: form.arrivalDate,
-        department: form.department,
-        members: form.members,
-        memberDepartments: form.memberDepartments,
-      },
-      travelOrder: {
-        employee: form.employee,
-        travelFrom: form.travelFrom,
-        travelTo: form.travelTo,
-        departureDate: form.departureDate,
-        departureTime: form.departureTime,
-        returnDate: form.returnDate,
-        returnTime: form.returnTime,
-        purpose: form.purpose,
-        remarks: form.remarks,
-        travelRegion: form.travelRegion,
-        ferryTicketType: form.ferryTicketType,
-        ferryArrangement: form.ferryArrangement,
-        accommodationArrangement: form.accommodationArrangement,
-        mealAllowance: form.mealAllowance,
-        pocketMoney: form.pocketMoney,
-        mealCurrency: mealCurrency.value,
-        pocketCurrency: pocketCurrency.value,
-      },
-    })
-  } catch (err) {
-    generalError.value = err?.response?.data?.message || err?.message || 'Failed to submit group trip.'
-  } finally {
-    loading.value = false
-  }
-}
+watch(() => props.initialData, data => {
+  if (data) fillInitialData(data)
+}, { immediate: true })
 </script>
 
 <template>
-  <div>
-    <div class="d-flex align-start justify-space-between mb-6">
-      <div>
-        <div class="text-primary text-body-2 font-weight-bold mb-1">BUSINESS TRIP - GROUP</div>
-        <div class="text-h5 font-weight-bold mb-1">{{ step === 1 ? 'Create Group Trip' : 'Travel Order Form' }}</div>
-        <div class="text-body-2 text-medium-emphasis">{{ step === 1 ? 'Create a new Group Trip and select the employees who will participate.' : 'Complete the Travel Order for the selected Group Trip.' }}</div>
+  <VCard rounded="lg" elevation="1">
+    <VCardTitle class="d-flex align-center justify-space-between pa-5">
+      <div class="d-flex align-center ga-3">
+        <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="loading" @click="cancel" />
+        <div class="text-h6 font-weight-bold">Create Group Trip</div>
       </div>
-      <VChip variant="tonal" color="primary" size="small">{{ step === 1 ? 'Group Trip Setup' : 'Group Request' }}</VChip>
-    </div>
-
-    <VCard rounded="lg" elevation="2" color="primary" class="mb-6">
-      <VCardText class="d-flex align-center ga-4">
-        <VAvatar color="white" size="42"><span class="text-primary font-weight-bold">{{ step === 1 ? '01' : '02' }}</span></VAvatar>
-        <div>
-          <div class="text-caption text-white font-weight-bold">{{ step === 1 ? 'CREATE GROUP TRIP' : 'GROUP TRAVEL ORDER' }}</div>
-          <div class="text-subtitle-1 text-white font-weight-bold">{{ step === 1 ? 'Group Trip Information' : 'Complete Group Travel Order' }}</div>
-          <div class="text-body-2 text-white">{{ step === 1 ? 'Fill the main information and select group members.' : 'Review the Group Trip and complete the travel information.' }}</div>
-        </div>
+      <VBtn icon="ri-close-line" variant="text" :disabled="loading" @click="cancel" />
+    </VCardTitle>
+    <VDivider />
+    <VForm @submit.prevent="createGroup">
+      <VCardText class="pa-6">
+        <div class="text-subtitle-2 font-weight-bold mb-4">Group Trip Information</div>
+        <VAlert v-if="generalError" type="error" variant="tonal" density="compact" class="mb-4">{{ generalError }}</VAlert>
+        <VRow>
+          <VCol cols="12" md="6">
+            <div class="text-caption mb-1">1. Trip Name</div>
+            <VTextField v-model="form.tripName" placeholder="Enter trip name" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.tripName ? [errors.tripName] : []" />
+          </VCol>
+          <VCol cols="12" md="6">
+            <div class="text-caption mb-1">2. Purpose</div>
+            <VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" rows="1" auto-grow hide-details="auto" :disabled="loading" :error-messages="errors.purpose ? [errors.purpose] : []" />
+          </VCol>
+          <VCol cols="12" md="6">
+            <div class="text-caption mb-1">3. Travel From</div>
+            <VTextField v-model="form.travelFrom" placeholder="Enter travel from" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" />
+          </VCol>
+          <VCol cols="12" md="6">
+            <div class="text-caption mb-1">4. Travel To</div>
+            <VTextField v-model="form.travelTo" placeholder="Enter travel to" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" />
+          </VCol>
+          <VCol cols="12" md="6">
+            <div class="text-caption mb-1">5. Departure Date</div>
+            <VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" />
+          </VCol>
+          <VCol cols="12" md="6">
+            <div class="text-caption mb-1">6. Return Date</div>
+            <VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" />
+          </VCol>
+          <VCol cols="12">
+            <div class="text-caption mb-1">7. Group Member</div>
+            <VAutocomplete
+              :model-value="selectedMemberIds"
+              :items="memberItems"
+              item-title="name"
+              item-value="id"
+              multiple
+              chips
+              closable-chips
+              :custom-filter="filterMember"
+              placeholder="Select group members"
+              variant="outlined"
+              density="comfortable"
+              hide-details="auto"
+              no-data-text="No employee found"
+              :disabled="loading"
+              :error-messages="errors.members ? [errors.members] : []"
+              @update:model-value="updateMembers"
+            >
+              <template #item="{ props: itemProps, item }">
+                <VListItem v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.departmentName" />
+              </template>
+            </VAutocomplete>
+          </VCol>
+          <VCol v-if="selectedMembers.length" cols="12">
+            <div class="text-caption font-weight-bold mb-2">Selected Members ({{ selectedMembers.length }})</div>
+            <VRow dense>
+              <VCol v-for="member in selectedMembers" :key="member.id" cols="12" sm="6" md="4">
+                <VCard rounded="lg" elevation="0" border class="bg-grey-lighten-4 pa-3 d-flex align-center ga-3">
+                  <div class="flex-grow-1" style="min-width: 0">
+                    <div class="text-body-2 font-weight-bold text-truncate">{{ member.name }}</div>
+                    <div class="text-caption text-medium-emphasis text-truncate">{{ member.departmentName }}</div>
+                  </div>
+                  <VBtn icon="mdi-close" size="x-small" variant="text" :disabled="loading" @click="removeMember(member.id)" />
+                </VCard>
+              </VCol>
+            </VRow>
+          </VCol>
+        </VRow>
       </VCardText>
-    </VCard>
-
-    <VAlert v-if="generalError" type="error" variant="tonal" class="mb-6">{{ generalError }}</VAlert>
-
-    <template v-if="step === 1">
-      <div class="text-subtitle-1 font-weight-bold mb-1">Create Group Trip</div>
-      <div class="text-body-2 text-medium-emphasis mb-6">Fill the basic information for the Group Trip.</div>
-
-      <VRow>
-        <VCol cols="12">
-          <VTextField v-model="form.purpose" label="Purpose *" placeholder="Contoh: Annual IT Conference" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.purpose ? [errors.purpose] : []" />
-        </VCol>
-
-        <VCol cols="12" md="6">
-          <VTextField v-model="form.departureDate" label="Departure Date *" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" />
-        </VCol>
-
-        <VCol cols="12" md="6">
-          <VTextField v-model="form.arrivalDate" label="Arrival Date *" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.arrivalDate ? [errors.arrivalDate] : []" />
-        </VCol>
-
-        <VCol cols="12">
-          <VSelect v-model="form.department" label="Department *" :items="departments" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.department ? [errors.department] : []" />
-        </VCol>
-
-        <VCol cols="12">
-          <VAutocomplete v-model="form.members" label="Group Members *" :items="ldapEmployees" item-title="name" item-value="id" multiple chips closable-chips variant="outlined" density="comfortable" placeholder="Search employee from LDAP" hide-details="auto" :disabled="loading" :error-messages="errors.members ? [errors.members] : []">
-            <template #item="{ props, item }">
-              <VListItem v-bind="props">
-                <template #prepend>
-                  <VAvatar color="primary" variant="tonal" size="36">{{ item.raw.name.charAt(0).toUpperCase() }}</VAvatar>
-                </template>
-                <VListItemTitle>{{ item.raw.name }}</VListItemTitle>
-                <VListItemSubtitle>{{ item.raw.employeeId }} · {{ item.raw.department }}</VListItemSubtitle>
-              </VListItem>
-            </template>
-          </VAutocomplete>
-        </VCol>
-      </VRow>
-
-      <VCard v-if="form.members.length" color="primary" variant="tonal" rounded="lg" class="mt-6">
-        <VCardText>
-          <div class="text-subtitle-2 font-weight-bold mb-3">Selected Members ({{ form.members.length }})</div>
-          <div class="d-flex flex-wrap ga-2">
-            <VChip v-for="memberId in form.members" :key="memberId" color="primary" variant="flat">{{ getMember(memberId)?.name }}</VChip>
-          </div>
-        </VCardText>
-      </VCard>
-    </template>
-
-    <template v-else>
-      <VCard rounded="lg" color="primary" variant="tonal" class="mb-6">
-        <VCardItem>
-          <VCardTitle class="text-subtitle-1 font-weight-bold">Saved Group Trip</VCardTitle>
-          <VCardSubtitle>Information from the first form.</VCardSubtitle>
-        </VCardItem>
-
-        <VCardText>
-          <VRow>
-            <VCol cols="12" md="6">
-              <div class="text-caption text-medium-emphasis">Purpose</div>
-              <div class="text-body-1 font-weight-bold">{{ form.purpose }}</div>
-            </VCol>
-            <VCol cols="12" md="6">
-              <div class="text-caption text-medium-emphasis">Departure Date</div>
-              <div class="text-body-1 font-weight-bold">{{ form.departureDate }}</div>
-            </VCol>
-            <VCol cols="12" md="6">
-              <div class="text-caption text-medium-emphasis">Arrival Date</div>
-              <div class="text-body-1 font-weight-bold">{{ form.arrivalDate }}</div>
-            </VCol>
-            <VCol cols="12" md="6">
-              <div class="text-caption text-medium-emphasis">Department</div>
-              <div class="text-body-1 font-weight-bold">{{ form.department }}</div>
-            </VCol>
-            <VCol cols="12">
-              <div class="text-caption text-medium-emphasis mb-2">Group Members</div>
-              <div class="d-flex flex-wrap ga-2">
-                <VChip v-for="memberId in form.members" :key="memberId" color="primary" variant="flat">{{ getMember(memberId)?.name }}</VChip>
-              </div>
-            </VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
-
-      <div class="text-subtitle-1 font-weight-bold mb-1">Mandatory Information</div>
-      <div class="text-body-2 text-medium-emphasis mb-6">Select the department for each employee who will participate.</div>
-
-      <VRow>
-        <VCol v-for="memberId in form.members" :key="memberId" cols="12" md="6">
-          <VCard rounded="lg" elevation="1">
-            <VCardText class="d-flex align-center ga-3">
-              <VAvatar color="primary" variant="tonal" size="42">{{ getMember(memberId)?.name.charAt(0).toUpperCase() }}</VAvatar>
-              <div class="flex-grow-1">
-                <div class="text-body-2 font-weight-bold">{{ getMember(memberId)?.name }}</div>
-                <div class="text-caption text-medium-emphasis">{{ getMember(memberId)?.employeeId }}</div>
-              </div>
-              <VSelect v-model="form.memberDepartments[memberId]" label="Department *" :items="departments" variant="outlined" density="comfortable" hide-details="auto" style="max-width: 240px" :disabled="loading" />
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-
-      <div v-if="errors.memberDepartments" class="text-error text-caption mt-2">{{ errors.memberDepartments }}</div>
-
-      <VCard rounded="lg" elevation="1" class="mt-6">
-        <VCardItem>
-          <VCardTitle class="text-subtitle-1 font-weight-bold">Travel Order Information</VCardTitle>
-          <VCardSubtitle>Employee and Group Trip information are inherited from the previous form.</VCardSubtitle>
-        </VCardItem>
-
-        <VDivider />
-
-        <VCardText class="pa-6">
-          <div class="text-subtitle-2 font-weight-bold mb-4">Employee Information</div>
-
-          <VRow>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.employee" label="Employee / Group *" variant="outlined" density="comfortable" hide-details="auto" readonly :disabled="loading" :error-messages="errors.employee ? [errors.employee] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.department" label="Department *" variant="outlined" density="comfortable" hide-details="auto" readonly :disabled="loading" :error-messages="errors.department ? [errors.department] : []" />
-            </VCol>
-          </VRow>
-
-          <div class="text-subtitle-2 font-weight-bold mb-4 mt-4">Trip Information</div>
-
-          <VRow>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.travelFrom" label="Travel From *" placeholder="Contoh: Batam" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.travelTo" label="Travel To *" placeholder="Contoh: Jakarta" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.departureDate" label="Departure Date *" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.departureTime" label="Departure Time *" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.departureTime ? [errors.departureTime] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.returnDate" label="Return Date *" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField v-model="form.returnTime" label="Return Time *" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.returnTime ? [errors.returnTime] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextarea v-model="form.purpose" label="Travelling Purpose *" placeholder="Jelaskan tujuan perjalanan dinas ini" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" :error-messages="errors.purpose ? [errors.purpose] : []" />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextarea v-model="form.remarks" label="Remarks *" placeholder="Tambahkan keterangan" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" :error-messages="errors.remarks ? [errors.remarks] : []" />
-            </VCol>
-          </VRow>
-
-          <div class="text-subtitle-2 font-weight-bold mb-4 mt-4">Travel Region</div>
-
-          <VRow>
-            <VCol v-for="region in travelRegions" :key="region" cols="12" md="4">
-              <VCard :variant="form.travelRegion === region ? 'tonal' : 'flat'" :color="form.travelRegion === region ? 'primary' : undefined" rounded="lg" hover class="h-100" @click="selectRegion(region)">
-                <VCardText>
-                  <div class="text-subtitle-2 font-weight-bold" :class="form.travelRegion === region ? 'text-primary' : ''">{{ region }}</div>
-                  <div class="text-body-2 mt-1" :class="form.travelRegion === region ? 'text-primary' : 'text-medium-emphasis'">{{ region === 'Indonesia' ? 'Domestic travel' : 'International travel' }}</div>
-                </VCardText>
-              </VCard>
-            </VCol>
-          </VRow>
-
-          <div v-if="errors.travelRegion" class="text-error text-caption mt-2">{{ errors.travelRegion }}</div>
-
-          <div class="text-subtitle-2 font-weight-bold mb-4 mt-6">Ticket, Accommodation & Travel Advance</div>
-
-          <VRow>
-            <VCol cols="12" md="4">
-              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-                <VCardItem>
-                  <template #append>
-                    <VChip variant="tonal" :color="isFerryReimbursable ? 'success' : 'error'" size="small">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip>
-                  </template>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold">Ferry Ticket</VCardTitle>
-                  <VCardSubtitle>Select transport type, arranger, and payer.</VCardSubtitle>
-                </VCardItem>
-
-                <VCardText>
-                  <VRow>
-                    <VCol cols="6">
-                      <VSelect v-model="form.ferryTicketType" label="Ticket Type *" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []" />
-                    </VCol>
-                    <VCol cols="6">
-                      <VSelect v-model="form.ferryArrangement" label="Arrangement *" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []" />
-                    </VCol>
-                  </VRow>
-                  <div class="text-caption text-medium-emphasis mt-3">Employee pays first and claims eligible expense through TER.</div>
-                </VCardText>
-              </VCard>
-            </VCol>
-
-            <VCol cols="12" md="4">
-              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-                <VCardItem>
-                  <template #append>
-                    <VChip variant="tonal" :color="isAccommodationReimbursable ? 'success' : 'error'" size="small">{{ isAccommodationReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip>
-                  </template>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold">Accommodation</VCardTitle>
-                  <VCardSubtitle>Not Required remains available when applicable.</VCardSubtitle>
-                </VCardItem>
-
-                <VCardText>
-                  <VSelect v-model="form.accommodationArrangement" label="Arrangement *" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []" />
-                  <div class="text-caption text-medium-emphasis mt-3">Employee pays first and claims eligible expense through TER.</div>
-                </VCardText>
-              </VCard>
-            </VCol>
-
-            <VCol cols="12" md="4">
-              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-                <VCardItem>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold">Travel Advance</VCardTitle>
-                  <VCardSubtitle>Optional and determined by Travel Region.</VCardSubtitle>
-                </VCardItem>
-
-                <VCardText>
-                  <VAlert v-if="form.travelRegion === 'Indonesia'" type="info" variant="tonal" density="compact">
-                    Travel Advance is not applicable for Indonesia domestic travel.
-                  </VAlert>
-
-                  <template v-else>
-                    <VAlert type="info" variant="tonal" density="compact" class="mb-4">
-                      <template v-if="form.travelRegion === 'Singapore'">
-                        <strong>Singapore policy:</strong> Travel Advance is requested in SGD.
-                      </template>
-                      <template v-else>
-                        <strong>Non-Singapore policy:</strong> Select USD, EUR, MYR, or JPY for each advance component.
-                      </template>
-                    </VAlert>
-
-                    <div class="text-body-2 font-weight-medium mb-2">Meal Allowance</div>
-
-                    <VRow>
-                      <VCol cols="4">
-                        <VSelect v-model="mealCurrency" :items="form.travelRegion === 'Singapore' ? ['SGD'] : nonSingaporeCurrencies" variant="outlined" density="comfortable" hide-details :disabled="form.travelRegion === 'Singapore'" />
-                      </VCol>
-                      <VCol cols="8">
-                        <VTextField v-model="form.mealAllowance" type="number" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" />
-                      </VCol>
-                    </VRow>
-
-                    <div class="text-body-2 font-weight-medium mb-2 mt-4">Pocket Money</div>
-
-                    <VRow>
-                      <VCol cols="4">
-                        <VSelect v-model="pocketCurrency" :items="form.travelRegion === 'Singapore' ? ['SGD'] : nonSingaporeCurrencies" variant="outlined" density="comfortable" hide-details :disabled="form.travelRegion === 'Singapore'" />
-                      </VCol>
-                      <VCol cols="8">
-                        <VTextField v-model="form.pocketMoney" type="number" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" />
-                      </VCol>
-                    </VRow>
-                  </template>
-                </VCardText>
-              </VCard>
-            </VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
-    </template>
-
-    <VDivider class="mt-6" />
-
-    <VCardActions class="pa-4">
-      <VBtn variant="text" :disabled="loading" @click="step === 1 ? cancel() : backToCreateGroup()">{{ step === 1 ? 'Cancel' : 'Cancel' }}</VBtn>
-      <VSpacer />
-      <VBtn v-if="step === 1" color="primary" variant="flat" :loading="loading" @click="continueToForm">Continue</VBtn>
-      <VBtn v-else color="primary" variant="flat" :loading="loading" @click="submitForm">Submit</VBtn>
-    </VCardActions>
-  </div>
+      <VDivider />
+      <VCardActions class="pa-4 justify-end">
+        <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
+        <VBtn type="submit" color="primary" variant="flat" :loading="loading" :disabled="!canCreate">Create Group</VBtn>
+      </VCardActions>
+    </VForm>
+  </VCard>
 </template>

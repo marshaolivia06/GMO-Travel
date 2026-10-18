@@ -127,4 +127,11 @@ class UserController extends Controller
             'message' => 'User deleted successfully.',
         ]);
     }
+
+    public function groupTripUsers(): JsonResponse
+{
+    return response()->json(
+        $this->userRepository->getGroupTripUsers()
+    );
+}
 }

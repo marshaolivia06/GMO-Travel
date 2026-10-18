@@ -12,6 +12,7 @@ use Modules\MasterManagement\Models\Department;
 use Modules\TravelOrder\Models\TravelOrderAdvance;
 use Modules\TravelOrder\Models\TravelOrderApproval;
 use Modules\UserManagement\Models\User;
+use Modules\TravelOrder\Models\TravelOrderMember;
 class TravelOrder extends Model
 {
     use HasFactory, SoftDeletes;
@@ -50,6 +51,11 @@ class TravelOrder extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function members(): HasMany
+{
+    return $this->hasMany(TravelOrderMember::class, 'travel_order_id');
+}
 
     public function department(): BelongsTo
     {
