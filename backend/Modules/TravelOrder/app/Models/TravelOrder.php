@@ -84,4 +84,11 @@ class TravelOrder extends Model
     {
     return $this->hasMany(TravelOrderEmail::class, 'travel_order_id')->latest();
 }
+public function bookingCancellations(): HasMany
+{
+    return $this->hasMany(
+        TravelOrderBookingCancellation::class,
+        'travel_order_id'
+    )->latest();
+}
 }

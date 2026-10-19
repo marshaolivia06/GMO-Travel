@@ -21,6 +21,8 @@ class TravelOrderBooking extends Model
         'accommodation_currency',
         'accommodation_amount',
         'hotel_reservation_path',
+        'ticket_cancelled',
+        'accommodation_cancelled',
     ];
 
     protected function casts(): array
@@ -30,6 +32,8 @@ class TravelOrderBooking extends Model
             'return_date' => 'date',
             'ticket_amount' => 'decimal:2',
             'accommodation_amount' => 'decimal:2',
+            'ticket_cancelled' => 'boolean',
+            'accommodation_cancelled' => 'boolean',
         ];
     }
 

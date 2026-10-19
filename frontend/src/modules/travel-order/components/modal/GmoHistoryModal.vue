@@ -4,6 +4,9 @@ const scheduleCache = {}
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { useConfirm } from '../../../../composables/useConfirm'
+
+const { confirm } = useConfirm()
 
 const props = defineProps({
   modelValue: Boolean,
@@ -15,7 +18,7 @@ const props = defineProps({
   processing: Boolean,
 })
 
-const emit = defineEmits(['update:modelValue', 'close', 'resend-email', 'cancel-ticket', 'view-pdf', 'update-schedule', 'update-booking'])
+const emit = defineEmits(['update:modelValue', 'close', 'resend-email', 'cancel-ticket', 'cancel-accommodation', 'view-pdf', 'update-schedule', 'update-booking'])
 
 const order = computed(() => props.order || {})
 const booking = computed(() => props.savedBooking || order.value.booking || {})
@@ -35,6 +38,17 @@ function formatDate(value) {
   if (!value) return '-'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })
+}
+
+function toLocalDateInput(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10)
+
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
+  const get = type => parts.find(part => part.type === type)?.value
+
+  return `${get('year')}-${get('month')}-${get('day')}`
 }
 
 function formatEmailDate(value) {
@@ -98,26 +112,44 @@ function normalizeEmail(raw) {
 }
 
 const emailHistory = computed(() => {
-  const candidates = [...(Array.isArray(props.savedEmail) ? props.savedEmail : []), ...(Array.isArray(order.value.emails) ? order.value.emails : [])]
+  const candidates = [...(Array.isArray(props.savedEmail) ? props.savedEmail : props.savedEmail ? [props.savedEmail] : []), ...(Array.isArray(order.value.emails) ? order.value.emails : [])]
   const unique = new Map()
+
   for (const raw of candidates) {
     const item = normalizeEmail(raw)
     if (!item) continue
+
     const key = item.id ?? [item.to, item.cc, item.subject, item.message, item.sent_at, item.created_at].join('|')
+
     if (!unique.has(key)) unique.set(key, item)
   }
+
   return [...unique.values()].sort((a, b) => new Date(b.sent_at || b.created_at || 0) - new Date(a.sent_at || a.created_at || 0))
 })
 
-const email = computed(() => emailHistory.value[0] || { to: '', cc: '', subject: '', message: '', status: '', sent_at: null, created_at: null })
+const email = reactive({ to: '', cc: '', subject: '', message: '', status: '', sent_at: null })
 
-function resendEmail() {
-  if (props.processing || !email.value.to || !email.value.subject || !email.value.message) return
-  emit('resend-email', { ...email.value, orderId: order.value.id })
+watch(() => emailHistory.value[0], latest => {
+  Object.assign(email, { to: latest?.to || '', cc: latest?.cc || '', subject: latest?.subject || '', message: latest?.message || '', status: latest?.status || '', sent_at: latest?.sent_at || null })
+}, { immediate: true })
+
+async function resendEmail() {
+  if (props.processing || props.loading || !email.to.trim() || !email.subject.trim() || !email.message.trim()) return
+
+  const ok = await confirm({ title: 'Resend Booking Email', message: 'Are you sure you want to resend the booking confirmation email?' })
+
+  if (!ok) return
+
+  emit('resend-email', { orderId: order.value.id, to: email.to, cc: email.cc, subject: email.subject, message: email.message })
 }
 
-const isTicketBooked = computed(() => (ticket.value.arrangement || order.value.ticket_arrangement) === 'Booked by Company')
-const isAccommodationBooked = computed(() => (accommodation.value.arrangement || order.value.accommodation_arrangement) === 'Booked by Company')
+const isTicketBooked = computed(() => String(ticket.value.arrangement || order.value.ticket_arrangement || '').trim().toLowerCase() === 'booked by company')
+const isAccommodationBooked = computed(() => String(accommodation.value.arrangement || order.value.accommodation_arrangement || '').trim().toLowerCase() === 'booked by company')
+const isTicketCancelled = computed(() => Boolean(booking.value.ticket_cancelled))
+const isAccommodationCancelled = computed(() => Boolean(booking.value.accommodation_cancelled))
+const canCancelTicket = computed(() => isTicketBooked.value && !isTicketCancelled.value)
+const canCancelAccommodation = computed(() => isAccommodationBooked.value && !isAccommodationCancelled.value)
+
 const ticketType = computed(() => ticket.value.ticket_type || order.value.ticket_type || '-')
 const ticketArrangement = computed(() => ticket.value.arrangement || order.value.ticket_arrangement || '-')
 const accommodationArrangement = computed(() => accommodation.value.arrangement || order.value.accommodation_arrangement || '-')
@@ -128,8 +160,18 @@ function isDirectPayment(value) {
   return String(value || '').trim().toLowerCase() === 'direct payment'
 }
 
-const ticketReimbursable = computed(() => isDirectPayment(ticketPaymentMethod.value) || ticketArrangement.value === 'Reimbursable')
-const accommodationReimbursable = computed(() => isDirectPayment(accommodationPaymentMethod.value) || accommodationArrangement.value === 'Reimbursable')
+const ticketReimbursable = computed(() => {
+  const arrangement = String(ticket.value?.arrangement || order.value?.ticket_arrangement || '').trim().toLowerCase()
+
+  return arrangement === 'direct payment' || arrangement === 'reimbursable'
+})
+
+const accommodationReimbursable = computed(() => {
+  const arrangement = String(accommodation.value?.arrangement || order.value?.accommodation_arrangement || '').trim().toLowerCase()
+
+  return arrangement === 'direct payment' || arrangement === 'reimbursable'
+})
+
 const hasTicketInfo = computed(() => ticketArrangement.value !== '-' || ticketPaymentMethod.value !== '-')
 const hasAccommodationInfo = computed(() => accommodationArrangement.value !== '-' || accommodationPaymentMethod.value !== '-')
 const ticketAmount = computed(() => booking.value.ticket_amount ?? '')
@@ -154,23 +196,16 @@ const bookingForm = reactive({ ticket_amount: '', ticket_currency: 'IDR', accomm
 
 function currentScheduleValues() {
   return {
-    departure_date: String(departureDate.value || '').slice(0, 10),
-    departure_time: String(departureTime.value || '').slice(0, 5),
-    return_date: String(returnDate.value || '').slice(0, 10),
-    return_time: String(returnTime.value || '').slice(0, 5),
+    departure_date: toLocalDateInput(departureDate.value), departure_time: String(departureTime.value || '').slice(0, 5),
+    return_date: toLocalDateInput(returnDate.value), return_time: String(returnTime.value || '').slice(0, 5),
   }
 }
 
 function syncBookingForm() {
   Object.assign(bookingForm, {
-    ticket_amount: ticketAmount.value === null ? '' : String(ticketAmount.value),
-    ticket_currency: ticketCurrency.value,
-    accommodation_amount: accommodationAmount.value === null ? '' : String(accommodationAmount.value),
-    accommodation_currency: accommodationCurrency.value,
-    e_ticket: null,
-    hotel_reservation: null,
-    airplane_attachment: null,
-    accommodation_attachment: null,
+    ticket_amount: ticketAmount.value === null ? '' : String(ticketAmount.value), ticket_currency: ticketCurrency.value,
+    accommodation_amount: accommodationAmount.value === null ? '' : String(accommodationAmount.value), accommodation_currency: accommodationCurrency.value,
+    e_ticket: null, hotel_reservation: null, airplane_attachment: null, accommodation_attachment: null,
   })
 }
 
@@ -185,10 +220,9 @@ function cancelSchedule() {
 }
 
 function saveSchedule() {
-  scheduleCache[order.value.id] = { ...scheduleForm }
-  scheduleOverride.value = scheduleCache[order.value.id]
+  if (props.processing || !order.value.id || !scheduleForm.departure_date || !scheduleForm.departure_time) return
+
   emit('update-schedule', { orderId: order.value.id, ...scheduleForm })
-  editingSchedule.value = false
 }
 
 function editBooking() {
@@ -222,22 +256,10 @@ watch(() => order.value.id, () => {
   Object.assign(scheduleForm, currentScheduleValues())
 }, { immediate: true })
 
-watch([srcDepartureDate, srcDepartureTime, srcReturnDate, srcReturnTime], () => {
-  const override = scheduleOverride.value
-  if (!override) return
-  const same =
-    String(srcDepartureDate.value).slice(0, 10) === String(override.departure_date).slice(0, 10) &&
-    String(srcDepartureTime.value).slice(0, 5) === String(override.departure_time).slice(0, 5) &&
-    String(srcReturnDate.value).slice(0, 10) === String(override.return_date).slice(0, 10) &&
-    String(srcReturnTime.value).slice(0, 5) === String(override.return_time).slice(0, 5)
-  if (!same) return
-  delete scheduleCache[order.value.id]
-  scheduleOverride.value = null
+watch([departureDate, departureTime, returnDate, returnTime, () => order.value.id], () => {
+  if (editingSchedule.value) return
+  Object.assign(scheduleForm, currentScheduleValues())
 }, { immediate: true })
-
-watch([departureDate, departureTime, returnDate, returnTime], () => {
-  if (!editingSchedule.value) Object.assign(scheduleForm, currentScheduleValues())
-})
 
 watch([ticketAmount, ticketCurrency, accommodationAmount, accommodationCurrency], () => {
   if (!editingBooking.value) syncBookingForm()
@@ -252,7 +274,7 @@ watch(() => bookingForm.accommodation_currency, currency => {
 })
 
 function fileName(originalName, storedName, path) {
-  return originalName || storedName || (path ? 'File attached' : '')
+  return originalName || storedName || ''
 }
 
 const eTicketName = computed(() => fileName(booking.value.e_ticket_original_name, booking.value.e_ticket_name, booking.value.e_ticket_path))
@@ -277,6 +299,9 @@ const travelInformation = computed(() => [
 
 const showCancelForm = ref(false)
 const cancelForm = reactive({ reason: '', refundStatus: 'Pending Refund', partialRefundAmount: '', file: null })
+const showAccommodationCancelForm = ref(false)
+const accommodationCancelForm = reactive({ reason: '', refundStatus: 'Pending Refund', partialRefundAmount: '', file: null })
+
 const originalTicketNumber = computed(() => Number(ticketAmount.value) || 0)
 const isFullRefund = computed(() => ['Full Refund', 'Fully Refund'].includes(cancelForm.refundStatus))
 const isPartialRefund = computed(() => ['Partial Refund', 'Partially Refunded'].includes(cancelForm.refundStatus))
@@ -287,6 +312,21 @@ const refundAmountNumber = computed(() => {
 })
 const nonRefundableNumber = computed(() => originalTicketNumber.value - refundAmountNumber.value)
 const partialRefundText = computed(() => toDisplayAmount(cancelForm.partialRefundAmount, ticketCurrency.value))
+
+const originalAccommodationNumber = computed(() => Number(accommodationAmount.value) || 0)
+const isAccommodationFullRefund = computed(() => ['Full Refund', 'Fully Refund'].includes(accommodationCancelForm.refundStatus))
+const isAccommodationPartialRefund = computed(() => ['Partial Refund', 'Partially Refunded'].includes(accommodationCancelForm.refundStatus))
+const accommodationRefundAmountNumber = computed(() => {
+  if (isAccommodationFullRefund.value) return originalAccommodationNumber.value
+  if (isAccommodationPartialRefund.value) return Math.min(Math.max(Number(accommodationCancelForm.partialRefundAmount) || 0, 0), originalAccommodationNumber.value)
+  return 0
+})
+const accommodationNonRefundableNumber = computed(() => originalAccommodationNumber.value - accommodationRefundAmountNumber.value)
+const accommodationPartialRefundText = computed(() => toDisplayAmount(accommodationCancelForm.partialRefundAmount, accommodationCurrency.value))
+const accommodationSelectedFile = computed(() => Array.isArray(accommodationCancelForm.file) ? accommodationCancelForm.file[0] || null : accommodationCancelForm.file)
+const canSubmitAccommodationCancel = computed(() => accommodationCancelForm.reason.trim().length > 0 && !!accommodationCancelForm.refundStatus)
+const accommodationRefundConfirmation = computed({ get: () => accommodationSelectedFile.value, set: value => { accommodationCancelForm.file = value } })
+
 const selectedFile = computed(() => (Array.isArray(cancelForm.file) ? cancelForm.file[0] || null : cancelForm.file))
 const refundConfirmation = computed({ get: () => selectedFile.value, set: value => { cancelForm.file = value } })
 const canSubmitCancel = computed(() => cancelForm.reason.trim().length > 0 && !!cancelForm.refundStatus)
@@ -303,19 +343,34 @@ function discardCancel() {
 function submitCancel() {
   if (props.processing || !canSubmitCancel.value) return
   emit('cancel-ticket', {
-    orderId: order.value.id,
-    reason: cancelForm.reason.trim(),
-    refundStatus: cancelForm.refundStatus,
-    currency: ticketCurrency.value,
-    originalAmount: originalTicketNumber.value,
-    refundAmount: refundAmountNumber.value,
-    nonRefundableAmount: nonRefundableNumber.value,
-    confirmationFile: selectedFile.value,
+    orderId: order.value.id, reason: cancelForm.reason.trim(), refundStatus: cancelForm.refundStatus, currency: ticketCurrency.value,
+    originalAmount: originalTicketNumber.value, refundAmount: refundAmountNumber.value, nonRefundableAmount: nonRefundableNumber.value, confirmationFile: selectedFile.value,
+  })
+}
+
+function onAccommodationPartialRefundInput(event) {
+  applyAmountInput(event, accommodationCurrency.value, raw => { accommodationCancelForm.partialRefundAmount = raw })
+}
+
+function discardAccommodationCancel() {
+  Object.assign(accommodationCancelForm, { reason: '', refundStatus: 'Pending Refund', partialRefundAmount: '', file: null })
+  showAccommodationCancelForm.value = false
+}
+
+function submitAccommodationCancel() {
+  if (props.processing || !canSubmitAccommodationCancel.value) return
+
+  emit('cancel-accommodation', {
+    orderId: order.value.id, reason: accommodationCancelForm.reason.trim(), refundStatus: accommodationCancelForm.refundStatus, currency: accommodationCurrency.value,
+    originalAmount: originalAccommodationNumber.value, refundAmount: accommodationRefundAmountNumber.value, nonRefundableAmount: accommodationNonRefundableNumber.value, confirmationFile: accommodationSelectedFile.value,
   })
 }
 
 function close() {
   discardCancel()
+  discardAccommodationCancel()
+  cancelSchedule()
+  cancelEditBooking()
   emit('close')
   emit('update:modelValue', false)
 }
@@ -442,7 +497,7 @@ function close() {
                   <div class="text-subtitle-2 font-weight-bold mb-4">{{ ticketType === 'Ferry' ? 'Ferry Ticket' : ticketType === 'Airplane' ? 'Airplane Ticket' : 'Ticket' }}</div>
                   <div class="text-body-2 mb-2">Booking Amount</div>
                   <VRow dense>
-                    <VCol cols="4"><VSelect v-model="bookingForm.ticket_currency" :items="currencyOptions" variant="outlined" density="compact" :readonly="!editingBooking" hide-details /></VCol>
+                    <VCol cols="4"><VTextField v-model="bookingForm.ticket_currency" variant="outlined" density="compact" readonly bg-color="grey-lighten-3" hide-details /></VCol>
                     <VCol cols="8"><VTextField class="amount-input" :model-value="ticketAmountText" type="text" inputmode="decimal" autocomplete="off" placeholder="0" variant="outlined" density="compact" :readonly="!editingBooking" hide-details @input="onAmountInput('ticket', $event)" /></VCol>
                   </VRow>
                   <div class="text-body-2 font-weight-medium mt-4 mb-2">E-Ticket / Travel Document</div>
@@ -460,7 +515,7 @@ function close() {
                   <div class="text-subtitle-2 font-weight-bold mb-4">Accommodation</div>
                   <div class="text-body-2 mb-2">Booking Amount</div>
                   <VRow dense>
-                    <VCol cols="4"><VSelect v-model="bookingForm.accommodation_currency" :items="currencyOptions" variant="outlined" density="compact" :readonly="!editingBooking" hide-details /></VCol>
+                    <VCol cols="4"><VTextField v-model="bookingForm.accommodation_currency" variant="outlined" density="compact" readonly bg-color="grey-lighten-3" hide-details /></VCol>
                     <VCol cols="8"><VTextField class="amount-input" :model-value="accommodationAmountText" type="text" inputmode="decimal" autocomplete="off" placeholder="0" variant="outlined" density="compact" :readonly="!editingBooking" hide-details @input="onAmountInput('accommodation', $event)" /></VCol>
                   </VRow>
                   <div class="text-body-2 font-weight-medium mt-4 mb-2">Accommodation / Hotel Document</div>
@@ -477,7 +532,7 @@ function close() {
           </VCardText>
         </VCard>
 
-        <VCard v-if="isTicketBooked" rounded="lg" elevation="1" class="mb-4">
+        <VCard v-if="canCancelTicket" rounded="lg" elevation="1" class="mb-4">
           <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between ga-3">
             <div><div class="text-subtitle-2 font-weight-bold">Ticket Cancellation & Refund</div><div class="text-caption text-medium-emphasis">Available for company-booked tickets after GMO processing.</div></div>
             <VBtn v-if="!showCancelForm" color="error" variant="flat" size="small" class="flex-shrink-0" @click="showCancelForm = true">Cancel Ticket</VBtn>
@@ -498,12 +553,42 @@ function close() {
                 <VCol cols="12" md="6">
                   <div class="text-caption font-weight-medium mb-1">Refund Confirmation</div>
                   <div class="d-flex align-center ga-2 rounded-lg border pa-2"><input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="processing" @change="refundConfirmation = $event.target.files?.[0] || null" /></div>
-                  <div class="text-caption text-medium-emphasis mt-1">{{ refundConfirmation ? refundConfirmation.name : '' }}</div>
                 </VCol>
               </VRow>
               <div class="d-flex justify-end ga-2 mt-4">
                 <VBtn variant="text" size="small" :disabled="processing" @click="discardCancel">Cancel</VBtn>
                 <VBtn color="error" variant="flat" size="small" :loading="processing" :disabled="!canSubmitCancel || processing" @click="submitCancel">Confirm Cancellation</VBtn>
+              </div>
+            </VCardText>
+          </template>
+        </VCard>
+
+        <VCard v-if="canCancelAccommodation" rounded="lg" elevation="1" class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between ga-3">
+            <div><div class="text-subtitle-2 font-weight-bold">Accommodation Cancellation & Refund</div><div class="text-caption text-medium-emphasis">Available for company-booked accommodation after GMO processing.</div></div>
+            <VBtn v-if="!showAccommodationCancelForm" color="error" variant="flat" size="small" class="flex-shrink-0" @click="showAccommodationCancelForm = true">Cancel Accommodation</VBtn>
+          </div>
+          <template v-if="showAccommodationCancelForm">
+            <VDivider />
+            <VCardText class="pa-4">
+              <VRow dense>
+                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Cancellation Reason <span class="text-error">*</span></div><VTextarea v-model="accommodationCancelForm.reason" placeholder="e.g. Hotel reservation cancelled due to change of plans" variant="outlined" density="compact" rows="4" hide-details /></VCol>
+                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Refund Status <span class="text-error">*</span></div><VSelect v-model="accommodationCancelForm.refundStatus" :items="refundStatusOptions" variant="outlined" density="compact" hide-details /></VCol>
+                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Original Accommodation Amount</div><VTextField class="amount-input" :model-value="`${accommodationCurrency} ${formatAmount(originalAccommodationNumber)}`" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details /></VCol>
+                <VCol cols="12" md="6">
+                  <div class="text-caption font-weight-medium mb-1">Refund Amount</div>
+                  <VTextField v-if="isAccommodationPartialRefund" class="amount-input" :model-value="accommodationPartialRefundText" type="text" inputmode="decimal" autocomplete="off" placeholder="0" variant="outlined" density="compact" hide-details @input="onAccommodationPartialRefundInput" />
+                  <VTextField v-else class="amount-input" :model-value="formatAmount(accommodationRefundAmountNumber)" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details />
+                </VCol>
+                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Non-refundable Amount</div><VTextField class="amount-input" :model-value="`${accommodationCurrency} ${formatAmount(accommodationNonRefundableNumber)}`" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details /></VCol>
+                <VCol cols="12" md="6">
+                  <div class="text-caption font-weight-medium mb-1">Refund Confirmation</div>
+                  <div class="d-flex align-center ga-2 rounded-lg border pa-2"><input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="processing" @change="accommodationRefundConfirmation = $event.target.files?.[0] || null" /></div>
+                </VCol>
+              </VRow>
+              <div class="d-flex justify-end ga-2 mt-4">
+                <VBtn variant="text" size="small" :disabled="processing" @click="discardAccommodationCancel">Cancel</VBtn>
+                <VBtn color="error" variant="flat" size="small" :loading="processing" :disabled="!canSubmitAccommodationCancel || processing" @click="submitAccommodationCancel">Confirm Cancellation</VBtn>
               </div>
             </VCardText>
           </template>
@@ -519,12 +604,12 @@ function close() {
             <div v-if="loading" class="text-center py-4"><VProgressCircular indeterminate size="24" /></div>
             <div v-else-if="!email" class="text-medium-emphasis text-body-2">No email available.</div>
             <VRow v-else dense>
-              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">To</div><VTextField :model-value="asText(email.to)" variant="outlined" density="compact" readonly hide-details /></VCol>
-              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">CC</div><VTextField :model-value="asText(email.cc)" variant="outlined" density="compact" readonly hide-details /></VCol>
+              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">To</div><VTextField :model-value="asText(email.to)" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details /></VCol>
+              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">CC</div><VTextField v-model="email.cc" variant="outlined" density="compact" hide-details /></VCol>
               <VCol cols="12"><div class="text-body-2 text-medium-emphasis mb-2">Subject</div><VTextField v-model="email.subject" variant="outlined" density="compact" hide-details /></VCol>
               <VCol cols="12"><div class="text-body-2 text-medium-emphasis mb-2">Message</div><VTextarea v-model="email.message" variant="outlined" density="compact" rows="3" auto-grow hide-details /></VCol>
-              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">Status</div><VTextField :model-value="email.status || 'Sent'" variant="outlined" density="compact" readonly hide-details /></VCol>
-              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">Last Sent</div><VTextField :model-value="formatEmailDate(email.sent_at)" variant="outlined" density="compact" readonly hide-details /></VCol>
+              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">Status</div><VTextField :model-value="email.status || 'Sent'" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details /></VCol>
+              <VCol cols="12" sm="6"><div class="text-body-2 text-medium-emphasis mb-2">Last Sent</div><VTextField :model-value="formatEmailDate(email.sent_at)" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details /></VCol>
             </VRow>
           </VCardText>
         </VCard>

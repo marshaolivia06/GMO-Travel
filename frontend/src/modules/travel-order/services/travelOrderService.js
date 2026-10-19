@@ -62,6 +62,26 @@ export const revisionTravelOrder = (id, remark, evidence = null) => {
   return http.post(`${BASE}/${id}/revision`, { remark }).then(res => res.data)
 }
 
+export const updateGmoSchedule = (id, data) => http.put(`${BASE}/${id}/gmo/schedule`, data).then(res => res.data)
+
+export const updateGmoBookingItems = (id, data) => {
+  const payload = data instanceof FormData ? data : new FormData()
+
+  if (!(data instanceof FormData)) Object.entries(data).forEach(([key, value]) => { if (hasValue(value)) payload.append(key, value) })
+
+  return http.post(`${BASE}/${id}/gmo/booking-items`, payload).then(res => res.data)
+}
+
+export const cancelGmoBookingItem = (id, itemType, data) => {
+  const payload = data instanceof FormData ? data : new FormData()
+
+  if (!(data instanceof FormData)) Object.entries(data).forEach(([key, value]) => { if (hasValue(value)) payload.append(key, value) })
+
+  return http.post(`${BASE}/${id}/gmo/cancellations/${itemType}`, payload).then(res => res.data)
+}
+
+export const resendGmoBookingEmail = (id, data) => http.post(`${BASE}/${id}/gmo/resend-email`, data).then(res => res.data)
+
 export const getTravelAdvanceLimit = (travelRegion, currency) => http.get('/v1/travel-advance-masters/limit', { params: { travel_region: travelRegion, currency } }).then(res => res.data)
 export const getTravelAdvanceLimitByGrade = (travelRegion, grade) => http.get('/v1/travel-advance-masters/limit-by-grade', { params: { travel_region: travelRegion, grade } }).then(res => res.data)
 export const getTravelAdvanceCountries = travelRegion => http.get('/v1/travel-advance-masters/countries', { params: { travel_region: travelRegion } }).then(res => res.data)
