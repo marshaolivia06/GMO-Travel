@@ -140,47 +140,82 @@ class TravelOrderService
         return $department ? ['locked' => true, 'department' => ['id' => $department->id, 'name' => $department->name]] : ['locked' => false, 'department' => null];
     }
 
-    private function getGroupTripMembers(array $memberIds): array
-    {
-        $memberIds = array_values(array_unique(array_map('intval', $memberIds)));
+private function getGroupTripMembers(array $memberIds): array
+{
+    $memberIds = array_values(array_unique(array_map('intval', $memberIds)));
 
-        abort_if(empty($memberIds), 422, 'Select at least one member for the Group Trip.');
+    abort_if(empty($memberIds), 422, 'Select at least one member for the Group Trip.');
 
-        $members = User::query()->whereIn('id', $memberIds)->where('status', 1)->get()->keyBy('id');
+    $members = User::query()
+        ->whereIn('id', $memberIds)
+        ->where('status', 1)
+        ->get()
+        ->keyBy('id');
 
-        abort_if($members->count() !== count($memberIds), 422, 'One or more members are invalid or inactive.');
+    abort_if($members->count() !== count($memberIds), 422, 'One or more members are invalid or inactive.');
 
-        $sections = Section::query()->with('department')->where('status', 1)->whereIn('section_head_id', $memberIds)
-            ->whereHas('department', fn ($query) => $query->where('status', 1))
-            ->get()->unique('section_head_id')->keyBy('section_head_id');
+    $sections = Section::query()
+        ->with('department')
+        ->where('status', 1)
+        ->whereIn('section_head_id', $memberIds)
+        ->whereHas('department', fn ($query) => $query->where('status', 1))
+        ->get()
+        ->unique('section_head_id')
+        ->keyBy('section_head_id');
 
-        return collect($memberIds)->map(function ($memberId) use ($members, $sections) {
-            $member = $members->get($memberId);
-            $roles = $member->getRoleNames();
+    return collect($memberIds)->map(function ($memberId) use ($members, $sections) {
+        $member = $members->get($memberId);
+        $roles = $member->getRoleNames();
 
-            if ($roles->contains('Div Head')) {
-                return ['user_id' => $memberId, 'department_id' => null];
-            }
+        abort_if($roles->contains('Admin'), 422, "User ID {$memberId} with Admin role cannot be a Group Trip member.");
 
-            if ($roles->contains('Sect Head')) {
-                $section = $sections->get($memberId);
+        if ($roles->contains('Div Head')) {
+            return ['user_id' => $memberId, 'department_id' => null];
+        }
 
-                abort_if(!$section, 422, "No active section or department found for user ID {$memberId}.");
+        if ($roles->contains('Sect Head')) {
+            $section = $sections->get($memberId);
 
-                return ['user_id' => $memberId, 'department_id' => $section->department_id];
-            }
+            abort_if(!$section, 422, "No active section or department found for user ID {$memberId}.");
 
-            if ($roles->contains('Dept Head')) {
-                $department = Department::query()->where('status', 1)->where('dept_head_id', $memberId)->first();
+            return ['user_id' => $memberId, 'department_id' => $section->department_id];
+        }
 
-                abort_if(!$department, 422, "No active department found for user ID {$memberId}.");
+        if ($roles->contains('Dept Head')) {
+            $department = Department::query()
+                ->where('status', 1)
+                ->where('dept_head_id', $memberId)
+                ->first();
 
-                return ['user_id' => $memberId, 'department_id' => $department->id];
-            }
+            abort_if(!$department, 422, "No active department found for user ID {$memberId}.");
 
-            abort(422, "User ID {$memberId} is not a Sect Head, Dept Head, or Div Head.");
-        })->all();
-    }
+            return ['user_id' => $memberId, 'department_id' => $department->id];
+        }
+
+        $department = Department::query()
+            ->where('status', 1)
+            ->where(fn ($query) => $query
+                ->where('dept_admin_id', $memberId)
+                ->orWhere('dept_head_id', $memberId))
+            ->first();
+
+        if (!$department) {
+            $section = Section::query()
+                ->with('department')
+                ->where('section_head_id', $memberId)
+                ->where('status', 1)
+                ->whereHas('department', fn ($query) => $query->where('status', 1))
+                ->first();
+
+            $department = $section?->department;
+        }
+
+        return [
+            'user_id' => $memberId,
+            'department_id' => $department?->id,
+        ];
+    })->all();
+}
 
     public function create(array $data, User $user): TravelOrder
     {

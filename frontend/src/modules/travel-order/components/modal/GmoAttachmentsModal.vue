@@ -33,7 +33,7 @@ function getFileUrl(path) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
 
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000')
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://172.16.31.205:8000'
     .replace(/\/api\/?$/, '')
     .replace(/\/+$/, '')
 

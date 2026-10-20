@@ -8,13 +8,14 @@ import PdfViewerModal from '../components/modal/PdfViewerModal.vue'
 import PickTypeModal from '../components/modal/PickTypeModal.vue'
 import TripFormModal from '../components/modal/TripFormModal.vue'
 import GmoProcessModal from '../components/modal/GmoProcessModal.vue'
-import { getTravelOrders, getTravelOrder, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder, completeGmoProcessing, cancelTravelOrder, getGroupTripUsers, updateGmoSchedule, updateGmoBookingItems, cancelGmoBookingItem, resendGmoBookingEmail } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, getTravelOrderGroup, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder, completeGmoProcessing, cancelTravelOrder, getGroupTripUsers, updateGmoSchedule, updateGmoBookingItems, cancelGmoBookingItem, resendGmoBookingEmail, createTravelOrderGroup, getTravelOrderGroups } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
 import GmoAttachmentsModal from '../components/modal/GmoAttachmentsModal.vue'
 import GmoHistoryModal from '../components/modal/GmoHistoryModal.vue'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
+import GroupTripDetailModal from '../components/modal/GroupTripDetailModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,6 +72,8 @@ const groupTripDialog = ref(false)
 const groupTripSubmitting = ref(false)
 const selectedGroupTrip = ref(null)
 const memberOptions = ref([])
+const groupTripViewDialog = ref(false)
+const groupTripViewLoading = ref(false)
 const processMode = ref('processing')
 const processSubmitting = ref(false)
 const attachmentsDialog = ref(false)
@@ -82,6 +85,7 @@ const gmoAwaitingStatuses = ['awaiting_gmo_processing', 'awaiting_gmo_booking_do
 const gmoHistoryStatuses = ['processed_by_gmo', 'cancelled']
 const statusOptions = ['Awaiting Approval', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking & Document Issuance', 'Processed by GMO']
 const statusColor = { 'Awaiting Approval': 'warning', 'Processed by GMO': 'success', 'Awaiting Approval GMO': 'warning', 'Awaiting GMO Processing': 'warning', 'Awaiting GMO Booking & Document Issuance': 'warning', 'Revision Required': 'warning', 'Cancelled': 'error' }
+const groupStatusColor = { draft: 'success', open: 'warning', closed: 'error' }
 const statusLabel = { awaiting_approval: 'Awaiting Approval', awaiting_approval_gmo: 'Awaiting Approval GMO', revision_required: 'Revision Required', draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required', awaiting_gmo_processing: 'Awaiting GMO Processing', awaiting_gmo_booking_document_issuance: 'Awaiting GMO Booking & Document Issuance', processed_by_gmo: 'Processed by GMO' }
 const typeColor = { 'Business Trip - Individual': 'primary', 'Business Trip - Group Trip': 'info', 'Annual Trip': 'success' }
 const typeLabel = { individual: 'Business Trip - Individual', group: 'Business Trip - Group Trip', annual: 'Annual Trip' }
@@ -111,12 +115,13 @@ const businessTypes = [
 ]
 
 const groupTripHeaders = [
-  { title: 'GROUP NAME', key: 'trip_name', sortable: false },
-  { title: 'DESTINATION', key: 'destination', sortable: false },
-  { title: 'PERIOD', key: 'period', sortable: false },
-  { title: 'MEMBERS', key: 'members_count', sortable: false, align: 'center' },
-  { title: 'TRAVEL ORDER', key: 'travel_order_status', sortable: false, align: 'center' },
-  { title: 'ACTION', key: 'action', sortable: false, align: 'center' },
+  col('ACTION', 'action', { align: 'center'}),
+  col('STATUS', 'status', { align: 'center' }),
+  col('TRIP NAME', 'trip_name'),
+  col('ROUTE', 'route'),
+  col('TRAVEL REGION', 'travel_region'),
+  col('PERIOD', 'period'),
+  col('DEPARTMENTS', 'departments'),
 ]
 
 const noteMeta = {
@@ -171,6 +176,16 @@ function resolveArrangement(order) {
   if (!a) return b
   if (b === 'Not Required') return a
   return 'Mixed'
+}
+
+function groupDepartments(group) {
+  return group.departments || []
+}
+
+function groupSubtitle(group) {
+  const orders = group.travel_orders_count || 0
+  const status = group.status ? group.status.charAt(0).toUpperCase() + group.status.slice(1) : '-'
+  return `${status} · ${orders ? `${orders} Travel Order${orders > 1 ? 's' : ''}` : 'No Travel Orders'}`
 }
 
 function normalize(order) {
@@ -607,16 +622,47 @@ const loadGroupTripUsers = async () => {
   }
 }
 
+async function loadGroupTrips() {
+  try {
+    const response = await getTravelOrderGroups({ per_page: 1000 })
+    const data = response.data ?? response
+    groupTrips.value = Array.isArray(data) ? data : data.data || []
+  } catch (error) {
+    console.error('Load group trips error:', error)
+    groupTrips.value = []
+  }
+}
+
 async function submitGroupTrip(payload) {
   if (groupTripSubmitting.value) return
   groupTripSubmitting.value = true
   try {
-    groupTrips.value.push({ ...payload, id: `temp-${Date.now()}`, members: payload.members || [], travel_order_id: null })
+    await createTravelOrderGroup(payload)
     groupTripDialog.value = false
+    await loadGroupTrips()
     if (isAdminGmo.value) gmoTab.value = 'groups'
     showMessage('Group Trip created successfully.')
+  } catch (error) {
+    const errors = error?.response?.data?.errors
+    const firstError = errors ? Object.values(errors).flat()[0] : null
+    showMessage(firstError || error?.response?.data?.message || 'Failed to create Group Trip.', 'error')
   } finally {
     groupTripSubmitting.value = false
+  }
+}
+
+async function viewGroupTrip(group) {
+  groupTripViewDialog.value = true
+  groupTripViewLoading.value = true
+  selectedGroupTrip.value = group
+
+  try {
+    const response = await getTravelOrderGroup(group.id)
+    selectedGroupTrip.value = response?.data?.data ?? response?.data ?? response
+  } catch (error) {
+    console.error('Failed to load Group Trip:', error)
+  } finally {
+    groupTripViewLoading.value = false
   }
 }
 
@@ -704,6 +750,7 @@ async function submitOrder(payload) {
 onMounted(() => {
   loadOrders()
   loadGroupTripUsers()
+  if (isAdminGmo.value) loadGroupTrips()
   if (route.query.submitted) {
     showMessage('Travel order submitted successfully.')
     router.replace({ query: {} })
@@ -725,7 +772,7 @@ onMounted(() => {
         </div>
       </VCardText>
       <VDivider />
-      <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No travel orders found.">
+      <VDataTable v-if="!(isAdminGmo && gmoTab === 'groups')" class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No travel orders found.">
         <template #item.id="{ item }"><span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span></template>
         <template #item.type="{ item }"><VChip size="small" variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip></template>
         <template #item.subject="{ item }"><div class="font-weight-bold text-body-2">{{ item.subject }}</div><div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div></template>
@@ -755,12 +802,39 @@ onMounted(() => {
           </VBtnGroup>
         </template>
       </VDataTable>
+      <VDataTable v-else class="orders-table" :headers="groupTripHeaders" :items="filteredGroupTrips" show-current-page item-value="id" hover no-data-text="No group trips found.">
+        <template #item.action="{ item }">
+  <VBtnGroup density="compact" variant="tonal">
+    <VBtn color="blue-darken-1" :loading="groupTripViewLoading && selectedGroupTrip?.id === item.id" @click="viewGroupTrip(item)">
+      <VIcon icon="ri-eye-line" />
+      <VTooltip activator="parent" location="top">View</VTooltip>
+    </VBtn>
+  </VBtnGroup>
+</template>
+  <template #item.trip_name="{ item }">
+    <div class="font-weight-bold text-body-2">{{ item.trip_name }}</div>
+    <div class="text-caption text-medium-emphasis">{{ groupSubtitle(item) }}</div>
+  </template>
+  <template #item.route="{ item }"><span class="text-body-2 text-no-wrap">{{ item.travel_from }} - {{ item.travel_to }}</span></template>
+  <template #item.travel_region="{ item }"><VChip size="small" variant="tonal" color="info" class="text-no-wrap">{{ item.travel_region }}</VChip></template>
+  <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ formatDate(item.departure_date) }} - {{ formatDate(item.return_date) }}</span></template>
+  <template #item.departments="{ item }">
+  <div class="d-flex flex-wrap ga-1">
+    <VChip v-for="name in groupDepartments(item)" :key="name" size="small" color="grey-lighten-3" variant="flat" class="text-no-wrap">{{ name }}</VChip>
+    <span v-if="!groupDepartments(item).length" class="text-body-2">-</span>
+  </div>
+</template>
+  <template #item.status="{ item }">
+    <VChip size="small" variant="tonal" :color="groupStatusColor[item.status] || 'grey'" class="text-no-wrap text-capitalize"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip>
+  </template>
+</VDataTable>
     </VCard>
 
     <PickTypeModal v-model="requestDialog" title="New Travel Request" subtitle="Select the type of request you want to submit." :items="requestTypes" @select="selectRequest" />
     <PickTypeModal v-model="businessDialog" title="Business Trip" subtitle="How many people are traveling?" :items="businessTypes" show-back @back="backToRequest" @select="selectBusinessType" />
     <TripFormModal v-model="dialog" :type="dialogType" :loading="submitting" :initial-data="editingDraft ? selected : null" :member-options="memberOptions" @back="backToBusiness" @close="closeDialog" @submit="submitOrder" />
     <VDialog v-model="groupTripDialog" max-width="1000" scrollable><GroupTripForm :loading="groupTripSubmitting" :member-options="memberOptions" @cancel="groupTripDialog = false" @submit="submitGroupTrip" /></VDialog>
+      <GroupTripDetailModal v-model="groupTripViewDialog" :group="selectedGroupTrip" :loading="groupTripViewLoading"/>
     <PdfViewerModal v-model="detailDialog" :title="detailMode === 'review' ? 'Review Travel Order' : 'Travel Order Detail'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="canDecide" :approving="approving" @back="backToApproval" @reject="handleReject" @revision="handleRevision" @approve="handleApprove" />
     <ApprovalFlowModal v-model="approvalDialog" :loading="approvalLoading" :cards="approvalCards" :can-approve="canApprove" @review="openReview" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />

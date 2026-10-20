@@ -1,4 +1,4 @@
-const API_URL = 'http://127.0.0.1:8000/api/v1'
+const API_URL = 'http://172.16.31.205:8000/api/v1'
 
 const getToken = () => {
   return localStorage.getItem('token')

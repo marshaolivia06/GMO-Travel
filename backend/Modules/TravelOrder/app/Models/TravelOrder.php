@@ -21,6 +21,7 @@ class TravelOrder extends Model
         'order_number',
         'request_type',
         'trip_type',
+        'travel_order_group_id',
         'status',
         'user_id',
         'department_id',
@@ -65,6 +66,11 @@ class TravelOrder extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function group(): BelongsTo
+    {
+    return $this->belongsTo(TravelOrderGroup::class, 'travel_order_group_id');
     }
 
     public function advance(): HasOne
