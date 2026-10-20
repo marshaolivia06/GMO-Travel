@@ -21,6 +21,8 @@ class UpdateTravelOrderGroupRequest extends FormRequest
             'departure_date' => ['required', 'date'],
             'return_date' => ['required', 'date', 'after_or_equal:departure_date'],
             'purpose' => ['nullable', 'string'],
+            'members' => ['required', 'array', 'min:2'],
+            'members.*' => ['integer', 'distinct', 'exists:users,id'],
         ];
     }
 }

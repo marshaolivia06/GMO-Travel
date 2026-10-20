@@ -1,12 +1,20 @@
 <script setup>
 import { computed } from 'vue'
 
-const props = defineProps({ modelValue: Boolean, group: { type: Object, default: null }, loading: Boolean })
+const props = defineProps({ modelValue: Boolean, group: { type: Object, default: null }, loading: Boolean, memberOptions: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:modelValue', 'close'])
 const group = computed(() => props.group || {})
 const members = computed(() => group.value.members || [])
 const statusColor = computed(() => ({ open: 'warning', closed: 'error', draft: 'success' }[group.value.status] || 'grey'))
 const createdOrders = computed(() => members.value.filter(member => travelOrder(member)).length)
+const progress = computed(() => members.value.length ? Math.round((createdOrders.value / members.value.length) * 100) : 0)
+const departmentById = computed(() => Object.fromEntries((group.value.departments || []).filter(item => item && typeof item === 'object').map(item => [item.id, item.name])))
+const userDepartmentById = computed(() => Object.fromEntries(props.memberOptions.map(user => [String(user.id), user.department?.name || user.department_name || ''])))
+const participantDepartments = computed(() => {
+  const fromGroup = (group.value.departments || []).map(department => departmentName(department)).filter(name => name && name !== '-')
+  const fromMembers = members.value.map(member => memberDepartment(member)).filter(name => name && name !== '-')
+  return [...new Set(fromGroup.length ? fromGroup : fromMembers)]
+})
 
 function close() { emit('close'); emit('update:modelValue', false) }
 function valueOrDash(value) { return value === null || value === undefined || value === '' ? '-' : value }
@@ -17,14 +25,12 @@ function formatDate(value) {
 }
 function memberUser(member) { return member.user || member.employee || member }
 function memberName(member) { const user = memberUser(member); return user.name || member.employee_name || '-' }
+function memberUserId(member) { return member.user_id ?? member.user?.id ?? member.employee?.id ?? member.employee_id ?? member.id }
+function initials(name) { return String(name || '?').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() }
 function memberDepartment(member) {
-  const user = member.user || member.employee || member
-  return user.department?.name
-    || user.department_name
-    || member.department?.name
-    || member.department_name
-    || member.departmentName
-    || '-'
+  const user = memberUser(member)
+  const direct = user.department?.name || user.department_name || member.department?.name || member.department_name || member.departmentName
+  return direct || userDepartmentById.value[String(memberUserId(member))] || departmentById.value[user.department_id ?? member.department_id] || '-'
 }
 function travelOrder(member) { return member.travel_order || member.travelOrder || member.travel_orders?.[0] || null }
 function departmentName(department) { return typeof department === 'object' ? department?.name || '-' : department }
@@ -43,9 +49,6 @@ function departmentName(department) { return typeof department === 'object' ? de
         <VCard rounded="lg" border elevation="0" class="mb-4">
           <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between flex-wrap ga-2">
             <div class="text-subtitle-2 font-weight-bold">Trip Information</div>
-            <div class="text-caption text-medium-emphasis">
-  {{ valueOrDash(group.status) }} · {{ group.travel_orders_count || 0 }} Travel Orders
-</div>
           </div>
           <VDivider />
           <VCardText class="pa-4">
@@ -84,12 +87,12 @@ function departmentName(department) { return typeof department === 'object' ? de
                   <div class="text-body-2 font-weight-bold">{{ formatDate(group.return_date) }}</div>
                 </VCol>
                 <VCol cols="12" class="pa-3 border-b">
-                  <div class="text-caption text-medium-emphasis mb-2">Department Participants</div>
-                  <div class="d-flex flex-wrap ga-2">
-                    <VChip v-for="department in group.departments || []" :key="typeof department === 'object' ? department.id || department.name : department" size="small" variant="tonal" color="secondary">{{ departmentName(department) }}</VChip>
-                    <span v-if="!group.departments?.length" class="text-body-2">-</span>
-                  </div>
-                </VCol>
+  <div class="text-caption text-medium-emphasis mb-2">Department Participants</div>
+  <div class="d-flex flex-wrap ga-2">
+    <VChip v-for="name in participantDepartments" :key="name" size="small" variant="tonal" color="secondary">{{ name }}</VChip>
+    <span v-if="!participantDepartments.length" class="text-body-2">-</span>
+  </div>
+</VCol>
                 <VCol cols="12" class="pa-3">
                   <div class="text-caption text-medium-emphasis mb-1">Trip Purpose</div>
                   <div class="text-body-2 font-weight-bold" style="white-space: pre-wrap; overflow-wrap: anywhere">{{ valueOrDash(group.purpose) }}</div>
@@ -107,8 +110,8 @@ function departmentName(department) { return typeof department === 'object' ? de
           <VDivider />
           <VTable density="comfortable">
             <thead>
-              <tr><th class="text-no-wrap">Employee</th><th class="text-no-wrap">Department</th><th class="text-no-wrap">Travel Order</th></tr>
-            </thead>
+  <tr><th class="text-no-wrap font-weight-bold text-black">Employee</th><th class="text-no-wrap font-weight-bold text-black">Department</th><th class="text-no-wrap font-weight-bold text-black">Travel Order</th></tr>
+</thead>
             <tbody>
               <tr v-for="(member, index) in members" :key="member.id || member.user_id || index">
                 <td class="text-body-2 font-weight-medium">{{ memberName(member) }}</td>

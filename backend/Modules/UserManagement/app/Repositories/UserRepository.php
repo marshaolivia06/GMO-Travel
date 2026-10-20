@@ -108,7 +108,7 @@ public function getGroupTripUsers(): Collection
 
         if ($roles->contains('Div Head')) {
     $user->setAttribute('section_name', null);
-    $user->setAttribute('department_name', 'Div Head');
+    $user->setAttribute('department_name', null);
     $user->setAttribute('department_id', null);
 
     return $user;

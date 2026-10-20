@@ -12,7 +12,7 @@ const generalError = ref('')
 const errors = reactive({ tripName: '', travelRegion: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', members: '' })
 const form = reactive({ tripName: '', travelRegion: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', purpose: '' })
 
-const memberItems = computed(() => props.memberOptions.map(user => ({ ...user, id: user.id, name: user.name || user.full_name || '', departmentName: user.department?.name || user.department_name || 'No department' })))
+const memberItems = computed(() => props.memberOptions.map(user => ({ ...user, id: user.id, name: user.name || user.full_name || '', departmentName: user.department?.name || user.department_name || '-' })))
 const selectedMembers = computed(() => memberItems.value.filter(user => selectedMemberIds.value.some(id => String(id) === String(user.id))))
 const canCreate = computed(() => requiredFields.every(key => !!String(form[key]).trim()) && form.returnDate >= form.departureDate && selectedMemberIds.value.length >= 2 && !props.loading)
 
@@ -50,12 +50,13 @@ function validate() {
 }
 
 function getPayload() {
-    return { trip_name: form.tripName.trim(), travel_region: form.travelRegion, travel_from: form.travelFrom.trim(), travel_to: form.travelTo.trim(), departure_date: form.departureDate, return_date: form.returnDate, purpose: form.purpose.trim(), members: selectedMemberIds.value, request_type: 'business_trip', trip_type: 'group', status: 'open' }
+    return { trip_name: form.tripName.trim(), travel_region: form.travelRegion, travel_from: form.travelFrom.trim(), travel_to: form.travelTo.trim(), departure_date: form.departureDate, return_date: form.returnDate, purpose: form.purpose.trim(), members: selectedMemberIds.value, request_type: 'business_trip', trip_type: 'group', status: props.initialData?.status || 'open' }
 }
 
 async function createGroup() {
     if (props.loading || !validate()) return
-    const confirmed = await confirm({ title: 'Create Group Trip?', text: 'Are you sure you want to create this Group Trip?', color: 'primary' })
+    const isEdit = !!props.initialData
+    const confirmed = await confirm({ title: isEdit ? 'Save Changes?' : 'Create Group Trip?', text: isEdit ? 'Are you sure you want to save changes to this Group Trip?' : 'Are you sure you want to create this Group Trip?', color: 'primary' })
     if (confirmed) emit('submit', getPayload())
 }
 
@@ -108,7 +109,7 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
       <VDivider />
       <VCardActions class="pa-4 justify-end">
         <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
-        <VBtn type="submit" color="primary" variant="flat" :loading="loading" :disabled="!canCreate">{{ initialData ? 'Save Changes' : 'Create Group' }}</VBtn>
+        <VBtn type="submit" :color="initialData ? 'success' : 'primary'" variant="flat" :loading="loading" :disabled="!canCreate">{{ initialData ? 'Save' : 'Create Group' }}</VBtn>
       </VCardActions>
     </VForm>
   </VCard>

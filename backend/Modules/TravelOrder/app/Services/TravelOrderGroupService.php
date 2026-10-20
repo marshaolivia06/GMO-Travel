@@ -51,9 +51,9 @@ class TravelOrderGroupService
         return DB::transaction(function () use ($group, $data, $memberIds) {
             $this->repository->update($group, $data);
             if ($memberIds !== null) {
-                foreach ($group->members()->pluck('users.id') as $userId) $this->repository->removeMember($group, (int) $userId);
-                $this->repository->addMembers($group, $memberIds);
-            }
+    $group->members()->whereNotIn('user_id', $memberIds)->delete();
+    $this->repository->addMembers($group, $memberIds);
+}
             return $this->repository->findOrFail($group->id);
         });
     }
