@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Modules\TravelOrder\Models\TravelOrderGroup;
 use Modules\TravelOrder\Repositories\TravelOrderGroupRepository;
+use Illuminate\Database\Eloquent\Collection;
 
 class TravelOrderGroupService
 {
@@ -20,6 +21,11 @@ class TravelOrderGroupService
     public function show(int $id): TravelOrderGroup
     {
         return $this->repository->findOrFail($id);
+    }
+
+    public function myGroups(int $userId): Collection
+    {
+    return $this->repository->myGroups($userId);
     }
 
     public function create(array $data): TravelOrderGroup
@@ -45,7 +51,7 @@ class TravelOrderGroupService
         $this->ensureStatus($group, ['open'], 'Hanya group berstatus open yang dapat diubah.');
 
         $memberIds = isset($data['members']) ? array_values(array_unique($data['members'])) : null;
-        unset($data['members'], $data['status'], $data['created_by'], $data['opened_at'], $data['closed_at']);
+        unset($data['members'], $data['departments'], $data['status'], $data['created_by'], $data['opened_at'], $data['closed_at']);
         if ($memberIds !== null && count($memberIds) < 2) throw ValidationException::withMessages(['members' => 'Group harus memiliki minimal 2 anggota.']);
 
         return DB::transaction(function () use ($group, $data, $memberIds) {

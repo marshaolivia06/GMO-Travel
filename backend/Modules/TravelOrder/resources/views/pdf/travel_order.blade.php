@@ -1,34 +1,135 @@
 @php
     use Modules\MasterManagement\Models\Section;
+    use Modules\MasterManagement\Models\Department;
+    use Modules\MasterManagement\Models\MasterDivision;
+    use Modules\UserManagement\Models\User;
 
-    $section = Section::where('section_head_id', $order->user_id)->first();
     $val = fn ($v) => ($v === null || $v === '') ? '-' : $v;
     $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y') : '-';
     $dateTime = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y H:i') : '-';
     $money = fn ($amount, $currency) => ((float) $amount) ? number_format((float) $amount, 2) . ' ' . ($currency ?? '') : 'Not Applicable';
-    $division = $order->department?->divisionHead
-    ?? \Modules\MasterManagement\Models\MasterDivision::where(
-        'division_head_id',
-        $order->user_id
-    )->first();
-    $approvalLabels = ['submitted' => 'Requested', 'pending' => 'Awaiting Approval', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled', 'revision' => 'Revision Required'];
-    $tripTypes = ['individual' => 'Business Trip - Individual', 'group' => 'Business Trip - Group Trip', 'annual' => 'Annual Trip'];
+
+    $requesterId = $order->user_id;
+
+    $section = Section::with('department')
+        ->where('section_head_id', $requesterId)
+        ->first();
+
+    $department = $order->department
+        ?? $section?->department
+        ?? Department::where('dept_head_id', $requesterId)->first()
+        ?? Department::where('dept_admin_id', $requesterId)->first();
+
+    $division = $department?->divisionHead
+        ?? MasterDivision::where('division_head_id', $requesterId)->first();
+
+        $position = $division && (int) $division->division_head_id === (int) $requesterId
+    ? 'Div Head'
+    : ($department && (int) $department->dept_head_id === (int) $requesterId
+        ? 'Dept Head'
+        : ($section && (int) $section->section_head_id === (int) $requesterId
+            ? 'Sect Head'
+            : '-'));
+
+    $level = $val(User::where('id', $requesterId)->value('grade'));
+
+    $isGroup = $order->trip_type === 'group';
     $advance = $order->advance;
+
+    $approvalLabels = [
+        'submitted' => 'Requested',
+        'pending' => 'Awaiting Approval',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'cancelled' => 'Cancelled',
+        'revision' => 'Revision Required',
+    ];
+
+    $tripTypes = [
+        'individual' => 'Business Trip - Individual',
+        'group' => 'Business Trip - Group Trip',
+        'annual' => 'Annual Trip',
+    ];
 
     $summary = [
         [['Request Type', $tripTypes[$order->trip_type] ?? 'Business Trip - Individual'], ['Travel Region', $val($order->travel_region)]],
         [['Employee', $val($order->user?->name)], ['Country', $val($order->country)]],
+        [['Position', $position], ['Level', $level]],
         [['Section', $val($section?->name)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
-        [['Department', $val($order->department?->name)], ['Departure', $date($order->departure_date) . ' ' . $order->departure_time]],
+        [['Department', $val($department?->name)], ['Departure', $date($order->departure_date) . ' ' . $order->departure_time]],
         [['Purpose', $val($order->purpose)], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
         [['Remarks', $val($order->remarks)]],
     ];
 
+    $employeeInfo = [
+        [['Employee', $val($order->user?->name)]],
+        [['Section', $val($section?->name)]],
+        [['Department', $val($department?->name)]],
+    ];
+
+    $tripInfo = [
+        [['Request Type', $tripTypes[$order->trip_type] ?? 'Business Trip - Individual'], ['Travel Region', $val($order->travel_region)]],
+        [['Country', $val($order->country)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
+        [['Departure', $date($order->departure_date) . ' ' . $order->departure_time], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
+        [['Purpose', $val($order->purpose)]],
+        [['Remarks', $val($order->remarks)]],
+    ];
+
     $ticket = [
-    [['Ticket Type', $val($order->ticket_type)], ['Ticket Arrangement', $val($order->ticket_arrangement)]],
-    [['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)], ['Accommodation', $val($order->accommodation_arrangement)]],
-    [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
+        [['Ticket Type', $val($order->ticket_type)], ['Ticket Arrangement', $val($order->ticket_arrangement)]],
+        [['Meal Allowance', $money($advance?->meal_allowance, $advance?->currency)], ['Accommodation', $val($order->accommodation_arrangement)]],
+        [['Pocket Money', $money($advance?->pocket_money, $advance?->currency)]],
+    ];
+
+    $groupTripInfo = [
+    [
+        ['Request Type', 'Business Trip - Group'],
+        ['Travel Region', $val($order->travel_region)],
+    ],
+    [
+        ['Country', $val($order->country)],
+        ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)],
+    ],
+    [
+        ['Purpose', $val($order->purpose)],
+        ['Departure', $date($order->departure_date) . ' ' . $order->departure_time],
+    ],
+    [
+        ['Remarks', $val($order->remarks)],
+        ['Return', $date($order->return_date) . ' ' . $order->return_time],
+    ],
 ];
+
+    $otherMembers = collect();
+
+    if ($isGroup) {
+        $order->loadMissing('group.members.user');
+
+        $otherMembers = ($order->group?->members ?? collect())
+            ->reject(fn ($member) => (int) $member->user_id === (int) $requesterId)
+            ->values();
+
+        $memberIds = $otherMembers->pluck('user_id')->all();
+
+        $bySection = Section::with('department:id,name')
+            ->whereIn('section_head_id', $memberIds)
+            ->get()
+            ->mapWithKeys(fn ($s) => [$s->section_head_id => $s->department?->name]);
+
+        $byDeptHead = Department::whereIn('dept_head_id', $memberIds)
+            ->pluck('name', 'dept_head_id');
+
+        $byDeptAdmin = Department::whereIn('dept_admin_id', $memberIds)
+            ->pluck('name', 'dept_admin_id');
+
+        $otherMembers = $otherMembers->map(fn ($member) => [
+            'name' => $member->user?->name ?? '-',
+            'department' => $bySection[$member->user_id]
+                ?? $byDeptHead[$member->user_id]
+                ?? $byDeptAdmin[$member->user_id]
+                ?? 'No Department',
+        ])->sortBy([['department', 'asc'], ['name', 'asc']])->values();
+    }
 @endphp
 
 <!DOCTYPE html>
@@ -61,6 +162,7 @@
         .footer { position: fixed; bottom: -48px; left: 0; right: 0; border-top: 1px solid #000; padding-top: 5px; font-size: 9px; }
     </style>
 </head>
+
 <body>
     <div class="doc-head">
         <div style="text-align: left; font-size: 11px; font-weight: bold; letter-spacing: 0; margin-bottom: 18px;">
@@ -70,13 +172,47 @@
         <div class="doc-title">TRAVEL ORDER</div>
     </div>
 
-    @foreach ([['Request Summary', $summary], ['Ticket, Accommodation & Travel Advance', $ticket]] as [$title, $rows])
+    @if ($isGroup)
+    <div class="section">
+    <div class="info">
+        <div class="row">
+            <div class="cell" style="width: 47%;">
+                <div class="lbl">Employee</div>
+                <div class="val">{{ $val($order->user?->name) }}</div>
+            </div>
+            <div class="cell r">
+                <div class="lbl">Position</div>
+                <div class="val">{{ $position }}</div>
+            </div>
+            <div class="clr"></div>
+        </div>
+
+        <div class="row">
+            <div class="cell" style="width: 47%;">
+                <div class="lbl">Section</div>
+                <div class="val">{{ $val($section?->name) }}</div>
+            </div>
+            <div class="cell r">
+                <div class="lbl">Level</div>
+                <div class="val">{{ $level }}</div>
+            </div>
+            <div class="clr"></div>
+        </div>
+
+        <div class="row">
+            <div class="cell full">
+                <div class="lbl">Department</div>
+                <div class="val">{{ $val($department?->name) }}</div>
+            </div>
+            <div class="clr"></div>
+        </div>
+    </div>
+</div>
+
         <div class="section">
-            @if ($title !== 'Request Summary')
-                <div class="section-title">{{ $title }}</div>
-            @endif
+            <div class="section-title">Trip Information</div>
             <div class="info">
-                @foreach ($rows as $row)
+            @foreach ($groupTripInfo as $row)
                     <div class="row">
                         @foreach ($row as [$l, $v])
                             <div class="cell {{ count($row) === 1 ? 'full' : ($loop->last ? 'r' : '') }}">
@@ -89,7 +225,71 @@
                 @endforeach
             </div>
         </div>
-    @endforeach
+
+        <div class="section">
+            <div class="section-title">Ticket, Accommodation &amp; Travel Advance</div>
+            <div class="info">
+                @foreach ($ticket as $row)
+                    <div class="row">
+                        @foreach ($row as [$l, $v])
+                            <div class="cell {{ count($row) === 1 ? 'full' : ($loop->last ? 'r' : '') }}">
+                                <div class="lbl">{{ $l }}</div>
+                                <div class="val">{{ $v }}</div>
+                            </div>
+                        @endforeach
+                        <div class="clr"></div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <div class="section">
+    <div class="section-title">Other Employees in Group Trip</div>
+    <table class="grid">
+        <thead>
+            <tr>
+            <th style="width: 6%">No</th>
+                <th style="width: 52%; text-align: left;">Employee</th>
+                <th style="width: 40%; text-align: center;">Department</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse ($otherMembers as $member)
+                <tr>
+                    <td class="center">{{ $loop->iteration }}</td>
+                    <td style="text-align: left;">{{ $member['name'] }}</td>
+                    <td style="text-align: center;">{{ $member['department'] }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="3" class="center">No other employees in this group.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+</div>
+    @else
+        @foreach ([['Request Summary', $summary], ['Ticket, Accommodation & Travel Advance', $ticket]] as [$title, $rows])
+            <div class="section">
+                @if ($title !== 'Request Summary')
+                    <div class="section-title">{{ $title }}</div>
+                @endif
+                <div class="info">
+                    @foreach ($rows as $row)
+                        <div class="row">
+                            @foreach ($row as [$l, $v])
+                                <div class="cell {{ count($row) === 1 ? 'full' : ($loop->last ? 'r' : '') }}">
+                                    <div class="lbl">{{ $l }}</div>
+                                    <div class="val">{{ $v }}</div>
+                                </div>
+                            @endforeach
+                            <div class="clr"></div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endforeach
+    @endif
 
     <div class="section">
         <div class="section-title">Reviewed &amp; Approved By</div>
@@ -107,19 +307,19 @@
                 @forelse ($order->approvals->sortBy('sequence') as $step)
                     @php
                         $role = $step->role?->name ?? '-';
-                       
+
                         $organization = match ($role) {
-                        'Sect Head' => $section?->name,
-                        'Dept Head' => $order->department?->name,
-                        'Div Head' => $division?->division_name,
-                        default => null,
-                    };
+                            'Sect Head' => $section?->name,
+                            'Dept Head' => $department?->name,
+                            'Div Head' => $division?->division_name,
+                            default => null,
+                        };
 
-                $displayRole = str_replace(' ', '.', $role);
+                        $displayRole = str_replace(' ', '.', $role);
+                        $roleLabel = $organization
+                            ? "{$organization} ({$displayRole})"
+                            : $displayRole;
 
-                $roleLabel = $organization
-                ? "{$organization} ({$displayRole})"
-                : $displayRole;
                         $statusStyle = match ($step->status) {
                             'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;',
                             'approved' => 'background-color: #DCFCE7; color: #15803D;',
@@ -131,11 +331,19 @@
                         <td class="center">{{ $loop->iteration }}</td>
                         <td>{{ $val($roleLabel) }}</td>
                         <td>{{ $val($step->user?->name) }}</td>
-                        <td class="center">{{ $step->acted_at ? $dateTime($step->acted_at) : '-' }}</td>
-                        <td class="center"><span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; {{ $statusStyle }}">{{ $approvalLabels[$step->status] ?? $step->status }}</span></td>
+                        <td class="center">
+                            {{ $step->acted_at ? $dateTime($step->acted_at) : '-' }}
+                        </td>
+                        <td class="center">
+                            <span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; {{ $statusStyle }}">
+                                {{ $approvalLabels[$step->status] ?? $step->status }}
+                            </span>
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="center">No approval data yet.</td></tr>
+                    <tr>
+                        <td colspan="5" class="center">No approval data yet.</td>
+                    </tr>
                 @endforelse
             </tbody>
         </table>
@@ -144,7 +352,10 @@
     <div class="footer">
         <table>
             <tr>
-                <td>No. {{ $order->approvals->where('status', '!=', 'submitted')->isNotEmpty() && $order->approvals->where('status', '!=', 'submitted')->every(fn ($step) => $step->status === 'approved') ? $val($order->order_number) : '-' }}</td>
+                <td>
+                    No.
+                    {{ $order->approvals->where('status', '!=', 'submitted')->isNotEmpty() && $order->approvals->where('status', '!=', 'submitted')->every(fn ($step) => $step->status === 'approved') ? $val($order->order_number) : '-' }}
+                </td>
                 <td class="right">Generated: {{ now()->format('d M Y H:i') }}</td>
             </tr>
         </table>

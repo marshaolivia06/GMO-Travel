@@ -12,7 +12,8 @@ use Modules\MasterManagement\Models\Department;
 use Modules\TravelOrder\Models\TravelOrderAdvance;
 use Modules\TravelOrder\Models\TravelOrderApproval;
 use Modules\UserManagement\Models\User;
-use Modules\TravelOrder\Models\TravelOrderMember;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Modules\TravelOrder\Models\TravelOrderGroupMember;
 class TravelOrder extends Model
 {
     use HasFactory, SoftDeletes;
@@ -53,10 +54,17 @@ class TravelOrder extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function members(): HasMany
-{
-    return $this->hasMany(TravelOrderMember::class, 'travel_order_id');
-}
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'travel_order_group_members',
+            'travel_order_group_id',
+            'user_id',
+            'travel_order_group_id',
+            'id'
+        );
+    }
 
     public function department(): BelongsTo
     {

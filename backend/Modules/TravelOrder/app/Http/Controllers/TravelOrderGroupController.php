@@ -25,6 +25,11 @@ class TravelOrderGroupController extends Controller
         return response()->json(['data' => $this->service->show($id)]);
     }
 
+    public function my(Request $request): JsonResponse
+    {
+    return response()->json(['data' => $this->service->myGroups($request->user()->id)]);
+    }
+
     public function store(StoreTravelOrderGroupRequest $request): JsonResponse
     {
         $group = $this->service->create($request->validated());

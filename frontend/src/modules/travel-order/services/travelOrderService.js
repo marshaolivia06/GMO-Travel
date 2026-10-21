@@ -8,6 +8,7 @@ const toPayload = form => {
 
   const payload = {
     request_type: form.request_type, trip_type: form.trip_type, status: form.status, department_id: form.departmentId || undefined,
+    travel_order_group_id: form.travel_order_group_id || undefined,
     travel_from: form.travelFrom, travel_to: form.travelTo,
     departure_date: form.departureDate, departure_time: form.departureTime, return_date: form.returnDate, return_time: form.returnTime,
     purpose: form.purpose, remarks: form.remarks,
@@ -111,3 +112,4 @@ export const openTravelOrderGroup = id => http.post(`${GROUP_BASE}/${id}/open`).
 export const closeTravelOrderGroup = id => http.post(`${GROUP_BASE}/${id}/close`).then(res => res.data)
 export const addTravelOrderGroupMembers = (id, userIds) => http.post(`${GROUP_BASE}/${id}/members`, { user_ids: userIds }).then(res => res.data)
 export const removeTravelOrderGroupMember = (id, userId) => http.delete(`${GROUP_BASE}/${id}/members/${userId}`).then(res => res.data)
+export const getMyTravelOrderGroups = () => http.get(`${GROUP_BASE}/my`).then(res => res.data)

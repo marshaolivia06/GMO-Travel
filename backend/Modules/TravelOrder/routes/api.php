@@ -29,10 +29,12 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 
     // GROUP TRAVEL ORDER
     Route::prefix('travel-order-groups')->group(function () {
+    Route::get('/my', [TravelOrderGroupController::class, 'my'])->middleware('permission:travel-order.create');
+    
     Route::get('/', [TravelOrderGroupController::class, 'index'])->middleware('permission:travel-order.update');
     Route::post('/', [TravelOrderGroupController::class, 'store'])->middleware('permission:travel-order.update');
-
     Route::get('/{id}', [TravelOrderGroupController::class, 'show'])->middleware('permission:travel-order.update');
+
     Route::put('/{id}', [TravelOrderGroupController::class, 'update'])->middleware('permission:travel-order.update');
     Route::delete('/{id}', [TravelOrderGroupController::class, 'destroy'])->middleware('permission:travel-order.delete');
 

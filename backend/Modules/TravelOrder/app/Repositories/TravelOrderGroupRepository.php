@@ -6,41 +6,70 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Modules\TravelOrder\Models\TravelOrderGroup;
 use Modules\MasterManagement\Models\Department;
 use Modules\MasterManagement\Models\Section;
+use Illuminate\Database\Eloquent\Collection;
 
 class TravelOrderGroupRepository
 {
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
-    {
-        $groups = TravelOrderGroup::query()->withCount(['members', 'travelOrders'])->with('members')
-            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where('trip_name', 'like', "%{$search}%"))
-            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
-            ->latest()->paginate($perPage);
+{
+    $groups = TravelOrderGroup::query()->withCount(['members', 'travelOrders'])->with('members')
+        ->when($filters['search'] ?? null, fn ($query, $search) => $query->where('trip_name', 'like', "%{$search}%"))
+        ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+        ->latest()->paginate($perPage);
 
-        return $this->attachDepartments($groups);
-    }
+    $this->attachDepartments($groups->getCollection());
 
-    protected function attachDepartments(LengthAwarePaginator $groups): LengthAwarePaginator
-    {
-        $userIds = $groups->getCollection()->flatMap(fn ($group) => $group->members->pluck('user_id'))->unique()->values();
+    return $groups;
+}
 
-        $bySection = Section::with('department:id,name')->whereIn('section_head_id', $userIds)->get()
-            ->mapWithKeys(fn ($section) => [$section->section_head_id => $section->department?->name]);
+public function myGroups(int $userId): Collection
+{
+    $groups = TravelOrderGroup::query()
+        ->with('members.user:id,name')
+        ->where('status', 'open')
+        ->whereHas('members', fn ($query) => $query->where('user_id', $userId))
+        ->orderBy('departure_date')
+        ->get();
 
-        $byDepartment = Department::whereIn('dept_head_id', $userIds)->pluck('name', 'dept_head_id');
+    $this->attachDepartments($groups);
 
-        $groups->getCollection()->each(function ($group) use ($bySection, $byDepartment) {
-            $group->setAttribute('departments', $group->members
-                ->map(fn ($member) => $bySection[$member->user_id] ?? $byDepartment[$member->user_id] ?? null)
-                ->filter()->unique()->values());
-        });
+    return $groups;
+}
 
-        return $groups;
-    }
+protected function attachDepartments(Collection $groups): void
+{
+    $userIds = $groups->flatMap(fn ($group) => $group->members->pluck('user_id'))->unique()->values();
 
-    public function findOrFail(int $id): TravelOrderGroup
-    {
-        return TravelOrderGroup::with(['creator', 'members.user'])->findOrFail($id);
-    }
+    $bySection = Section::with('department:id,name')->whereIn('section_head_id', $userIds)->get()
+        ->mapWithKeys(fn ($section) => [$section->section_head_id => $section->department?->name]);
+
+    $byDepartment = Department::whereIn('dept_head_id', $userIds)->pluck('name', 'dept_head_id');
+
+    $groups->each(function ($group) use ($bySection, $byDepartment) {
+        $group->members->each(fn ($member) => $member->setAttribute(
+            'department_name',
+            $bySection[$member->user_id] ?? $byDepartment[$member->user_id] ?? null
+        ));
+
+        $group->setAttribute('departments', $group->members
+            ->map(fn ($member) => $member->department_name)
+            ->filter()->unique()->values());
+    });
+}
+
+public function findOrFail(int $id): TravelOrderGroup
+{
+    $group = TravelOrderGroup::with([
+        'creator',
+        'members.user',
+    ])->findOrFail($id);
+
+    $this->attachDepartments(
+        new Collection([$group])
+    );
+
+    return $group;
+}
 
     public function create(array $data): TravelOrderGroup
     {
@@ -48,10 +77,12 @@ class TravelOrderGroupRepository
     }
 
     public function update(TravelOrderGroup $group, array $data): TravelOrderGroup
-    {
-        $group->update($data);
-        return $group->refresh();
-    }
+{
+    $group->offsetUnset('departments');
+    $group->update($data);
+
+    return $group->refresh();
+}
 
     public function delete(TravelOrderGroup $group): bool
     {

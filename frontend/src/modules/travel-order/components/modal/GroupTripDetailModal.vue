@@ -16,6 +16,16 @@ const participantDepartments = computed(() => {
   return [...new Set(fromGroup.length ? fromGroup : fromMembers)]
 })
 
+function regionColor(region) {
+  const value = String(region || '').trim().toLowerCase()
+
+  if (value.includes('non singapore') || value.includes('overseas')) return 'purple'
+  if (value.includes('singapore')) return 'success'
+  if (value.includes('domestic') || value === 'indonesia') return 'info'
+
+  return 'secondary'
+}
+
 function close() { emit('close'); emit('update:modelValue', false) }
 function valueOrDash(value) { return value === null || value === undefined || value === '' ? '-' : value }
 function formatDate(value) {
@@ -72,7 +82,9 @@ function departmentName(department) { return typeof department === 'object' ? de
                 </VCol>
                 <VCol cols="12" sm="6" class="pa-3 border-b border-e-sm">
                   <div class="text-caption text-medium-emphasis mb-1">Travel Region</div>
-                  <VChip size="small" variant="tonal" color="primary">{{ valueOrDash(group.travel_region) }}</VChip>
+                  <VChip size="small" variant="tonal" :color="regionColor(group.travel_region)">
+  {{ valueOrDash(group.travel_region) }}
+</VChip>
                 </VCol>
                 <VCol cols="12" sm="6" class="pa-3 border-b">
                   <div class="text-caption text-medium-emphasis mb-1">Group Trip Status</div>
@@ -108,25 +120,31 @@ function departmentName(department) { return typeof department === 'object' ? de
             <div class="text-caption text-medium-emphasis">{{ createdOrders }} of {{ members.length }} members have created a Travel Order</div>
           </div>
           <VDivider />
-          <VTable density="comfortable">
-            <thead>
-  <tr><th class="text-no-wrap font-weight-bold text-black">Employee</th><th class="text-no-wrap font-weight-bold text-black">Department</th><th class="text-no-wrap font-weight-bold text-black">Travel Order</th></tr>
-</thead>
-            <tbody>
-              <tr v-for="(member, index) in members" :key="member.id || member.user_id || index">
-                <td class="text-body-2 font-weight-medium">{{ memberName(member) }}</td>
-                <td>{{ memberDepartment(member) }}</td>
-                <td>
-                  <template v-if="travelOrder(member)">
-                    <VChip size="small" variant="tonal" color="success">{{ travelOrder(member).status || 'Created' }}</VChip>
-                    <div v-if="travelOrder(member).order_number || travelOrder(member).travel_order_number" class="text-caption text-medium-emphasis mt-1">{{ travelOrder(member).order_number || travelOrder(member).travel_order_number }}</div>
-                  </template>
-                  <VChip v-else size="small" variant="tonal" color="secondary">Not Created</VChip>
-                </td>
-              </tr>
-              <tr v-if="!members.length"><td colspan="3" class="text-center text-medium-emphasis py-6">No group members found.</td></tr>
-            </tbody>
-          </VTable>
+<VTable density="comfortable">
+  <thead>
+    <tr>
+      <th class="text-no-wrap font-weight-bold text-black">Employee</th>
+      <th width="33%" class="ps-6 text-no-wrap font-weight-bold text-black">Department</th>
+      <th width="33%" class="ps-10 text-no-wrap font-weight-bold text-black">Travel Order</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr v-for="(member, index) in members" :key="member.id || member.user_id || index">
+      <td class="text-body-2 font-weight-medium">{{ memberName(member) }}</td>
+      <td class="ps-6">{{ memberDepartment(member) }}</td>
+      <td class="ps-10">
+        <template v-if="travelOrder(member)">
+          <VChip size="small" variant="tonal" color="success">{{ travelOrder(member).status || 'Created' }}</VChip>
+          <div v-if="travelOrder(member).order_number || travelOrder(member).travel_order_number" class="text-caption text-medium-emphasis mt-1">{{ travelOrder(member).order_number || travelOrder(member).travel_order_number }}</div>
+        </template>
+        <VChip v-else size="small" variant="tonal" color="secondary">Not Created</VChip>
+      </td>
+    </tr>
+    <tr v-if="!members.length">
+      <td colspan="3" class="text-center text-medium-emphasis py-6">No group members found.</td>
+    </tr>
+  </tbody>
+</VTable>
         </VCard>
       </VCardText>
       <VDivider />

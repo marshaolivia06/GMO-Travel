@@ -86,25 +86,32 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
           <VCol cols="12" md="6"><div class="text-caption mb-1">4. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter travel to" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
           <VCol cols="12" md="6"><div class="text-caption mb-1">5. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
           <VCol cols="12" md="6"><div class="text-caption mb-1">6. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-          <VCol cols="12"><div class="text-caption mb-1">7. Purpose (Optional)</div><VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" rows="1" auto-grow hide-details="auto" :disabled="loading" /></VCol>
+          <VCol cols="12"><div class="text-caption mb-1">7. Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" rows="1" auto-grow hide-details="auto" :disabled="loading" /></VCol>
           <VCol cols="12">
             <div class="text-caption mb-1">8. Group Member</div>
             <VAutocomplete :model-value="selectedMemberIds" :items="memberItems" item-title="name" item-value="id" multiple chips closable-chips :custom-filter="filterMember" placeholder="Search by employee name or department" variant="outlined" density="comfortable" hide-details="auto" no-data-text="No employee found" :disabled="loading" :error-messages="errors.members ? [errors.members] : []" @update:model-value="updateMembers">
-              <template #item="{ props: itemProps, item }"><VListItem v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.departmentName" /></template>
-            </VAutocomplete>
+  <template #chip="{ item }">
+    <VChip :key="item.value" size="small" closable :disabled="loading" class="mr-1" @click:close="updateMembers(selectedMemberIds.filter(id => id !== item.value))">
+      {{ item.raw.name }}
+    </VChip>
+  </template>
+  <template #item="{ props: itemProps, item }"><VListItem v-bind="itemProps" :title="item.raw.name" :subtitle="item.raw.departmentName" /></template>
+</VAutocomplete>
           </VCol>
           <VCol v-if="selectedMembers.length" cols="12">
-            <div class="text-caption font-weight-bold mb-2">Selected Members ({{ selectedMembers.length }})</div>
-            <VRow dense>
-              <VCol v-for="member in selectedMembers" :key="member.id" cols="12" sm="6" md="4">
-                <VCard rounded="lg" elevation="0" border class="bg-grey-lighten-4 pa-3 d-flex align-center ga-3">
-                  <div class="flex-grow-1" style="min-width: 0"><div class="text-body-2 font-weight-bold text-truncate">{{ member.name }}</div><div class="text-caption text-medium-emphasis text-truncate">{{ member.departmentName }}</div></div>
-                  <VBtn icon="mdi-close" size="x-small" variant="text" :disabled="loading" @click="removeMember(member.id)" />
-                </VCard>
-              </VCol>
+  <div class="text-caption font-weight-bold mb-2">Selected Members ({{ selectedMembers.length }})</div>
+  <div class="d-flex flex-wrap ga-2">
+    <VCard v-for="member in selectedMembers" :key="member.id" rounded="lg" elevation="0" border class="bg-grey-lighten-4 px-3 py-2 d-flex align-center ga-2" style="min-width: 180px; max-width: 260px">
+      <div class="flex-grow-1" style="min-width: 0">
+        <div class="text-body-2 font-weight-bold text-truncate">{{ member.name }}</div>
+        <div class="text-caption text-medium-emphasis text-truncate">{{ member.departmentName }}</div>
+      </div>
+      <VBtn icon="ri-close-line" size="x-small" variant="text" color="grey-darken-2" class="flex-shrink-0" style="position: relative; z-index: 2" :disabled="loading" @click.stop="removeMember(member.id)" />
+    </VCard>
+  </div>
+</VCol>
             </VRow>
-          </VCol>
-        </VRow>
+
       </VCardText>
       <VDivider />
       <VCardActions class="pa-4 justify-end">

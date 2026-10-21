@@ -4,7 +4,6 @@ namespace Modules\TravelOrder\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Modules\MasterManagement\Models\Section;
 
 class StoreTravelOrderRequest extends FormRequest
 {
@@ -34,15 +33,6 @@ class StoreTravelOrderRequest extends FormRequest
             default => [],
         };
 
-        $activeSectionHeadIds = Section::query()
-            ->where('status', 1)
-            ->whereNotNull('section_head_id')
-            ->whereHas('sectionHead', fn ($query) => $query->where('status', 1))
-            ->pluck('section_head_id')
-            ->unique()
-            ->values()
-            ->all();
-
         return [
             'status' => [
                 'required',
@@ -59,18 +49,19 @@ class StoreTravelOrderRequest extends FormRequest
                 Rule::in(['individual', 'group']),
             ],
 
-            'members' => [
-                Rule::requiredIf($isSubmitted && $isGroupTrip),
+            // Group harus masih open. Pengecekan anggota dan satu group satu
+            // Travel Order dilakukan di TravelOrderService::assertGroupMember.
+            'travel_order_group_id' => [
+                Rule::requiredIf($isGroupTrip),
                 'nullable',
-                'array',
-                'min:' . ($isSubmitted && $isGroupTrip ? 1 : 0),
+                'integer',
+                Rule::exists('travel_order_groups', 'id')->where('status', 'open'),
             ],
 
-            'members.*' => [
-                'required',
-                'integer',
-                'distinct',
-                Rule::in($activeSectionHeadIds),
+            // Anggota diambil dari group, jadi tidak lagi dikirim dari form.
+            'members' => [
+                'nullable',
+                'array',
             ],
 
             'department_id' => [

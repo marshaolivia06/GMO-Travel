@@ -8,7 +8,7 @@ import PdfViewerModal from '../components/modal/PdfViewerModal.vue'
 import PickTypeModal from '../components/modal/PickTypeModal.vue'
 import TripFormModal from '../components/modal/TripFormModal.vue'
 import GmoProcessModal from '../components/modal/GmoProcessModal.vue'
-import { getTravelOrders, getTravelOrder, getTravelOrderGroup, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder, completeGmoProcessing, cancelTravelOrder, getGroupTripUsers, updateGmoSchedule, updateGmoBookingItems, cancelGmoBookingItem, resendGmoBookingEmail, createTravelOrderGroup, getTravelOrderGroups, updateTravelOrderGroup, deleteTravelOrderGroup } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, getTravelOrderGroup, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder, completeGmoProcessing, cancelTravelOrder, getGroupTripUsers, updateGmoSchedule, updateGmoBookingItems, cancelGmoBookingItem, resendGmoBookingEmail, createTravelOrderGroup, getTravelOrderGroups, updateTravelOrderGroup, deleteTravelOrderGroup,  getMyTravelOrderGroups, } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
@@ -16,7 +16,9 @@ import GmoAttachmentsModal from '../components/modal/GmoAttachmentsModal.vue'
 import GmoHistoryModal from '../components/modal/GmoHistoryModal.vue'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
 import GroupTripDetailModal from '../components/modal/GroupTripDetailModal.vue'
+import PickGroupTripModal from '../components/modal/PickGroupTripModal.vue'
 
+const orderGroup = ref(null)
 const route = useRoute()
 const router = useRouter()
 const { confirm } = useConfirm()
@@ -84,6 +86,40 @@ const attachmentsLoading = ref(false)
 const selectedBooking = ref(null)
 const selectedOrder = ref(null)
 
+const pickGroupDialog = ref(false)
+const pickGroupLoading = ref(false)
+const myGroups = ref([])
+
+async function openPickGroup() {
+  pickGroupDialog.value = true
+  pickGroupLoading.value = true
+
+  try {
+    const response = await getMyTravelOrderGroups()
+    const data = response.data ?? response
+
+    myGroups.value = Array.isArray(data) ? data : data.data ?? []
+
+    console.log('MY GROUP TRIPS:', myGroups.value)
+  } catch (error) {
+    myGroups.value = []
+    console.error('Load My Group Trips Error:', error.response?.data || error)
+
+    showMessage(
+      error?.response?.data?.message || 'Failed to load Group Trips.',
+      'error',
+    )
+  } finally {
+    pickGroupLoading.value = false
+  }
+}
+
+function selectGroup(group) {
+  orderGroup.value = group
+  pickGroupDialog.value = false
+  dialogType.value = 'group'
+  dialog.value = true
+}
 const gmoAwaitingStatuses = ['awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance']
 const gmoHistoryStatuses = ['processed_by_gmo', 'cancelled']
 const statusOptions = ['Awaiting Approval', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking & Document Issuance', 'Processed by GMO']
@@ -154,7 +190,15 @@ const historyChip = {
   booking_schedule_updated: { text: 'Booking Schedule Updated', color: 'info' },
   booking_confirmation_email_sent: { text: 'Booking Confirmation Email Sent', color: 'info' },
 }
+function regionColor(region) {
+  const value = String(region || '').trim().toLowerCase()
 
+  if (value.includes('non singapore') || value.includes('overseas')) return 'purple'
+  if (value.includes('singapore')) return 'success'
+  if (value.includes('domestic') || value === 'indonesia') return 'info'
+
+  return 'secondary'
+}
 function showMessage(text, type = 'success') { toast[type]?.(text) }
 function toStatusLabel(status) { return status ? statusLabel[status] || status : 'Awaiting Approval Manager' }
 
@@ -182,7 +226,7 @@ function resolveArrangement(order) {
 }
 
 function groupDepartments(group) {
-  return group.departments || []
+  return (group.departments || []).map(department => typeof department === 'object' ? department?.name : department).filter(Boolean)
 }
 
 function groupSubtitle(group) {
@@ -274,8 +318,18 @@ const historyRounds = computed(() => {
 function clearFilters() { filters.search = ''; filters.status = null }
 function openNewRequest() { requestDialog.value = true }
 function backToRequest() { businessDialog.value = false; requestDialog.value = true }
-function backToBusiness() { dialog.value = false; dialogType.value = null; businessDialog.value = true }
-function closeDialog() { dialog.value = false; dialogType.value = null }
+function backToBusiness() {
+  dialog.value = false
+  if (dialogType.value === 'group') {
+    dialogType.value = null
+    orderGroup.value = null
+    pickGroupDialog.value = true
+    return
+  }
+  dialogType.value = null
+  businessDialog.value = true
+}
+function closeDialog() { dialog.value = false; dialogType.value = null; orderGroup.value = null }
 function handleCancelGmo(order) { selected.value = order; openNote('cancelled', 'gmo') }
 function handleGmoReject() { openNote('cancelled', 'gmo') }
 function handleGmoRevision(from = 'process') { noteReturnTo.value = from; openNote('revision', 'gmo') }
@@ -283,7 +337,10 @@ function handleApprove() { if (!approving.value) openNote('approved') }
 function openNote(action, source = 'approval') { noteAction.value = action; noteSource.value = source; noteDialog.value = true }
 const handleReject = () => openNote('reject')
 const handleRevision = () => openNote('revision')
-
+function backToBusinessType() {
+  pickGroupDialog.value = false
+  businessDialog.value = true
+}
 function selectRequest(type) {
   requestDialog.value = false
   if (type === 'annual') { showMessage('Annual Leave form is not available yet.', 'info'); return }
@@ -292,7 +349,11 @@ function selectRequest(type) {
 
 function selectBusinessType(type) {
   businessDialog.value = false
-  if (type === 'group') { editingGroup.value = null; groupTripDialog.value = true; return }
+  if (type === 'group') {
+    if (isAdminGmo.value) { editingGroup.value = null; groupTripDialog.value = true }
+    else openPickGroup()
+    return
+  }
   dialogType.value = type
   dialog.value = true
 }
@@ -318,18 +379,44 @@ function revokePdf() {
 watch(detailDialog, open => { if (open) return; revokePdf(); pdfFromGmoHistory.value = false })
 watch(groupTripDialog, open => { if (!open) editingGroup.value = null })
 
+
+
 async function continueDraft(row) {
   if (editingDraftId.value !== null) return
   editingDraftId.value = row.id
+
   try {
     const response = await getTravelOrder(row.id)
     const order = response?.data?.data ?? response?.data ?? response
+
+    if (order.trip_type === 'group') {
+      const groupId = order.travel_order_group_id ?? order.group?.id
+
+      if (groupId) {
+        if (order.group?.members) {
+          orderGroup.value = order.group
+        } else {
+          const groupResponse = await getTravelOrderGroup(groupId)
+          orderGroup.value = groupResponse?.data?.data ?? groupResponse?.data ?? groupResponse
+          console.log('GROUP API RESPONSE:', groupResponse)
+        }
+
+        console.log('GROUP DATA:', orderGroup.value)
+        console.log('GROUP MEMBERS:', orderGroup.value?.members)
+        
+      } else {
+        orderGroup.value = null
+      }
+    } else {
+      orderGroup.value = null
+    }
+
     selected.value = order
     dialogType.value = order.trip_type || 'individual'
     editingDraft.value = true
     dialog.value = true
   } catch (error) {
-    console.error('Load draft error:', error)
+    console.error('Load draft error:', error.response?.data || error)
     showMessage(error?.response?.data?.message || 'Failed to load draft Travel Order.', 'error')
   } finally {
     editingDraftId.value = null
@@ -861,7 +948,7 @@ onMounted(() => {
     <div class="text-caption text-medium-emphasis">{{ groupSubtitle(item) }}</div>
   </template>
   <template #item.route="{ item }"><span class="text-body-2 text-no-wrap">{{ item.travel_from }} - {{ item.travel_to }}</span></template>
-  <template #item.travel_region="{ item }"><VChip size="small" variant="tonal" color="info" class="text-no-wrap">{{ item.travel_region }}</VChip></template>
+  <template #item.travel_region="{ item }"><VChip size="small" variant="tonal" :color="regionColor(item.travel_region)" class="text-no-wrap">{{ item.travel_region }}</VChip></template>
   <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ formatDate(item.departure_date) }} - {{ formatDate(item.return_date) }}</span></template>
   <template #item.departments="{ item }">
   <div class="d-flex flex-wrap ga-1">
@@ -877,7 +964,7 @@ onMounted(() => {
 
     <PickTypeModal v-model="requestDialog" title="New Travel Request" subtitle="Select the type of request you want to submit." :items="requestTypes" @select="selectRequest" />
     <PickTypeModal v-model="businessDialog" title="Business Trip" subtitle="How many people are traveling?" :items="businessTypes" show-back @back="backToRequest" @select="selectBusinessType" />
-    <TripFormModal v-model="dialog" :type="dialogType" :loading="submitting" :initial-data="editingDraft ? selected : null" :member-options="memberOptions" @back="backToBusiness" @close="closeDialog" @submit="submitOrder" />
+    <TripFormModal v-model="dialog" :type="dialogType" :loading="submitting" :initial-data="editingDraft ? selected : null" :group="orderGroup" @back="backToBusiness" @close="closeDialog" @submit="submitOrder" />
     <VDialog v-model="groupTripDialog" max-width="1000" scrollable><GroupTripForm v-if="groupTripDialog" :loading="groupTripSubmitting" :member-options="memberOptions" :initial-data="editingGroup" @cancel="groupTripDialog = false" @submit="submitGroupTrip" /></VDialog>
       <GroupTripDetailModal v-model="groupTripViewDialog" :group="selectedGroupTrip" :loading="groupTripViewLoading" :member-options="memberOptions" />
     <PdfViewerModal v-model="detailDialog" :title="detailMode === 'review' ? 'Review Travel Order' : 'Travel Order Detail'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="canDecide" :approving="approving" @back="backToApproval" @reject="handleReject" @revision="handleRevision" @approve="handleApprove" />
@@ -887,5 +974,6 @@ onMounted(() => {
     <GmoProcessModal v-model="processDialog" :title="processMode === 'view-only' ? 'Travel Order PDF' : processMode === 'direct-payment' ? 'Direct Payment' : 'Booked by Company'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision('process')" @continue="continueToBooking" @complete="handleCompleteGmo" />
     <GmoAttachmentsModal v-model="attachmentsDialog" :loading="attachmentsLoading" :order="selectedOrder" :booking="selectedBooking" />
     <GmoHistoryModal v-model="gmoHistoryDialog" title="GMO Processing History" :order="gmoHistoryOrder" :saved-booking="gmoHistoryBooking" :saved-email="gmoHistoryEmail" :loading="gmoHistoryLoading" :processing="gmoHistoryProcessing" @close="gmoHistoryDialog = false" @view-pdf="openGmoHistoryPdf" @update-schedule="handleUpdateGmoSchedule" @update-booking="handleUpdateGmoBooking" @cancel-ticket="handleCancelTicket" @cancel-accommodation="handleCancelAccommodation" @resend-email="handleResendGmoEmail" />
+    <PickGroupTripModal v-model="pickGroupDialog" :groups="myGroups" :loading="pickGroupLoading" @select="selectGroup" @back="backToBusinessType" />
   </div>
 </template>
