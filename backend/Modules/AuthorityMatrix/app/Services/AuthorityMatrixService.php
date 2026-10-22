@@ -24,6 +24,8 @@ class AuthorityMatrixService
         return DB::transaction(function () use ($data) {
             $matrix = $this->repository->create([
                 'document_type' => $data['document_type'],
+                'requester_role_id' => $data['requester_role_id'] ?? null,
+                'travel_region' => $data['travel_region'] ?? null,
                 'status' => $data['status'] ?? true,
             ]);
 
@@ -31,7 +33,12 @@ class AuthorityMatrixService
                 $matrix->steps()->create($step);
             }
 
-            return $matrix->load('steps.role', 'steps.section', 'steps.department');
+            return $matrix->load(
+                'requesterRole',
+                'steps.role',
+                'steps.section',
+                'steps.department'
+            );
         });
     }
 
@@ -42,6 +49,8 @@ class AuthorityMatrixService
 
             $this->repository->update($matrix, [
                 'document_type' => $data['document_type'],
+                'requester_role_id' => $data['requester_role_id'] ?? null,
+                'travel_region' => $data['travel_region'] ?? null,
                 'status' => $data['status'] ?? true,
             ]);
 
@@ -51,7 +60,12 @@ class AuthorityMatrixService
                 $matrix->steps()->create($step);
             }
 
-            return $matrix->load('steps.role', 'steps.section', 'steps.department');
+            return $matrix->load(
+                'requesterRole',
+                'steps.role',
+                'steps.section',
+                'steps.department'
+            );
         });
     }
 

@@ -10,6 +10,8 @@ class UpdateAuthorityMatrixRequest extends FormRequest
     {
         return [
             'document_type' => ['required', 'string', 'max:255'],
+            'requester_role_id' => ['nullable', 'exists:roles,id'],
+            'travel_region' => ['nullable', 'in:Domestic,Singapore,Overseas'],
             'status' => ['boolean'],
             'steps' => ['required', 'array', 'min:1'],
             'steps.*.step' => ['required', 'integer', 'min:1'],

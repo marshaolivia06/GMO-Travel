@@ -6,7 +6,12 @@ use Modules\AuthorityMatrix\Models\AuthorityMatrix;
 
 class AuthorityMatrixRepository
 {
-    private const RELATIONS = ['steps.role', 'steps.section', 'steps.department'];
+    private const RELATIONS = [
+        'requesterRole',
+        'steps.role',
+        'steps.section',
+        'steps.department',
+    ];
 
     public function all()
     {

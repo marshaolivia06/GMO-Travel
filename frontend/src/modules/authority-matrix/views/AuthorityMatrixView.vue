@@ -18,6 +18,8 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, width: 100 },
   { title: 'ID', key: 'id', width: 70 },
   { title: 'Document Type', key: 'document_type', width: 180 },
+  { title: 'Requester Role', key: 'requester_role', width: 160 },
+  { title: 'Travel Region', key: 'travel_region', width: 140 },
   { title: 'Steps', key: 'steps', width: 80 },
   { title: 'Created', key: 'created_at', width: 120 },
   { title: 'Updated', key: 'updated_at', width: 120 },
@@ -73,7 +75,8 @@ onMounted(() => authorityMatrixStore.fetchAuthorityMatrices())
   <th v-for="column in columns" :key="column.key" class="bg-grey-lighten-3" :style="{ width: column.width ? `${column.width}px` : undefined }">{{ column.title }}</th>
 </tr>
         </template>
-
+        <template #item.requester_role="{ item }">{{ item.requester_role?.name ?? '-' }}</template>
+        <template #item.travel_region="{ item }">{{ item.travel_region ?? '-' }}</template>
         <template #item.steps="{ item }">{{ item.steps?.length || 0 }}</template>
         <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
         <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>

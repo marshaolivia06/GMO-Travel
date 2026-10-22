@@ -19,7 +19,15 @@ const sections = ref([])
 const optionsLoading = ref(false)
 const loading = ref(false)
 
-const form = reactive({ document_type: '', status: true, steps: [] })
+const travelRegions = ['Domestic', 'Singapore', 'Overseas'] // BARU
+
+const form = reactive({
+  document_type: '',
+  requester_role_id: null, // BARU
+  travel_region: null, // BARU
+  status: true,
+  steps: [],
+})
 const errors = reactive({ document_type: '', steps: '' })
 
 function createStep(step) {
@@ -68,6 +76,8 @@ async function fetchOptions() {
 
 function loadData() {
   form.document_type = props.authorityMatrix.document_type
+  form.requester_role_id = props.authorityMatrix.requester_role_id ?? null // BARU
+  form.travel_region = props.authorityMatrix.travel_region ?? null // BARU
   form.status = !!props.authorityMatrix.status
   form.steps = (props.authorityMatrix.steps || []).map(item => ({
     id: item.id,
@@ -116,6 +126,8 @@ async function submit() {
   try {
     await store.editAuthorityMatrix(props.authorityMatrix.id, {
       document_type: form.document_type.trim(),
+      requester_role_id: form.requester_role_id, // BARU
+      travel_region: form.travel_region, // BARU
       status: form.status,
       steps: form.steps,
     })
@@ -152,7 +164,37 @@ onMounted(async () => {
             :error-messages="errors.document_type ? [errors.document_type] : []"
           />
 
-          <div class="d-flex align-center justify-space-between mb-4">
+          <!-- BARU -->
+          <VRow>
+            <VCol cols="12" md="6">
+              <VAutocomplete
+                v-model="form.requester_role_id"
+                :items="roles"
+                item-title="name"
+                item-value="id"
+                label="Requester Role"
+                placeholder="Search role..."
+                hint="Kosongkan untuk Document Type selain Travel Order"
+                persistent-hint
+                :loading="optionsLoading"
+                :disabled="loading"
+                clearable
+              />
+            </VCol>
+            <VCol cols="12" md="6">
+              <VSelect
+                v-model="form.travel_region"
+                :items="travelRegions"
+                label="Travel Region"
+                hint="Kosongkan untuk Document Type selain Travel Order"
+                persistent-hint
+                :disabled="loading"
+                clearable
+              />
+            </VCol>
+          </VRow>
+
+          <div class="d-flex align-center justify-space-between mb-4 mt-6">
             <div class="text-subtitle-1 font-weight-medium">Approval Step</div>
             <div class="text-caption text-medium-emphasis">dari level rendah ke tinggi</div>
           </div>
