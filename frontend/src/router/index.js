@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/auth'
 import dashboardRoutes from '../modules/dashboard/router'
 import annualLeaveRoutes from '../modules/annual-leave/router'
 import travelOrderRoutes from '../modules/travel-order/router'
+import travelExpenseReportRoutes from '../modules/travel-expense-report/router'
 import userManagementRoutes from '../modules/user-management/router'
 import masterManagementRoutes from '../modules/master-management/router'
 import masterAdvanceRoutes from '../modules/master-advance/router'
@@ -35,6 +36,7 @@ const routes = [
       ...dashboardRoutes,
       ...annualLeaveRoutes,
       ...travelOrderRoutes,
+      ...travelExpenseReportRoutes,
       ...userManagementRoutes,
       ...masterManagementRoutes,
       ...masterAdvanceRoutes,

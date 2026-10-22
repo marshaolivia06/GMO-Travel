@@ -120,8 +120,12 @@ function selectGroup(group) {
   dialogType.value = 'group'
   dialog.value = true
 }
+
 const gmoAwaitingStatuses = ['awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance']
 const gmoHistoryStatuses = ['processed_by_gmo', 'cancelled']
+const awaitingStatuses = ['draft', 'submitted', 'awaiting_approval', 'awaiting_approval_gmo', 'revision_required', 'revision', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance']
+const historyStatuses = ['processed_by_gmo', 'cancelled', 'rejected', 'completed', 'approved']
+
 const statusOptions = ['Awaiting Approval', 'Awaiting Approval GMO', 'Awaiting GMO Processing', 'Awaiting GMO Booking & Document Issuance', 'Processed by GMO']
 const statusColor = { 'Awaiting Approval': 'warning', 'Processed by GMO': 'success', 'Awaiting Approval GMO': 'warning', 'Awaiting GMO Processing': 'warning', 'Awaiting GMO Booking & Document Issuance': 'warning', 'Revision Required': 'warning', 'Cancelled': 'error' }
 const groupStatusColor = { draft: 'success', open: 'warning', closed: 'error' }
@@ -244,13 +248,28 @@ const canApprove = computed(() => selected.value?.can_approve === true)
 const canDecide = computed(() => detailMode.value === 'review' && canApprove.value)
 const rows = computed(() => orders.value.map(normalize))
 
+
 const filteredRows = computed(() => {
   if (isAdminGmo.value && gmoTab.value === 'groups') return []
+
   const query = filters.search.trim().toLowerCase()
+
   return rows.value.filter(row => {
     const status = row.raw.status
-    if (isAdminGmo.value && !(gmoTab.value === 'awaiting' ? gmoAwaitingStatuses : gmoHistoryStatuses).includes(status)) return false
-    return (!query || `${row.id} ${row.subject}`.toLowerCase().includes(query)) && (!filters.status || row.status === filters.status)
+
+    if (isAdminGmo.value) {
+      const allowedStatuses = gmoTab.value === 'history' ? gmoHistoryStatuses : gmoAwaitingStatuses
+
+      if (!allowedStatuses.includes(status)) return false
+    } else {
+      const isHistory = historyStatuses.includes(status)
+      const isAwaiting = awaitingStatuses.includes(status)
+
+      if (gmoTab.value === 'history' && !isHistory) return false
+      if (gmoTab.value === 'awaiting' && !isAwaiting) return false
+    }
+
+    return (!query || `${row.id} ${row.subject}`.toLowerCase().includes(query) && (!filters.status || row.status === filters.status))
   })
 })
 
@@ -890,7 +909,7 @@ onMounted(() => {
         <div class="d-flex align-center justify-space-between ga-4">
           <VBtn color="success" prepend-icon="ri-add-line" @click="openNewRequest">New Request</VBtn>
           <div class="d-flex align-center ga-4">
-            <VTabs v-if="isAdminGmo" v-model="gmoTab" color="primary" density="compact"><VTab value="awaiting" class="text-none">Awaiting</VTab><VTab value="history" class="text-none">History</VTab><VTab value="groups" class="text-none">Group Trips</VTab></VTabs>
+            <VTabs v-model="gmoTab" color="primary" density="compact"><VTab value="awaiting" class="text-none">Awaiting</VTab><VTab value="history" class="text-none">History</VTab><VTab v-if="isAdminGmo" value="groups" class="text-none">Group Trips</VTab></VTabs>
             <VTextField v-model="filters.search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" hide-details clearable style="max-width: 300px; min-width: 250px" />
           </div>
         </div>
