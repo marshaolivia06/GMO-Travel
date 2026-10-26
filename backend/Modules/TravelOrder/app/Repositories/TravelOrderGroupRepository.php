@@ -36,7 +36,7 @@ public function myGroups(int $userId): Collection
     return $groups;
 }
 
-protected function attachDepartments(Collection $groups): void
+public function attachDepartments(Collection $groups): void
 {
     $userIds = $groups->flatMap(fn ($group) => $group->members->pluck('user_id'))->unique()->values();
 
@@ -62,12 +62,20 @@ public function findOrFail(int $id): TravelOrderGroup
     $group = TravelOrderGroup::with([
         'creator',
         'members.user',
+        'travelOrders.approvals.role',
     ])->findOrFail($id);
-
+    
     $this->attachDepartments(
         new Collection([$group])
     );
-
+    
+    $ordersByUser = $group->travelOrders->keyBy('user_id');
+    
+    $group->members->each(fn ($member) => $member->setRelation(
+        'travel_order',
+        $ordersByUser->get($member->user_id)
+    ));
+    
     return $group;
 }
 

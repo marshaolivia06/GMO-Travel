@@ -12,6 +12,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::put('/{id}/gmo/schedule', [TravelOrderController::class, 'updateGmoSchedule'])->middleware('permission:travel-order.view');
         Route::post('/{id}/gmo/booking-items', [TravelOrderController::class, 'updateGmoBookingItems'])->middleware('permission:travel-order.view');
         Route::post('/{id}/gmo/cancellations/{itemType}', [TravelOrderController::class, 'cancelGmoBookingItem'])->middleware('permission:travel-order.view');
+        Route::put('/{id}/gmo/cancellations/{itemType}/refund', [TravelOrderController::class, 'updateGmoRefund'])->middleware('permission:travel-order.view');
         Route::post('/{id}/gmo/resend-email', [TravelOrderController::class, 'resendGmoBookingEmail'])->middleware('permission:travel-order.view');
 
         Route::get('/{id}', [TravelOrderController::class, 'show'])->middleware('permission:travel-order.view');

@@ -18,13 +18,21 @@ const props = defineProps({
   processing: Boolean,
 })
 
-const emit = defineEmits(['update:modelValue', 'close', 'resend-email', 'cancel-ticket', 'cancel-accommodation', 'view-pdf', 'update-schedule', 'update-booking'])
+const emit = defineEmits(['update:modelValue', 'close', 'resend-email', 'cancel-ticket', 'cancel-accommodation', 'view-pdf', 'update-schedule', 'update-booking', 'update-refund', 'save-refund'])
 
 const order = computed(() => props.order || {})
 const booking = computed(() => props.savedBooking || order.value.booking || {})
 const ticket = computed(() => order.value.ticket || {})
 const accommodation = computed(() => order.value.accommodation || {})
 const advance = computed(() => order.value.advance || {})
+const isGroupTrip = computed(() => order.value.trip_type === 'group')
+const groupMembers = computed(() => (order.value.group?.members || [])
+  .filter(member => String(member.user_id ?? member.user?.id) !== String(order.value.user_id))
+  .map(member => ({
+    key: member.id ?? member.user_id,
+    name: member.user?.name || member.name || '-',
+    department: member.department_name || member.user?.department?.name || '-',
+  })))
 
 const currencyOptions = ['IDR', 'SGD', 'USD', 'EUR', 'MYR', 'JPY']
 const noDecimalCurrencies = ['IDR', 'JPY']
@@ -149,6 +157,155 @@ const isTicketCancelled = computed(() => Boolean(booking.value.ticket_cancelled)
 const isAccommodationCancelled = computed(() => Boolean(booking.value.accommodation_cancelled))
 const canCancelTicket = computed(() => isTicketBooked.value && !isTicketCancelled.value)
 const canCancelAccommodation = computed(() => isAccommodationBooked.value && !isAccommodationCancelled.value)
+const isCancelled = computed(() => order.value.status === 'cancelled' || isTicketCancelled.value || isAccommodationCancelled.value)
+
+const cancellations = computed(() => order.value.booking_cancellations || [])
+
+function cancellationInfo(itemType) {
+  const item = cancellations.value.find(row => row.item_type === itemType)
+
+  if (!item) return null
+
+  const amount = value => `${item.currency} ${formatAmount(value)}`
+
+  return [
+    { label: 'Cancellation Status', value: 'Completed' },
+    { label: 'Refund Status', value: item.refund_status },
+    { label: itemType === 'ticket' ? 'Original Ticket Amount' : 'Original Accommodation Amount', value: amount(item.original_amount) },
+    { label: 'Refund Amount', value: amount(item.refund_amount) },
+    { label: 'Non-Refundable Amount', value: amount(item.non_refundable_amount) },
+    { label: 'Cancelled By', value: item.processor?.name },
+    { label: 'Cancellation Date', value: formatEmailDate(item.created_at).replace(',', '') },
+    { label: 'Refund Confirmation', value: '', file: item.confirmation_file },
+    { label: 'Cancellation Reason', value: item.reason, cols: 12 },
+  ]
+}
+
+const ticketCancellation = computed(() => cancellationInfo('ticket'))
+const accommodationCancellation = computed(() => cancellationInfo('accommodation'))
+function fileUrl(path) {
+  return `${import.meta.env.VITE_STORAGE_URL}/${path}`
+}
+
+const previewDialog = ref(false)
+const previewUrl = ref('')
+const previewTitle = ref('')
+const isPreviewImage = computed(() => /\.(jpe?g|png)$/i.test(previewUrl.value))
+
+function openRefundFile(path) {
+  previewUrl.value = fileUrl(path)
+  console.log('REFUND FILE URL:', previewUrl.value)
+  previewDialog.value = true
+}
+const editingRefundType = ref(null)
+
+const refundEditForm = reactive({
+  reason: '',
+  refundStatus: 'Pending Refund',
+  refundAmount: '',
+  confirmationFile: null,
+})
+
+function editRefund(itemType) {
+  const item = cancellations.value.find(
+    row => row.item_type?.toLowerCase() === itemType.toLowerCase(),
+  )
+
+  if (!item) {
+    console.warn('Cancellation data not found:', {
+      itemType,
+      cancellations: cancellations.value,
+    })
+    return
+  }
+
+  Object.assign(refundEditForm, {
+    reason: item.reason || '',
+    refundStatus: item.refund_status || 'Pending Refund',
+    refundAmount: String(item.refund_amount ?? 0),
+    confirmationFile: null,
+  })
+
+  editingRefundType.value = itemType
+}
+
+function cancelEditRefund() {
+  editingRefundType.value = null
+
+  Object.assign(refundEditForm, {
+    reason: '',
+    refundStatus: 'Pending Refund',
+    refundAmount: '',
+    confirmationFile: null,
+  })
+}
+
+const refundEditOriginalAmount = computed(() => {
+  const item = cancellations.value.find(
+    row => row.item_type === editingRefundType.value,
+  )
+
+  return Number(item?.original_amount) || 0
+})
+
+const refundEditAmount = computed(() => Math.min(
+  Math.max(Number(refundEditForm.refundAmount) || 0, 0),
+  refundEditOriginalAmount.value,
+))
+
+const refundEditNonRefundable = computed(() =>
+  refundEditOriginalAmount.value - refundEditAmount.value,
+)
+
+const refundEditCurrency = computed(() => {
+  const item = cancellations.value.find(
+    row => row.item_type === editingRefundType.value,
+  )
+
+  return item?.currency || (
+    editingRefundType.value === 'accommodation'
+      ? accommodationCurrency.value
+      : ticketCurrency.value
+  )
+})
+
+const refundEditOriginalAmountText = computed(
+  () => `${refundEditCurrency.value} ${formatAmount(refundEditOriginalAmount.value)}`,
+)
+
+const refundEditNonRefundableText = computed(
+  () => `${refundEditCurrency.value} ${formatAmount(refundEditNonRefundable.value)}`,
+)
+
+const refundEditAmountText = computed(
+  () => toDisplayAmount(refundEditForm.refundAmount, refundEditCurrency.value),
+)
+
+function onRefundEditAmountInput(event) {
+  applyAmountInput(event, refundEditCurrency.value, raw => { refundEditForm.refundAmount = raw })
+}
+
+function saveRefund() {
+  if (
+    props.processing ||
+    !editingRefundType.value ||
+    !refundEditForm.refundStatus
+  ) return
+
+  emit('save-refund', {
+    orderId: order.value.id,
+    itemType: editingRefundType.value,
+    reason: refundEditForm.reason.trim(),
+    refundStatus: refundEditForm.refundStatus,
+    refundAmount: refundEditAmount.value,
+    nonRefundableAmount: refundEditNonRefundable.value,
+    confirmationFile: refundEditForm.confirmationFile,
+  })
+}
+
+watch(() => order.value.booking_cancellations, () => {
+  if (editingRefundType.value) cancelEditRefund()
+})
 
 const ticketType = computed(() => ticket.value.ticket_type || order.value.ticket_type || '-')
 const ticketArrangement = computed(() => ticket.value.arrangement || order.value.ticket_arrangement || '-')
@@ -367,6 +524,8 @@ function submitAccommodationCancel() {
 }
 
 function close() {
+  previewDialog.value = false
+  discardCancel()
   discardCancel()
   discardAccommodationCancel()
   cancelSchedule()
@@ -399,6 +558,35 @@ function close() {
                 </div>
               </VCol>
             </VRow>
+          </VCardText>
+        </VCard>
+
+        <VCard v-if="isGroupTrip" rounded="lg" elevation="0" border class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between">
+            <div class="text-subtitle-2 font-weight-bold">Other Employees in Group Trip</div>
+            <div class="text-caption text-medium-emphasis">{{ groupMembers.length }} members</div>
+          </div>
+          <VDivider />
+          <VCardText class="pa-4">
+            <VTable density="compact" class="border rounded">
+              <thead>
+                <tr>
+                  <th class="text-center font-weight-bold bg-grey-lighten-3" style="width: 80px">No</th>
+                  <th class="font-weight-bold bg-grey-lighten-3">Employee</th>
+                  <th class="text-center font-weight-bold bg-grey-lighten-3">Department</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(member, index) in groupMembers" :key="member.key">
+                  <td class="text-center text-body-2">{{ index + 1 }}</td>
+                  <td class="text-body-2">{{ member.name }}</td>
+                  <td class="text-center text-body-2">{{ member.department }}</td>
+                </tr>
+                <tr v-if="!groupMembers.length">
+                  <td colspan="3" class="text-center text-medium-emphasis py-4">No group members found.</td>
+                </tr>
+              </tbody>
+            </VTable>
           </VCardText>
         </VCard>
 
@@ -464,7 +652,7 @@ function close() {
                 <VBtn size="small" variant="text" :disabled="processing" @click="cancelSchedule">Cancel</VBtn>
                 <VBtn size="small" color="success" variant="flat" :loading="processing" :disabled="processing" @click="saveSchedule">Save Changes</VBtn>
               </template>
-              <VBtn v-else size="small" color="primary" variant="tonal" prepend-icon="ri-edit-line" :disabled="processing" @click="editSchedule">Edit</VBtn>
+              <VBtn v-else-if="!isCancelled" size="small" color="primary" variant="tonal" prepend-icon="ri-edit-line" :disabled="processing" @click="editSchedule">Edit</VBtn>
             </div>
           </div>
           <VDivider />
@@ -486,7 +674,7 @@ function close() {
                 <VBtn size="small" variant="text" :disabled="processing" @click="cancelEditBooking">Cancel</VBtn>
                 <VBtn size="small" color="success" variant="flat" :loading="processing" :disabled="processing" @click="saveBooking">Save Changes</VBtn>
               </template>
-              <VBtn v-else size="small" color="primary" variant="tonal" prepend-icon="ri-edit-line" :disabled="processing" @click="editBooking">Edit</VBtn>
+              <VBtn v-else-if="!isCancelled" size="small" color="primary" variant="tonal" prepend-icon="ri-edit-line" :disabled="processing" @click="editBooking">Edit</VBtn>
             </div>
           </div>
           <VDivider />
@@ -541,16 +729,16 @@ function close() {
             <VDivider />
             <VCardText class="pa-4">
               <VRow dense>
-                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Cancellation Reason <span class="text-error">*</span></div><VTextarea v-model="cancelForm.reason" placeholder="e.g. Flight cancelled due to force majeure" variant="outlined" density="compact" rows="4" hide-details /></VCol>
+                <VCol cols="12"><div class="text-caption font-weight-medium mb-1">Cancellation Reason <span class="text-error">*</span></div><VTextarea v-model="cancelForm.reason" placeholder="e.g. Flight cancelled due to force majeure" variant="outlined" density="compact" rows="3" hide-details /></VCol>
                 <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Refund Status <span class="text-error">*</span></div><VSelect v-model="cancelForm.refundStatus" :items="refundStatusOptions" variant="outlined" density="compact" hide-details /></VCol>
                 <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Original Ticket Amount</div><VTextField class="amount-input" :model-value="`${ticketCurrency} ${formatAmount(originalTicketNumber)}`" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details /></VCol>
                 <VCol cols="12" md="6">
-                  <div class="text-caption font-weight-medium mb-1">Refund Amount</div>
+                <div class="text-caption font-weight-medium mb-1">Refund Amount</div>
                   <VTextField v-if="isPartialRefund" class="amount-input" :model-value="partialRefundText" type="text" inputmode="decimal" autocomplete="off" placeholder="0" variant="outlined" density="compact" hide-details @input="onPartialRefundInput" />
                   <VTextField v-else class="amount-input" :model-value="formatAmount(refundAmountNumber)" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details />
                 </VCol>
                 <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Non-refundable Amount</div><VTextField class="amount-input" :model-value="`${ticketCurrency} ${formatAmount(nonRefundableNumber)}`" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details /></VCol>
-                <VCol cols="12" md="6">
+                <VCol cols="12">
                   <div class="text-caption font-weight-medium mb-1">Refund Confirmation</div>
                   <div class="d-flex align-center ga-2 rounded-lg border pa-2"><input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="processing" @change="refundConfirmation = $event.target.files?.[0] || null" /></div>
                 </VCol>
@@ -572,7 +760,7 @@ function close() {
             <VDivider />
             <VCardText class="pa-4">
               <VRow dense>
-                <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Cancellation Reason <span class="text-error">*</span></div><VTextarea v-model="accommodationCancelForm.reason" placeholder="e.g. Hotel reservation cancelled due to change of plans" variant="outlined" density="compact" rows="4" hide-details /></VCol>
+                <VCol cols="12"><div class="text-caption font-weight-medium mb-1">Cancellation Reason <span class="text-error">*</span></div><VTextarea v-model="accommodationCancelForm.reason" placeholder="e.g. Hotel reservation cancelled due to change of plans" variant="outlined" density="compact" rows="3" hide-details /></VCol>
                 <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Refund Status <span class="text-error">*</span></div><VSelect v-model="accommodationCancelForm.refundStatus" :items="refundStatusOptions" variant="outlined" density="compact" hide-details /></VCol>
                 <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Original Accommodation Amount</div><VTextField class="amount-input" :model-value="`${accommodationCurrency} ${formatAmount(originalAccommodationNumber)}`" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details /></VCol>
                 <VCol cols="12" md="6">
@@ -581,7 +769,7 @@ function close() {
                   <VTextField v-else class="amount-input" :model-value="formatAmount(accommodationRefundAmountNumber)" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details />
                 </VCol>
                 <VCol cols="12" md="6"><div class="text-caption font-weight-medium mb-1">Non-refundable Amount</div><VTextField class="amount-input" :model-value="`${accommodationCurrency} ${formatAmount(accommodationNonRefundableNumber)}`" variant="outlined" density="compact" bg-color="grey-lighten-4" readonly hide-details /></VCol>
-                <VCol cols="12" md="6">
+                <VCol cols="12">
                   <div class="text-caption font-weight-medium mb-1">Refund Confirmation</div>
                   <div class="d-flex align-center ga-2 rounded-lg border pa-2"><input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="processing" @change="accommodationRefundConfirmation = $event.target.files?.[0] || null" /></div>
                 </VCol>
@@ -594,10 +782,136 @@ function close() {
           </template>
         </VCard>
 
+        <VCard v-if="ticketCancellation" rounded="lg" elevation="1" class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between ga-3">
+            <div>
+              <div class="text-subtitle-2 font-weight-bold">Ticket Cancellation & Refund</div>
+              <div class="text-caption text-medium-emphasis">Available for company-booked tickets after GMO processing.</div>
+            </div>
+
+            <div class="d-flex ga-2">
+              <template v-if="editingRefundType === 'ticket'">
+                <VBtn size="small" variant="text" :disabled="processing" @click="cancelEditRefund">Cancel</VBtn>
+                <VBtn size="small" color="success" variant="flat" :loading="processing" :disabled="processing || !refundEditForm.refundStatus" @click="saveRefund">Save Changes</VBtn>
+              </template>
+              <VBtn v-else color="primary" variant="flat" size="small" :disabled="processing || editingRefundType !== null" @click="editRefund('ticket')">Update Refund</VBtn>
+            </div>
+          </div>
+
+          <VDivider />
+
+          <VCardText class="pa-4">
+            <VRow v-if="editingRefundType === 'ticket'" dense>
+              <VCol cols="12">
+                <div class="text-caption font-weight-medium mb-1">Cancellation Reason</div>
+                <VTextarea v-model="refundEditForm.reason" placeholder="Enter cancellation reason" variant="outlined" density="compact" rows="3" hide-details :disabled="processing" />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Refund Status</div>
+                <VSelect v-model="refundEditForm.refundStatus" :items="refundStatusOptions" variant="outlined" density="compact" hide-details :disabled="processing" />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Original Ticket Amount</div>
+                <VTextField class="amount-input" :model-value="refundEditOriginalAmountText" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Refund Amount</div>
+                <VTextField class="amount-input" :model-value="refundEditAmountText" type="text" inputmode="decimal" autocomplete="off" placeholder="0" variant="outlined" density="compact" hide-details :disabled="processing" @input="onRefundEditAmountInput" />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Non-refundable Amount</div>
+                <VTextField class="amount-input" :model-value="refundEditNonRefundableText" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details />
+              </VCol>
+
+              <VCol cols="12">
+                <div class="text-caption font-weight-medium mb-1">Refund Confirmation</div>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="processing" @change="refundEditForm.confirmationFile = $event.target.files?.[0] || null" />
+              </VCol>
+            </VRow>
+
+            <VRow v-else dense>
+              <VCol v-for="field in ticketCancellation" :key="field.label" cols="12" :md="field.cols || 3">
+                <div class="rounded-lg border pa-3 h-100">
+  <div class="text-caption text-uppercase text-medium-emphasis">{{ field.label }}</div>
+  <VBtn v-if="field.file" size="small" variant="flat" color="primary" @click="openRefundFile(field.file)">View</VBtn>
+  <div v-else class="text-body-2 font-weight-bold text-break">{{ displayValue(field.value) }}</div>
+</div>
+              </VCol>
+            </VRow>
+          </VCardText>
+        </VCard>
+
+        <VCard v-if="accommodationCancellation" rounded="lg" elevation="1" class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between ga-3">
+            <div>
+              <div class="text-subtitle-2 font-weight-bold">Accommodation Cancellation & Refund</div>
+              <div class="text-caption text-medium-emphasis">Available for company-booked accommodation after GMO processing.</div>
+            </div>
+
+            <div class="d-flex ga-2">
+              <template v-if="editingRefundType === 'accommodation'">
+                <VBtn size="small" variant="text" :disabled="processing" @click="cancelEditRefund">Cancel</VBtn>
+                <VBtn size="small" color="success" variant="flat" :loading="processing" :disabled="processing || !refundEditForm.refundStatus" @click="saveRefund">Save Changes</VBtn>
+              </template>
+              <VBtn v-else color="primary" variant="flat" size="small" :disabled="processing || editingRefundType !== null" @click="editRefund('accommodation')">Update Refund</VBtn>
+            </div>
+          </div>
+
+          <VDivider />
+
+          <VCardText class="pa-4">
+            <VRow v-if="editingRefundType === 'accommodation'" dense>
+              <VCol cols="12">
+                <div class="text-caption font-weight-medium mb-1">Cancellation Reason</div>
+                <VTextarea v-model="refundEditForm.reason" placeholder="Enter cancellation reason" variant="outlined" density="compact" rows="3" hide-details :disabled="processing" />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Refund Status</div>
+                <VSelect v-model="refundEditForm.refundStatus" :items="refundStatusOptions" variant="outlined" density="compact" hide-details :disabled="processing" />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Original Accommodation Amount</div>
+                <VTextField class="amount-input" :model-value="refundEditOriginalAmountText" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Refund Amount</div>
+                <VTextField class="amount-input" :model-value="refundEditAmountText" type="text" inputmode="decimal" autocomplete="off" placeholder="0" variant="outlined" density="compact" hide-details :disabled="processing" @input="onRefundEditAmountInput" />
+              </VCol>
+
+              <VCol cols="12" md="6">
+                <div class="text-caption font-weight-medium mb-1">Non-refundable Amount</div>
+                <VTextField class="amount-input" :model-value="refundEditNonRefundableText" variant="outlined" density="compact" readonly bg-color="grey-lighten-4" hide-details />
+              </VCol>
+
+              <VCol cols="12">
+                <div class="text-caption font-weight-medium mb-1">Refund Confirmation</div>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="processing" @change="refundEditForm.confirmationFile = $event.target.files?.[0] || null" />
+              </VCol>
+            </VRow>
+
+            <VRow v-else dense>
+              <VCol v-for="field in accommodationCancellation" :key="field.label" cols="12" :md="field.cols || 3">
+                <div class="rounded-lg border pa-3 h-100">
+  <div class="text-caption text-uppercase text-medium-emphasis">{{ field.label }}</div>
+  <VBtn v-if="field.file" size="small" variant="flat" color="primary" @click="openRefundFile(field.file)">View</VBtn>
+  <div v-else class="text-body-2 font-weight-bold text-break">{{ displayValue(field.value) }}</div>
+</div>
+              </VCol>
+            </VRow>
+          </VCardText>
+        </VCard>
+
         <VCard rounded="lg" elevation="0" border class="mb-4">
           <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between">
             <div class="text-subtitle-2 font-weight-bold">Employee Email</div>
-            <VBtn color="primary" variant="flat" size="small" :disabled="processing || loading || !email" @click="resendEmail">Resend Email</VBtn>
+            <VBtn v-if="!isCancelled" color="primary" variant="flat" size="small" :disabled="processing || loading || !email" @click="resendEmail">Resend Email</VBtn>
           </div>
           <VDivider />
           <VCardText class="pa-4">
@@ -616,8 +930,22 @@ function close() {
       </VCardText>
       <VDivider />
       <VCardActions class="px-5 py-4 justify-end"><VBtn variant="text" :disabled="processing" @click="close">Close</VBtn></VCardActions>
-    </VCard>
-  </VDialog>
+
+<VDialog v-model="previewDialog" max-width="900" scrollable>
+  <VCard rounded="lg">
+    <VCardItem class="px-4 py-2">
+      <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">Refund Confirmation</VCardTitle>
+      <template #append><VBtn icon="ri-close-line" size="small" variant="text" @click="previewDialog = false" /></template>
+    </VCardItem>
+    <VDivider />
+    <VCardText class="pa-0">
+      <img v-if="isPreviewImage" :src="previewUrl" class="w-100 d-block" alt="Refund Confirmation" />
+      <iframe v-else :src="previewUrl" class="w-100 border-0" height="600" />
+    </VCardText>
+  </VCard>
+</VDialog>
+</VCard>
+</VDialog>
 </template>
 
 <style scoped>

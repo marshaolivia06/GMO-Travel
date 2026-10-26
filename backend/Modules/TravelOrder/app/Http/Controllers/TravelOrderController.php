@@ -114,6 +114,14 @@ class TravelOrderController extends Controller
         return response()->json(['message' => ucfirst($itemType) . ' cancellation has been recorded successfully.', 'data' => $cancellation]);
     }
 
+    public function updateGmoRefund(Request $request, int $id, string $itemType): JsonResponse
+    {
+        abort_unless(in_array($itemType, ['ticket', 'accommodation'], true), 404);
+        $cancellation = $this->bookingService->updateCancellationRefund(TravelOrder::findOrFail($id), $request->user(), $itemType, $request->all(), $request->file('confirmation_file'));
+
+        return response()->json(['message' => ucfirst($itemType) . ' refund has been updated successfully.', 'data' => $cancellation]);
+    }
+
     public function resendGmoBookingEmail(Request $request, int $id): JsonResponse
     {
         $email = $this->bookingService->resendBookingEmail(TravelOrder::findOrFail($id), $request->user(), $request->all());

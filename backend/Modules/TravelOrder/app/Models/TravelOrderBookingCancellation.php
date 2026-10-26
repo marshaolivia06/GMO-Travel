@@ -43,8 +43,8 @@ class TravelOrderBookingCancellation extends Model
         return $this->belongsTo(TravelOrderBooking::class, 'booking_id');
     }
 
-    public function processor(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'processed_by');
-    }
+    public function processor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+{
+    return $this->belongsTo(\Modules\UserManagement\Models\User::class, 'processed_by');
+}
 }

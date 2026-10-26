@@ -57,9 +57,12 @@ class TravelOrderGroupService
         return DB::transaction(function () use ($group, $data, $memberIds) {
             $this->repository->update($group, $data);
             if ($memberIds !== null) {
-    $group->members()->whereNotIn('user_id', $memberIds)->delete();
-    $this->repository->addMembers($group, $memberIds);
-}
+                $removedIds = $group->members()->whereNotIn('user_id', $memberIds)->pluck('user_id');
+                $this->ensureMembersCanBeRemoved($group, $removedIds);
+
+                $group->members()->whereNotIn('user_id', $memberIds)->delete();
+                $this->repository->addMembers($group, $memberIds);
+            }
             return $this->repository->findOrFail($group->id);
         });
     }
@@ -99,6 +102,7 @@ class TravelOrderGroupService
         $group = $this->repository->findOrFail($id);
         $this->ensureStatus($group, ['open'], 'Anggota tidak dapat diubah pada group yang sudah closed.');
         if ($group->members()->count() <= 2) throw ValidationException::withMessages(['members' => 'Group harus memiliki minimal 2 anggota.']);
+        $this->ensureMembersCanBeRemoved($group, collect([$userId]));
         $this->repository->removeMember($group, $userId);
         return $this->repository->findOrFail($id);
     }
@@ -106,5 +110,17 @@ class TravelOrderGroupService
     protected function ensureStatus(TravelOrderGroup $group, array $allowed, string $message): void
     {
         if (!in_array($group->status, $allowed, true)) throw ValidationException::withMessages(['status' => $message]);
+    }
+
+    protected function ensureMembersCanBeRemoved(TravelOrderGroup $group, $userIds): void
+    {
+        if ($userIds->isEmpty()) return;
+
+        $hasSubmitted = $group->travelOrders()
+            ->whereIn('user_id', $userIds)
+            ->where('status', '!=', 'draft')
+            ->exists();
+
+        if ($hasSubmitted) throw ValidationException::withMessages(['members' => 'Anggota yang sudah mengajukan Travel Order tidak dapat dihapus dari group.']);
     }
 }

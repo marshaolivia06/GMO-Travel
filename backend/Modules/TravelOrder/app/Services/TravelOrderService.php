@@ -10,14 +10,16 @@ use Illuminate\Support\Facades\{DB, Mail, Storage};
 use Modules\MasterManagement\Models\{Department, MasterDivision, Section};
 use Modules\TravelOrder\Emails\TravelOrderDeclinedMail;
 use Modules\TravelOrder\Models\{TravelOrder, TravelOrderGroup};
-use Modules\TravelOrder\Repositories\{TravelOrderAdvanceRepository, TravelOrderRepository};
+use Illuminate\Database\Eloquent\Collection;
+use Modules\TravelOrder\Repositories\{TravelOrderAdvanceRepository, TravelOrderGroupRepository, TravelOrderRepository};
 use Modules\UserManagement\Models\User;
 
 class TravelOrderService
 {
     public function __construct(
         private TravelOrderRepository $repository, private TravelOrderAdvanceRepository $advanceRepository,
-        private TravelAdvanceService $advanceService, private TravelOrderApprovalService $approvalService
+        private TravelAdvanceService $advanceService, private TravelOrderApprovalService $approvalService,
+        private TravelOrderGroupRepository $groupRepository
     ) {}
 
     public function list(User $user, array $filters = [], int $perPage = 10): LengthAwarePaginator
@@ -32,7 +34,7 @@ class TravelOrderService
         if ($isAdmin) {
             $filters['exclude_draft'] = true;
         } elseif ($isAdminGmo) {
-            $filters['gmo_status'] = ['awaiting_approval_gmo', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance', 'processed_by_gmo'];
+            $filters['gmo_status'] = ['awaiting_approval_gmo', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance', 'processed_by_gmo', 'cancelled'];
         } elseif ($isDeptHead) {
             $department = Department::where('dept_head_id', $user->id)->first();
 
@@ -72,7 +74,11 @@ class TravelOrderService
     public function find(int $id, ?User $user = null): TravelOrder
     {
         $order = $this->repository->findById($id);
-        $order->load(['approvals' => fn ($query) => $query->orderBy('sequence'), 'approvals.role', 'approvals.user', 'department.divisionHead', 'booking', 'emails']);
+        $order->load(['approvals' => fn ($query) => $query->orderBy('sequence'), 'approvals.role', 'approvals.user', 'department.divisionHead', 'booking', 'emails', 'bookingCancellations.processor:id,name', 'group.members.user']);
+
+        if ($order->group) {
+            $this->groupRepository->attachDepartments(new Collection([$order->group]));
+        }
 
         $order->setAttribute('requester_section_name', Section::where('section_head_id', $order->created_by)->value('name'));
         $order->setAttribute('requester_division_name', MasterDivision::where('division_head_id', $order->created_by)->value('division_name'));

@@ -266,8 +266,10 @@ class TravelOrderBookingService
 
     public function cancelBookingItem(TravelOrder $travelOrder, User $user, string $itemType, array $data, ?UploadedFile $confirmationFile = null): TravelOrderBookingCancellation
     {
-        abort_unless($travelOrder->status === 'processed_by_gmo', 422, 'Booking items can only be cancelled after GMO processing.');
+        abort_unless(in_array($travelOrder->status, ['processed_by_gmo', 'cancelled'], true), 422, 'Booking items can only be cancelled after GMO processing.');
         abort_unless(in_array($itemType, ['ticket', 'accommodation'], true), 422, 'Invalid booking item type.');
+
+        $orderAlreadyCancelled = $travelOrder->status === 'cancelled';
 
         $booking = $travelOrder->booking;
 
@@ -335,6 +337,10 @@ class TravelOrderBookingService
 
                 $booking->save();
 
+                if ($travelOrder->status !== 'cancelled') {
+                    $travelOrder->update(['status' => 'cancelled']);
+                }
+
                 return $cancellation;
             });
         } catch (\Throwable $exception) {
@@ -347,7 +353,83 @@ class TravelOrderBookingService
 
         $this->approvalService->logGmoActivity($travelOrder, $user, $itemType . '_cancellation_recorded', ucfirst($itemType) . ' Cancellation Recorded');
 
+        if (!$orderAlreadyCancelled) {
+            $this->approvalService->logGmoActivity($travelOrder, $user, 'cancelled', 'Travel Order cancelled by Admin-GMO', ['role' => 'Admin-GMO', 'remark' => $validated['reason']]);
+        }
+
         return $cancellation;
+    }
+
+    public function updateCancellationRefund(TravelOrder $travelOrder, User $user, string $itemType, array $data, ?UploadedFile $confirmationFile = null): TravelOrderBookingCancellation
+    {
+        abort_unless(in_array($itemType, ['ticket', 'accommodation'], true), 422, 'Invalid booking item type.');
+
+        $cancellation = TravelOrderBookingCancellation::where('travel_order_id', $travelOrder->id)->where('item_type', $itemType)->firstOrFail();
+
+        $validated = Validator::make(array_merge($data, ['confirmation_file' => $confirmationFile]), [
+            'reason' => ['required', 'string', 'max:2000'],
+            'refund_status' => ['required', 'in:Fully Refund,Partially Refunded,Pending Refund,No Refund'],
+            'refund_amount' => ['nullable', 'numeric', 'min:0'], 'non_refundable_amount' => ['nullable', 'numeric', 'min:0'],
+            'confirmation_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ])->validate();
+
+        $originalAmount = (float) $cancellation->original_amount;
+        $refundAmount = (float) ($validated['refund_amount'] ?? 0);
+        $nonRefundableAmount = (float) ($validated['non_refundable_amount'] ?? 0);
+
+        if ($validated['refund_status'] === 'Fully Refund') {
+            $refundAmount = $originalAmount;
+            $nonRefundableAmount = 0;
+        } elseif ($validated['refund_status'] === 'No Refund') {
+            $refundAmount = 0;
+            $nonRefundableAmount = $originalAmount;
+        } elseif ($validated['refund_status'] === 'Pending Refund') {
+            $refundAmount = 0;
+            $nonRefundableAmount = 0;
+        }
+
+        abort_if($refundAmount + $nonRefundableAmount > $originalAmount, 422, 'Refund and non-refundable amounts cannot exceed the original amount.');
+
+        $oldPath = $cancellation->confirmation_file;
+        $newPath = null;
+
+        try {
+            if ($confirmationFile) {
+                $newPath = $confirmationFile->store('travel-order-bookings/cancellations', 'public');
+
+                if (!$newPath) {
+                    throw new \RuntimeException('Failed to store the cancellation confirmation.');
+                }
+            }
+
+            DB::transaction(function () use ($cancellation, $validated, $refundAmount, $nonRefundableAmount, $newPath, $user) {
+                $cancellation->reason = $validated['reason'];
+                $cancellation->refund_status = $validated['refund_status'];
+                $cancellation->refund_amount = $refundAmount;
+                $cancellation->non_refundable_amount = $nonRefundableAmount;
+                $cancellation->processed_by = $user->id;
+
+                if ($newPath) {
+                    $cancellation->confirmation_file = $newPath;
+                }
+
+                $cancellation->save();
+            });
+        } catch (\Throwable $exception) {
+            if ($newPath) {
+                Storage::disk('public')->delete($newPath);
+            }
+
+            throw $exception;
+        }
+
+        if ($newPath && $oldPath) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $this->approvalService->logGmoActivity($travelOrder, $user, $itemType . '_refund_updated', ucfirst($itemType) . ' Refund Updated');
+
+        return $cancellation->fresh();
     }
 
     public function resendBookingEmail(TravelOrder $travelOrder, User $user, array $data): TravelOrderEmail

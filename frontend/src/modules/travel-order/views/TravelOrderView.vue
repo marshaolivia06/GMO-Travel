@@ -8,7 +8,7 @@ import PdfViewerModal from '../components/modal/PdfViewerModal.vue'
 import PickTypeModal from '../components/modal/PickTypeModal.vue'
 import TripFormModal from '../components/modal/TripFormModal.vue'
 import GmoProcessModal from '../components/modal/GmoProcessModal.vue'
-import { getTravelOrders, getTravelOrder, getTravelOrderGroup, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder, completeGmoProcessing, cancelTravelOrder, getGroupTripUsers, updateGmoSchedule, updateGmoBookingItems, cancelGmoBookingItem, resendGmoBookingEmail, createTravelOrderGroup, getTravelOrderGroups, updateTravelOrderGroup, deleteTravelOrderGroup,  getMyTravelOrderGroups, } from '../services/travelOrderService'
+import { getTravelOrders, getTravelOrder, getTravelOrderGroup, getTravelOrderPdf, getTravelOrderHistory, createTravelOrder, updateTravelOrder, approveTravelOrder, rejectTravelOrder, revisionTravelOrder, completeGmoProcessing, cancelTravelOrder, getGroupTripUsers, updateGmoSchedule, updateGmoBookingItems, cancelGmoBookingItem, updateGmoRefund, resendGmoBookingEmail, createTravelOrderGroup, getTravelOrderGroups, updateTravelOrderGroup, deleteTravelOrderGroup,  getMyTravelOrderGroups, } from '../services/travelOrderService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
@@ -535,10 +535,12 @@ async function openGmoHistory(row) {
     const response = await getTravelOrder(row.id)
     const detail = response?.data?.data ?? response?.data ?? response
     gmoHistoryOrder.value = detail
+    console.log('CANCELLATIONS:', JSON.stringify(detail?.booking_cancellations, null, 2))
     gmoHistoryBooking.value = detail?.booking || null
     gmoHistoryEmail.value = detail?.emails || []
   } catch (error) {
     console.error('Load GMO history error:', error)
+    console.log('GMO HISTORY 500:', error.response?.data?.message, error.response?.data?.file, error.response?.data?.line)
     showMessage(error?.response?.data?.message || 'Failed to load GMO history.', 'error')
     gmoHistoryDialog.value = false
   } finally {
@@ -662,7 +664,40 @@ async function handleCancelGmoBookingItem(payload, itemType) {
 
 async function handleCancelTicket(payload) { return handleCancelGmoBookingItem(payload, 'ticket') }
 async function handleCancelAccommodation(payload) { return handleCancelGmoBookingItem(payload, 'accommodation') }
+async function handleSaveRefund(payload) {
+  if (gmoHistoryProcessing.value) return
 
+  const id = payload.orderId || gmoHistoryOrder.value?.id
+  if (!id) return
+
+  const itemLabel = payload.itemType === 'ticket' ? 'Ticket' : 'Accommodation'
+  const ok = await confirm({ title: `Update ${itemLabel} Refund`, message: `Are you sure you want to update the ${itemLabel.toLowerCase()} refund?` })
+
+  if (!ok) return
+
+  gmoHistoryProcessing.value = true
+
+  try {
+    const formData = new FormData()
+
+    formData.append('_method', 'PUT')
+    formData.append('reason', payload.reason)
+    formData.append('refund_status', payload.refundStatus)
+    formData.append('refund_amount', payload.refundAmount)
+    formData.append('non_refundable_amount', payload.nonRefundableAmount)
+
+    if (payload.confirmationFile instanceof File) formData.append('confirmation_file', payload.confirmationFile)
+
+    await updateGmoRefund(id, payload.itemType, formData)
+    await refreshGmoHistory(id)
+    await loadOrders()
+    showMessage(`${itemLabel} refund updated successfully.`)
+  } catch (error) {
+    showMessage(error?.response?.data?.errors ? Object.values(error.response.data.errors).flat()[0] : error?.response?.data?.message || `Failed to update ${itemLabel.toLowerCase()} refund.`, 'error')
+  } finally {
+    gmoHistoryProcessing.value = false
+  }
+}
 async function handleResendGmoEmail(payload) {
   if (gmoHistoryProcessing.value) return
 
@@ -992,7 +1027,7 @@ onMounted(() => {
     <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" @back="backToGmoModal" />
     <GmoProcessModal v-model="processDialog" :title="processMode === 'view-only' ? 'Travel Order PDF' : processMode === 'direct-payment' ? 'Direct Payment' : 'Booked by Company'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision('process')" @continue="continueToBooking" @complete="handleCompleteGmo" />
     <GmoAttachmentsModal v-model="attachmentsDialog" :loading="attachmentsLoading" :order="selectedOrder" :booking="selectedBooking" />
-    <GmoHistoryModal v-model="gmoHistoryDialog" title="GMO Processing History" :order="gmoHistoryOrder" :saved-booking="gmoHistoryBooking" :saved-email="gmoHistoryEmail" :loading="gmoHistoryLoading" :processing="gmoHistoryProcessing" @close="gmoHistoryDialog = false" @view-pdf="openGmoHistoryPdf" @update-schedule="handleUpdateGmoSchedule" @update-booking="handleUpdateGmoBooking" @cancel-ticket="handleCancelTicket" @cancel-accommodation="handleCancelAccommodation" @resend-email="handleResendGmoEmail" />
+    <GmoHistoryModal v-model="gmoHistoryDialog" title="GMO Processing History" :order="gmoHistoryOrder" :saved-booking="gmoHistoryBooking" :saved-email="gmoHistoryEmail" :loading="gmoHistoryLoading" :processing="gmoHistoryProcessing" @close="gmoHistoryDialog = false" @view-pdf="openGmoHistoryPdf" @update-schedule="handleUpdateGmoSchedule" @update-booking="handleUpdateGmoBooking" @cancel-ticket="handleCancelTicket" @cancel-accommodation="handleCancelAccommodation" @save-refund="handleSaveRefund" @resend-email="handleResendGmoEmail" />
     <PickGroupTripModal v-model="pickGroupDialog" :groups="myGroups" :loading="pickGroupLoading" @select="selectGroup" @back="backToBusinessType" />
   </div>
 </template>

@@ -15,6 +15,11 @@ const form = reactive({ tripName: '', travelRegion: '', travelFrom: '', travelTo
 const memberItems = computed(() => props.memberOptions.map(user => ({ ...user, id: user.id, name: user.name || user.full_name || '', departmentName: user.department?.name || user.department_name || '-' })))
 const selectedMembers = computed(() => memberItems.value.filter(user => selectedMemberIds.value.some(id => String(id) === String(user.id))))
 const canCreate = computed(() => requiredFields.every(key => !!String(form[key]).trim()) && form.returnDate >= form.departureDate && selectedMemberIds.value.length >= 2 && !props.loading)
+const lockedMemberIds = computed(() => (props.initialData?.members || [])
+    .filter(member => member.travel_order && member.travel_order.status !== 'draft')
+    .map(member => String(member.user_id ?? member.user?.id ?? member.id)))
+
+function isLocked(id) { return lockedMemberIds.value.includes(String(id)) }
 
 function normalizeDate(value) {
     if (!value) return ''
@@ -36,8 +41,17 @@ function filterMember(_, query, item) {
     return !search || String(item.raw.name || '').toLowerCase().includes(search) || String(item.raw.departmentName || '').toLowerCase().includes(search)
 }
 
-function updateMembers(ids) { selectedMemberIds.value = ids || []; errors.members = '' }
-function removeMember(id) { selectedMemberIds.value = selectedMemberIds.value.filter(value => String(value) !== String(id)); errors.members = '' }
+function updateMembers(ids) {
+    const next = ids || []
+    const kept = selectedMemberIds.value.filter(id => isLocked(id) && !next.some(value => String(value) === String(id)))
+    selectedMemberIds.value = [...next, ...kept]
+    errors.members = ''
+}
+function removeMember(id) {
+    if (isLocked(id)) return
+    selectedMemberIds.value = selectedMemberIds.value.filter(value => String(value) !== String(id))
+    errors.members = ''
+}
 function clearErrors() { Object.keys(errors).forEach(key => { errors[key] = '' }); generalError.value = '' }
 
 function validate() {
@@ -91,7 +105,7 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
             <div class="text-caption mb-1">8. Group Member</div>
             <VAutocomplete :model-value="selectedMemberIds" :items="memberItems" item-title="name" item-value="id" multiple chips closable-chips :custom-filter="filterMember" placeholder="Search by employee name or department" variant="outlined" density="comfortable" hide-details="auto" no-data-text="No employee found" :disabled="loading" :error-messages="errors.members ? [errors.members] : []" @update:model-value="updateMembers">
   <template #chip="{ item }">
-    <VChip :key="item.value" size="small" closable :disabled="loading" class="mr-1" @click:close="updateMembers(selectedMemberIds.filter(id => id !== item.value))">
+    <VChip :key="item.value" size="small" :closable="!isLocked(item.value)" :disabled="loading" class="mr-1" @click:close="updateMembers(selectedMemberIds.filter(id => id !== item.value))">
       {{ item.raw.name }}
     </VChip>
   </template>
@@ -106,7 +120,7 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
         <div class="text-body-2 font-weight-bold text-truncate">{{ member.name }}</div>
         <div class="text-caption text-medium-emphasis text-truncate">{{ member.departmentName }}</div>
       </div>
-      <VBtn icon="ri-close-line" size="x-small" variant="text" color="grey-darken-2" class="flex-shrink-0" style="position: relative; z-index: 2" :disabled="loading" @click.stop="removeMember(member.id)" />
+      <VBtn v-if="!isLocked(member.id)" icon="ri-close-line" size="x-small" variant="text" color="grey-darken-2" class="flex-shrink-0" style="position: relative; z-index: 2" :disabled="loading" @click.stop="removeMember(member.id)" />
     </VCard>
   </div>
 </VCol>

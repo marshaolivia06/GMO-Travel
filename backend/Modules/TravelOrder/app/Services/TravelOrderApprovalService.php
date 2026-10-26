@@ -14,14 +14,23 @@ class TravelOrderApprovalService
 {
     public function initFlow(TravelOrder $order): void
     {
-        $matrix = AuthorityMatrix::with('steps.role')->where('document_type', 'Travel Order')->where('status', 1)->first();
-
-        if (!$matrix || $matrix->steps->isEmpty()) {
-            throw new \RuntimeException('The "Travel Order" authority matrix has not been created or does not yet have any steps defined.');
-        }
-
         $submitter = User::with('roles')->find($order->user_id);
-        $submitterRole = $submitter?->roles->first();
+$submitterRole = $submitter?->roles->first();
+
+if (!$submitterRole) {
+    throw new \RuntimeException('The applicant does not yet have a role.');
+}
+
+$matrix = AuthorityMatrix::with('steps.role')
+    ->where('document_type', 'Travel Order')
+    ->where('status', 1)
+    ->where('travel_region', $order->travel_region)
+    ->whereIn('requester_role_id', $submitter->roles->pluck('id'))
+    ->first();
+
+if (!$matrix || $matrix->steps->isEmpty()) {
+    throw new \RuntimeException('The "Travel Order" authority matrix has not been created or does not yet have any steps defined.');
+}
 
         if (!$submitterRole) {
             throw new \RuntimeException('The applicant does not yet have a role.');

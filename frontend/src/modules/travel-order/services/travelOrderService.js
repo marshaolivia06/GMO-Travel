@@ -92,7 +92,7 @@ export const cancelGmoBookingItem = (id, itemType, data) => {
 
   return http.post(`${BASE}/${id}/gmo/cancellations/${itemType}`, payload).then(res => res.data)
 }
-
+export const updateGmoRefund = (id, itemType, data) => http.post(`${BASE}/${id}/gmo/cancellations/${itemType}/refund`, data).then(res => res.data)
 export const resendGmoBookingEmail = (id, data) => http.post(`${BASE}/${id}/gmo/resend-email`, data).then(res => res.data)
 
 export const getTravelAdvanceLimit = (travelRegion, currency) => http.get('/v1/travel-advance-masters/limit', { params: { travel_region: travelRegion, currency } }).then(res => res.data)
