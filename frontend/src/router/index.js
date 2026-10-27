@@ -12,6 +12,8 @@ import travelExpenseReportRoutes from '../modules/travel-expense-report/router'
 import userManagementRoutes from '../modules/user-management/router'
 import masterManagementRoutes from '../modules/master-management/router'
 import masterAdvanceRoutes from '../modules/master-advance/router'
+import masterRegionRoutes from '../modules/master-region/router'
+import masterRateRoutes from '../modules/master-rate/router'
 import authorityMatrixRoutes from '../modules/authority-matrix/router'
 
 const routes = [
@@ -40,6 +42,8 @@ const routes = [
       ...userManagementRoutes,
       ...masterManagementRoutes,
       ...masterAdvanceRoutes,
+      ...masterRegionRoutes,
+      ...masterRateRoutes,
       ...authorityMatrixRoutes,
     ],    
   },

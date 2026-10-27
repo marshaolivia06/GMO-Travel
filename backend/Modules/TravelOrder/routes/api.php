@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\TravelOrder\Http\Controllers\{TravelAdvanceMasterController, TravelOrderController, TravelOrderGroupController};
+use Modules\TravelOrder\Http\Controllers\{TravelAdvanceMasterController, TravelOrderController, TravelOrderGroupController, MasterRegionController, MasterRateController};
 
 Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     Route::prefix('travel-orders')->group(function () {
@@ -52,4 +52,12 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     Route::get('travel-advance-masters/regions', [TravelAdvanceMasterController::class, 'regions'])->middleware('permission:travel-order.create');
     Route::get('travel-advance-masters/countries', [TravelAdvanceMasterController::class, 'countries'])->middleware('permission:travel-order.create');
     Route::apiResource('travel-advance-masters', TravelAdvanceMasterController::class);
+
+        // MASTER REGION
+        Route::apiResource('master-regions', MasterRegionController::class);
+
+        // MASTER RATE
+        Route::apiResource('master-rates', MasterRateController::class);
+
 });
+
