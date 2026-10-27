@@ -153,8 +153,8 @@ if (!$matrix || $matrix->steps->isEmpty()) {
     {
         $stage = $this->currentStage($order);
 
-        abort_if(!$stage, 422, 'Travel Order tidak dapat diproses pada tahap approval saat ini.');
-        abort_unless($this->canApprove($order, $user), 403, 'Anda tidak berhak menyetujui Travel Order ini.');
+        abort_if(!$stage, 422, 'The Travel Order cannot be processed at the current approval stage.');
+        abort_unless($this->canApprove($order, $user), 403, 'You are not allowed to approve this Travel Order.');
 
         DB::transaction(function () use ($order, $user, $stage, $note) {
             $stage->update(['status' => 'approved', 'user_id' => $user->id, 'note' => $note, 'acted_at' => now()]);
@@ -190,9 +190,9 @@ if (!$matrix || $matrix->steps->isEmpty()) {
         $remark = trim($remark);
         $stage = $this->currentStage($order);
 
-        abort_if(!$stage, 422, 'Travel Order tidak dapat diproses pada tahap approval saat ini.');
-        abort_unless($this->canApprove($order, $user), 403, 'Anda tidak berhak memproses Travel Order ini.');
-        abort_if($remark === '', 422, 'Remark wajib diisi.');
+        abort_if(!$stage, 422, 'The Travel Order cannot be processed at the current approval stage.');
+        abort_unless($this->canApprove($order, $user), 403, 'You are not allowed to process this Travel Order.');
+        abort_if($remark === '', 422, 'Remark is required.');
 
         DB::transaction(function () use ($order, $user, $stage, $remark, $status) {
             $stage->update(['status' => $status, 'user_id' => $user->id, 'note' => $remark, 'acted_at' => now()]);

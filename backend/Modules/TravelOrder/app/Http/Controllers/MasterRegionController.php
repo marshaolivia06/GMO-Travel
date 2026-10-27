@@ -60,7 +60,7 @@ class MasterRegionController extends Controller
 
         if ($this->masterRegionService->hasRates($id)) {
             return ApiResponse::error(
-                'Region masih memiliki data tarif sehingga tidak dapat dihapus.',
+                'This region still has rates and cannot be deleted.',
                 422
             );
         }

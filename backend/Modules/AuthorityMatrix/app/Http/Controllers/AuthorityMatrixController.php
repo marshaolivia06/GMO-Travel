@@ -21,7 +21,7 @@ class AuthorityMatrixController extends Controller
         $matrix = $this->service->create($request->validated());
 
         return response()->json([
-            'message' => 'Authority Matrix berhasil dibuat.',
+            'message' => 'Authority Matrix created successfully.',
             'data' => $matrix,
         ], 201);
     }
@@ -38,7 +38,7 @@ class AuthorityMatrixController extends Controller
         $matrix = $this->service->update($id, $request->validated());
 
         return response()->json([
-            'message' => 'Authority Matrix berhasil diperbarui.',
+            'message' => 'Authority Matrix updated successfully.',
             'data' => $matrix,
         ]);
     }
@@ -48,7 +48,7 @@ class AuthorityMatrixController extends Controller
         $this->service->delete($id);
 
         return response()->json([
-            'message' => 'Authority Matrix berhasil dihapus.',
+            'message' => 'Authority Matrix deleted successfully.',
         ]);
     }
 }

@@ -112,7 +112,7 @@ class PermissionRepository
 
         if ($permissions->isEmpty()) {
             return [
-                'message' => 'Permission tidak ditemukan.',
+                'message' => 'Permission not found.',
             ];
         }
 

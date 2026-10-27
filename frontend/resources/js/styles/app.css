@@ -1,0 +1,63 @@
+.brand-card {
+  overflow: hidden;
+}
+
+/* Sticky footer: main content grows to fill the viewport so the footer
+   always sits at the bottom instead of right after short page content. */
+.layout-page-content {
+  flex: 1 1 auto;
+}
+
+.brand-card thead tr th {
+  background-color: rgba(var(--v-theme-primary), 0.08) !important;
+  font-weight: 600 !important;
+  color: rgb(var(--v-theme-primary)) !important;
+}
+
+.brand-card tbody tr:hover {
+  background-color: rgba(var(--v-theme-primary), 0.08) !important;
+}
+
+.brand-card .v-data-table-header__content .v-icon {
+  opacity: 1 !important;
+}
+
+/* Data table sort icon: stacked carets, active direction highlighted */
+.v-data-table .v-table__wrapper > table > thead > tr > th .v-data-table-header__sort-icon {
+  opacity: 1 !important;
+  margin-inline-start: 6px;
+}
+
+.sort-caret {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  width: 8px;
+  height: 14px;
+}
+
+.sort-caret::before,
+.sort-caret::after {
+  content: "";
+  border-inline: 4px solid transparent;
+  color: #cbd5e1;
+}
+
+.sort-caret::before {
+  border-bottom: 5px solid currentColor;
+}
+
+.sort-caret::after {
+  border-top: 5px solid currentColor;
+}
+
+.sort-caret--asc::before,
+.sort-caret--desc::after {
+  color: rgb(var(--v-theme-primary));
+}
+
+/* Form dialogs (Laborix standard) */
+.v-dialog .v-field {
+  border-radius: 8px;
+}

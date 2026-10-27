@@ -32,7 +32,7 @@ class TravelOrderGroupService
     {
         $memberIds = array_values(array_unique($data['members'] ?? []));
         unset($data['members']);
-        if (count($memberIds) < 2) throw ValidationException::withMessages(['members' => 'Group harus memiliki minimal 2 anggota.']);
+        if (count($memberIds) < 2) throw ValidationException::withMessages(['members' => 'A group must have at least 2 members.']);
 
         $data['created_by'] = auth()->id();
         $data['status'] = 'open';
@@ -48,11 +48,11 @@ class TravelOrderGroupService
     public function update(int $id, array $data): TravelOrderGroup
     {
         $group = $this->repository->findOrFail($id);
-        $this->ensureStatus($group, ['open'], 'Hanya group berstatus open yang dapat diubah.');
+        $this->ensureStatus($group, ['open'], 'Only open groups can be updated.');
 
         $memberIds = isset($data['members']) ? array_values(array_unique($data['members'])) : null;
         unset($data['members'], $data['departments'], $data['status'], $data['created_by'], $data['opened_at'], $data['closed_at']);
-        if ($memberIds !== null && count($memberIds) < 2) throw ValidationException::withMessages(['members' => 'Group harus memiliki minimal 2 anggota.']);
+        if ($memberIds !== null && count($memberIds) < 2) throw ValidationException::withMessages(['members' => 'A group must have at least 2 members.']);
 
         return DB::transaction(function () use ($group, $data, $memberIds) {
             $this->repository->update($group, $data);
@@ -70,38 +70,38 @@ class TravelOrderGroupService
     public function delete(int $id): void
     {
         $group = $this->repository->findOrFail($id);
-        $this->ensureStatus($group, ['open'], 'Hanya group berstatus open yang dapat dihapus.');
+        $this->ensureStatus($group, ['open'], 'Only open groups can be deleted.');
         $this->repository->delete($group);
     }
 
     public function open(int $id): TravelOrderGroup
     {
         $group = $this->repository->findOrFail($id);
-        $this->ensureStatus($group, ['open'], 'Group sudah berstatus open.');
+        $this->ensureStatus($group, ['open'], 'The group is already open.');
         return $group;
     }
 
     public function close(int $id): TravelOrderGroup
     {
         $group = $this->repository->findOrFail($id);
-        $this->ensureStatus($group, ['open'], 'Hanya group berstatus open yang dapat ditutup.');
+        $this->ensureStatus($group, ['open'], 'Only open groups can be closed.');
         return $this->repository->update($group, ['status' => 'closed', 'closed_at' => now()]);
     }
 
     public function addMembers(int $id, array $userIds): TravelOrderGroup
     {
         $group = $this->repository->findOrFail($id);
-        $this->ensureStatus($group, ['open'], 'Anggota hanya dapat diubah pada group berstatus open.');
+        $this->ensureStatus($group, ['open'], 'Members can only be changed in open groups.');
         $this->repository->addMembers($group, array_values(array_unique($userIds)));
-        if ($group->members()->count() < 2) throw ValidationException::withMessages(['members' => 'Group harus memiliki minimal 2 anggota.']);
+        if ($group->members()->count() < 2) throw ValidationException::withMessages(['members' => 'A group must have at least 2 members.']);
         return $this->repository->findOrFail($id);
     }
 
     public function removeMember(int $id, int $userId): TravelOrderGroup
     {
         $group = $this->repository->findOrFail($id);
-        $this->ensureStatus($group, ['open'], 'Anggota tidak dapat diubah pada group yang sudah closed.');
-        if ($group->members()->count() <= 2) throw ValidationException::withMessages(['members' => 'Group harus memiliki minimal 2 anggota.']);
+        $this->ensureStatus($group, ['open'], 'Members cannot be changed in a closed group.');
+        if ($group->members()->count() <= 2) throw ValidationException::withMessages(['members' => 'A group must have at least 2 members.']);
         $this->ensureMembersCanBeRemoved($group, collect([$userId]));
         $this->repository->removeMember($group, $userId);
         return $this->repository->findOrFail($id);
@@ -121,6 +121,6 @@ class TravelOrderGroupService
             ->where('status', '!=', 'draft')
             ->exists();
 
-        if ($hasSubmitted) throw ValidationException::withMessages(['members' => 'Anggota yang sudah mengajukan Travel Order tidak dapat dihapus dari group.']);
+        if ($hasSubmitted) throw ValidationException::withMessages(['members' => 'Members who have already submitted a Travel Order cannot be removed from the group.']);
     }
 }

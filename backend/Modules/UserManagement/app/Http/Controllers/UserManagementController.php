@@ -372,7 +372,7 @@ class UserManagementController extends Controller
     
             if ($permissions->isEmpty()) {
                 return response()->json([
-                    'message' => 'Permission tidak ditemukan.',
+                    'message' => 'Permission not found.',
                 ], 404);
             }
     

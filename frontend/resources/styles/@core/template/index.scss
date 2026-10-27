@@ -1,0 +1,18 @@
+@use "sass:map";
+@use "@core-scss/base";
+
+// Layout (vertical nav only — horizontal nav pruned, not used by this app)
+@use "vertical-nav";
+@use "default-layout-w-vertical-nav";
+
+// Skins
+@use "skins";
+
+// Utilities
+@use "utilities";
+
+// Mixins
+@use "mixins";
+
+// Dark
+@use "dark";

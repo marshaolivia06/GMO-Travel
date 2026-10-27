@@ -138,7 +138,7 @@ class TravelAdvanceMasterController extends Controller
 
             if (! $user || $user->grade === null) {
                 return ApiResponse::error(
-                    'Grade user tidak ditemukan.',
+                    'User grade not found.',
                     422
                 );
             }

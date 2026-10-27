@@ -1,0 +1,488 @@
+<script setup>
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import { useAuthStore } from '../../../stores/auth'
+import { useUserStore } from '../stores/userStore'
+import { useConfirm } from '../../../composables/useConfirm'
+import { useToastStore } from '../../../stores/toast'
+
+import AddUser from '../components/modal/user/add-user.vue'
+import EditUser from '../components/modal/user/edit-user.vue'
+import AddRole from '../components/modal/role/add-role.vue'
+import EditRole from '../components/modal/role/edit-role.vue'
+import AddPermission from '../components/modal/permission/add-permission.vue'
+import EditPermission from '../components/modal/permission/edit-permission.vue'
+
+import { deleteUser } from '../services/userService'
+import { getRoles, deleteRole } from '../services/roleService'
+import { getPermissions, deletePermission } from '../services/permissionService'
+
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+const { users, loading, error, fetchUsers } = useUserStore()
+const { confirm } = useConfirm()
+const toast = useToastStore()
+
+const PERMISSION_ACTION_ORDER = ['view', 'create', 'update', 'delete', 'approve']
+
+const formatDate = date => {
+  if (!date) return '-'
+
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(date))
+}
+
+const hasPermission = permission =>
+  (authStore.user?.permissions || []).includes(permission)
+
+const activeTab = ref(
+  ['users', 'roles', 'permissions'].includes(route.query.tab)
+    ? route.query.tab
+    : 'users'
+)
+
+const changeTab = tab => {
+  activeTab.value = tab
+
+  router.replace({
+    query: {
+      ...route.query,
+      tab,
+    },
+  })
+}
+
+const userSearch = ref('')
+
+const filteredUsers = computed(() => {
+  const keyword = userSearch.value.trim().toLowerCase()
+
+  if (!keyword) return users.value
+
+  return users.value.filter(user => {
+    const name = user.name?.toLowerCase() || ''
+    const email = user.email?.toLowerCase() || ''
+    const roles = (user.roles || [])
+      .map(role => role.name?.toLowerCase() || '')
+      .join(' ')
+
+    return (
+      name.includes(keyword) ||
+      email.includes(keyword) ||
+      roles.includes(keyword)
+    )
+  })
+})
+
+const roleSearch = ref('')
+const roles = ref([])
+const roleLoading = ref(false)
+const roleError = ref('')
+
+const filteredRoles = computed(() => {
+  const keyword = roleSearch.value.trim().toLowerCase()
+
+  if (!keyword) return roles.value
+
+  return roles.value.filter(role => {
+    const name = role.name?.toLowerCase() || ''
+    const permissions = (role.permissions || [])
+      .map(permission => permission.name?.toLowerCase() || '')
+      .join(' ')
+
+    return (
+      name.includes(keyword) ||
+      permissions.includes(keyword)
+    )
+  })
+})
+
+const fetchRoles = async () => {
+  roleLoading.value = true
+  roleError.value = ''
+
+  try {
+    const response = await getRoles()
+    roles.value = response.data ?? response
+  } catch (err) {
+    roleError.value = err.message || 'Failed to load roles.'
+  } finally {
+    roleLoading.value = false
+  }
+}
+
+const permissionSearch = ref('')
+const permissions = ref([])
+const permissionLoading = ref(false)
+const permissionError = ref('')
+
+const groupedPermissions = computed(() => {
+  const groups = {}
+
+  permissions.value.forEach(permission => {
+    const moduleName =
+      permission.module ||
+      permission.name?.split('.').slice(0, -1).join('.') ||
+      'Unknown Module'
+
+    if (!groups[moduleName]) {
+      groups[moduleName] = {
+        module: moduleName,
+        actions: [],
+        ids: [],
+        items: [],
+      }
+    }
+
+    const action = permission.name?.split('.').pop()?.toLowerCase()
+
+    if (
+      action &&
+      PERMISSION_ACTION_ORDER.includes(action) &&
+      !groups[moduleName].actions.includes(action)
+    ) {
+      groups[moduleName].actions.push(action)
+    }
+
+    groups[moduleName].ids.push(permission.id)
+    groups[moduleName].items.push(permission)
+  })
+
+  return Object.values(groups).map(group => {
+    group.actions.sort(
+      (a, b) =>
+        PERMISSION_ACTION_ORDER.indexOf(a) -
+        PERMISSION_ACTION_ORDER.indexOf(b)
+    )
+
+    return group
+  })
+})
+
+const filteredPermissions = computed(() => {
+  const keyword = permissionSearch.value.trim().toLowerCase()
+
+  if (!keyword) return groupedPermissions.value
+
+  return groupedPermissions.value.filter(permission => {
+    const moduleName = permission.module?.toLowerCase() || ''
+    const actions = permission.actions?.join(' ').toLowerCase() || ''
+
+    return (
+      moduleName.includes(keyword) ||
+      actions.includes(keyword)
+    )
+  })
+})
+
+const fetchPermissions = async () => {
+  permissionLoading.value = true
+  permissionError.value = ''
+
+  try {
+    const response = await getPermissions()
+    permissions.value = response.data ?? response
+  } catch (err) {
+    permissionError.value =
+      err.message || 'Failed to load permissions.'
+  } finally {
+    permissionLoading.value = false
+  }
+}
+
+// USER MODALS
+const showAddUser = ref(false)
+const showEditUser = ref(false)
+const selectedUser = ref(null)
+
+const addUser = () => {
+  showAddUser.value = true
+}
+
+const openEditUser = user => {
+  selectedUser.value = user
+  showEditUser.value = true
+}
+
+// ROLE MODALS
+const showAddRole = ref(false)
+const showEditRole = ref(false)
+const selectedRole = ref(null)
+
+const addRole = () => {
+  showAddRole.value = true
+}
+
+const openEditRole = role => {
+  selectedRole.value = role
+  showEditRole.value = true
+}
+
+// PERMISSION MODALS
+const showAddPermission = ref(false)
+const showEditPermission = ref(false)
+const selectedPermission = ref(null)
+
+const addPermission = () => {
+  showAddPermission.value = true
+}
+
+const openEditPermission = permission => {
+  selectedPermission.value = {
+    module: permission.module,
+    actions: [...(permission.actions || [])],
+    ids: [...(permission.ids || [])],
+    items: [...(permission.items || [])],
+  }
+
+  showEditPermission.value = true
+}
+
+const deleteSelectedUser = async user => {
+  const confirmed = await confirm({
+    title: 'Delete User',
+    text: `Are you sure you want to delete "${user.name}"?`,
+    color: 'error',
+  })
+
+  if (!confirmed) return
+
+  try {
+    await deleteUser(user.id)
+    await fetchUsers()
+
+    toast.success(`"${user.name}" has been deleted successfully.`)
+  } catch (err) {
+    if (err.status === 403) {
+      router.push('/error/403')
+      return
+    }
+
+    toast.error(
+      err.message || 'Failed to delete user.'
+    )
+  }
+}
+const deleteSelectedRole = async role => {
+  const confirmed = await confirm({
+    title: 'Delete Role',
+    text: `Are you sure you want to delete "${role.name}"?`,
+    color: 'error',
+  })
+
+  if (!confirmed) return
+
+  try {
+    await deleteRole(role.id)
+    await fetchRoles()
+
+    toast.success(`"${role.name}" has been deleted successfully.`)
+  } catch (err) {
+    if (err.status === 403) {
+      router.push('/error/403')
+      return
+    }
+
+    toast.error(
+      err.message || 'Failed to delete role.'
+    )
+  }
+}
+const deleteSelectedPermission = async permission => {
+  const confirmed = await confirm({
+    title: 'Delete Permission',
+    text: `Are you sure you want to delete "${permission.module}"?`,
+    color: 'error',
+  })
+
+  if (!confirmed) return
+
+  try {
+    await Promise.all(
+      (permission.ids || []).map(id => deletePermission(id))
+    )
+
+    await fetchPermissions()
+
+    toast.success(
+      `"${permission.module}" has been deleted successfully.`
+    )
+  } catch (err) {
+    if (err.status === 403) {
+      router.push('/error/403')
+      return
+    }
+
+    toast.error(
+      err.message || 'Failed to delete permission.'
+    )
+  }
+}
+
+onMounted(() => {
+  fetchUsers()
+  fetchRoles()
+  fetchPermissions()
+})
+</script>
+
+<template>
+  <BrandCard>
+    <template #action>
+      <VBtn
+        v-if="activeTab === 'users'"
+        variant="flat"
+        color="primary" prepend-icon="ri-add-line" :disabled="!hasPermission('user-management.create')" @click="addUser"
+      >
+        Add User
+      </VBtn>
+      <VBtn
+        v-if="activeTab === 'roles'"
+        variant="flat"
+        color="primary" prepend-icon="ri-add-line" :disabled="!hasPermission('user-management.create')" @click="addRole"
+      >
+        Add Role
+      </VBtn>
+      <VBtn
+        v-if="activeTab === 'permissions'"
+        variant="flat"
+        color="primary" prepend-icon="ri-add-line" :disabled="!hasPermission('user-management.create')" @click="addPermission"
+      >
+        Add Permission
+      </VBtn>
+    </template>
+
+    <template #search>
+      <VTextField
+        v-if="activeTab === 'users'" v-model="userSearch" prepend-inner-icon="ri-search-line" placeholder="Search users..." clearable hide-details
+        variant="outlined"
+        density="comfortable"
+        style="min-width: 260px; max-width: 320px"
+      />
+      <VTextField
+        v-if="activeTab === 'roles'" v-model="roleSearch" prepend-inner-icon="ri-search-line" placeholder="Search role..." clearable hide-details
+        variant="outlined"
+        density="comfortable"
+        style="min-width: 260px; max-width: 320px"
+      />
+      <VTextField
+        v-if="activeTab === 'permissions'" v-model="permissionSearch" prepend-inner-icon="ri-search-line" placeholder="Search permission..." clearable hide-details
+        variant="outlined"
+        density="comfortable"
+        style="min-width: 260px; max-width: 320px"
+      />
+    </template>
+
+    <VTabs :model-value="activeTab" color="primary" class="px-2" @update:model-value="changeTab">
+      <VTab value="users" prepend-icon="ri-user-line">Users</VTab>
+      <VTab value="roles" prepend-icon="ri-shield-user-line">Roles</VTab>
+      <VTab value="permissions" prepend-icon="ri-key-2-line">Permissions</VTab>
+    </VTabs>
+
+    <VDivider />
+
+    <VWindow :model-value="activeTab">
+      <VWindowItem value="users">
+          <VAlert v-if="error" type="error" variant="tonal" class="ma-4">{{ error }}</VAlert>
+
+          <VDataTable :headers="[
+  { title: 'Actions', key: 'actions', sortable: false, width: 100 },
+  { title: 'ID', key: 'id', width: 80 },
+  { title: 'Name', key: 'name' },
+  { title: 'Email', key: 'email' },
+  { title: 'Grade', key: 'grade', width: 100 },
+  { title: 'Role', key: 'role' },
+  { title: 'Created', key: 'created_at' },
+  { title: 'Updated', key: 'updated_at' },
+]":items="filteredUsers" :loading="loading" item-value="id" density="default" hover>
+
+  <template #item.role="{ item }">
+    <div class="d-flex flex-wrap ga-1">
+      <VChip v-for="role in item.roles || []" :key="role.id || role.name" color="primary" size="small" variant="tonal">{{ role.name }}</VChip>
+      <span v-if="!item.roles?.length">-</span>
+    </div>
+  </template>
+
+  <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
+  <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
+
+  <template #item.actions="{ item }">
+    <div class="d-flex align-center ga-1 flex-nowrap">
+      <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!hasPermission('user-management.update')" @click="openEditUser(item)" />
+      <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!hasPermission('user-management.delete')" @click="deleteSelectedUser(item)" />
+    </div>
+  </template>
+</VDataTable>
+      </VWindowItem>
+
+      <VWindowItem value="roles">
+          <VAlert v-if="roleError" type="error" variant="tonal" class="ma-4">{{ roleError }}</VAlert>
+
+          <VDataTable :headers="[
+  { title: 'Actions', key: 'actions', sortable: false, width: 100 },
+  { title: 'ID', key: 'id', width: 80 },
+  { title: 'Name', key: 'name' },
+  { title: 'Created', key: 'created_at' },
+  { title: 'Updated', key: 'updated_at' },
+]":items="filteredRoles" :loading="roleLoading" item-value="id" density="default" hover>
+
+  <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
+  <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
+
+  <template #item.actions="{ item }">
+    <div class="d-flex align-center ga-1 flex-nowrap">
+      <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!hasPermission('user-management.update')" @click="openEditRole(item)" />
+      <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!hasPermission('user-management.delete')" @click="deleteSelectedRole(item)" />
+    </div>
+  </template>
+</VDataTable>
+      </VWindowItem>
+
+      <VWindowItem value="permissions">
+          <VAlert v-if="permissionError" type="error" variant="tonal" class="ma-4">{{ permissionError }}</VAlert>
+
+          <VDataTable :headers="[
+  { title: 'Actions', key: 'actions', sortable: false, width: 100 },
+  { title: 'ID', key: 'id', width: 80 },
+  { title: 'Module', key: 'module' },
+  { title: 'Permissions', key: 'permissions' },
+  { title: 'Created', key: 'created_at' },
+  { title: 'Updated', key: 'updated_at' },
+]" :items="filteredPermissions" :loading="permissionLoading" item-value="module" density="default" hover>
+
+  <template #item.id="{ item }">{{ item.items?.[0]?.id || '-' }}</template>
+
+  <template #item.permissions="{ item }">
+    <div class="d-flex flex-wrap ga-1">
+      <VChip v-for="action in item.actions" :key="action" :color="action === 'view' ? 'primary' : action === 'create' ? 'success' : action === 'update' ? 'warning' : action === 'delete' ? 'error' : 'purple'" size="small" variant="tonal">{{ action }}</VChip>
+      <span v-if="!item.actions?.length">-</span>
+    </div>
+  </template>
+
+  <template #item.created_at="{ item }">{{ formatDate(item.items?.[0]?.created_at) }}</template>
+  <template #item.updated_at="{ item }">{{ formatDate(item.items?.[0]?.updated_at) }}</template>
+
+  <template #item.actions="{ item }">
+    <div class="d-flex align-center ga-1 flex-nowrap">
+      <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!hasPermission('user-management.update')" @click="openEditPermission(item)" />
+      <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!hasPermission('user-management.delete')" @click="deleteSelectedPermission(item)" />
+    </div>
+  </template>
+</VDataTable>
+      </VWindowItem>
+    </VWindow>
+  </BrandCard>
+
+  <AddUser v-if="showAddUser" @close="showAddUser = false" @created="fetchUsers" />
+  <EditUser v-if="showEditUser && selectedUser" :user="selectedUser" @close="showEditUser = false" @updated="fetchUsers" />
+  <AddRole v-if="showAddRole" @close="showAddRole = false" @created="fetchRoles" />
+  <EditRole v-if="showEditRole && selectedRole" :role="selectedRole" @close="showEditRole = false" @updated="fetchRoles" />
+  <AddPermission v-if="showAddPermission" @close="showAddPermission = false" @created="fetchPermissions" />
+  <EditPermission v-if="showEditPermission && selectedPermission" :permission="selectedPermission" @close="showEditPermission = false" @updated="fetchPermissions" />
+</template>

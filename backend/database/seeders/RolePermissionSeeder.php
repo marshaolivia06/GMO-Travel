@@ -25,6 +25,14 @@ class RolePermissionSeeder extends Seeder
             'guard_name' => 'web',
         ]);
 
+        // Organization roles looked up by name in Master Management & the Travel Order approval flow
+        foreach (['Admin-GMO', 'Dept Admin', 'Dept Head', 'Div Head', 'Sect Head'] as $role) {
+            Role::firstOrCreate([
+                'name' => $role,
+                'guard_name' => 'web',
+            ]);
+        }
+
         $modules = [
             'user-management',
             'travel-order',

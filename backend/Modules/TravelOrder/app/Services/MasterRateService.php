@@ -73,7 +73,7 @@ class MasterRateService
             ->exists();
 
         if ($overlap) {
-            throw ValidationException::withMessages(['grade_min' => 'Range grade bertabrakan dengan tarif lain di region dan periode berlaku yang sama.']);
+            throw ValidationException::withMessages(['grade_min' => 'The grade range overlaps another rate in the same region and effective period.']);
         }
     }
 }

@@ -1,0 +1,79 @@
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1`
+
+const getToken = () => {
+  return localStorage.getItem('token')
+}
+
+const request = async (url, options = {}) => {
+  const response = await fetch(`${API_URL}${url}`, {
+    ...options,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getToken()}`,
+      ...(options.headers || {}),
+    },
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    const error = new Error(
+      data.message || 'Something went wrong.'
+    )
+
+    error.status = response.status
+
+    throw error
+  }
+
+  return data
+}
+
+export const getUsers = () => {
+  return request('/users')
+}
+
+export const createUser = (user) => {
+  return request('/users', {
+    method: 'POST',
+    body: JSON.stringify(user),
+  })
+}
+
+export const getRoles = async () => {
+  const roles = await request('/roles')
+
+  const uniqueRoles = []
+  const seen = new Set()
+
+  roles.forEach(role => {
+    const key = role.name?.trim().toLowerCase()
+
+    if (!key || seen.has(key)) {
+      return
+    }
+
+    seen.add(key)
+
+    uniqueRoles.push({
+      ...role,
+      name: role.name.trim(),
+    })
+  })
+
+  return uniqueRoles
+}
+
+export const updateUser = (id, user) => {
+  return request(`/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(user),
+  })
+}
+
+export const deleteUser = (id) => {
+  return request(`/users/${id}`, {
+    method: 'DELETE',
+  })
+} 

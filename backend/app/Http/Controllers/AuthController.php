@@ -15,7 +15,7 @@ class AuthController extends Controller
     {
         if (! Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
-                'message' => 'Email atau password salah.',
+                'message' => 'Invalid email or password.',
             ], 401);
         }
 
@@ -23,7 +23,7 @@ class AuthController extends Controller
         $token = $user->createToken('frontend')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login berhasil.',
+            'message' => 'Login successful.',
             'token' => $token,
             'user' => [
                 'id' => $user->id,
@@ -55,7 +55,7 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'message' => 'Logout berhasil.',
+            'message' => 'Logout successful.',
         ]);
     }
 }

@@ -226,25 +226,25 @@ private function assertGroupMember(array $data, User $user): void
 {
     $groupId = $data['travel_order_group_id'] ?? null;
 
-    abort_if(!$groupId, 422, 'Group Trip wajib dipilih.');
+    abort_if(!$groupId, 422, 'Group Trip is required.');
 
     $group = TravelOrderGroup::query()->whereKey($groupId)->where('status', 'open')->first();
 
-    abort_if(!$group, 422, 'Group Trip tidak ditemukan atau tidak aktif.');
+    abort_if(!$group, 422, 'Group Trip not found or inactive.');
     abort_if(!$group->members()->where('user_id', $user->id)->exists(), 403, 'You are not a member of this Group Trip.');
 }
 private function getGroupTripMemberIds(array $data): array
 {
     $groupId = $data['travel_order_group_id'] ?? null;
 
-    abort_if(!$groupId, 422, 'Group Trip wajib dipilih.');
+    abort_if(!$groupId, 422, 'Group Trip is required.');
 
     $group = TravelOrderGroup::query()
         ->whereKey($groupId)
         ->where('status', 'open')
         ->first();
 
-    abort_if(!$group, 422, 'Group Trip tidak ditemukan atau tidak aktif.');
+    abort_if(!$group, 422, 'Group Trip not found or inactive.');
 
     $memberIds = $group->members()
         ->pluck('user_id')

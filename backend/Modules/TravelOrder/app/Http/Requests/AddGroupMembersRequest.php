@@ -22,8 +22,8 @@ class AddGroupMembersRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'user_ids.required' => 'Pilih minimal satu anggota.',
-            'user_ids.*.exists' => 'Salah satu user yang dipilih tidak ditemukan.',
+            'user_ids.required' => 'Select at least one member.',
+            'user_ids.*.exists' => 'One of the selected users was not found.',
         ];
     }
 }
