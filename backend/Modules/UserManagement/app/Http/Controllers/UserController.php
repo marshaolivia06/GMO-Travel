@@ -59,6 +59,11 @@ class UserController extends Controller
                 'nullable',
                 'integer',
             ],
+            'eligible_destination_id' => [
+                'nullable',
+                'integer',
+                'exists:master_destinations,id',
+            ],
         ]);
 
         return response()->json([
@@ -102,6 +107,12 @@ class UserController extends Controller
                 'sometimes',
                 'nullable',
                 'integer',
+            ],
+            'eligible_destination_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                'exists:master_destinations,id',
             ],
         ]);
 

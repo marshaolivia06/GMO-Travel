@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "proxyku": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Proxy LLM",
+      "options": {
+        "baseURL": "https://llm.ads.ecogreenoleo.co.id/v1",
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      },
+      "models": {
+        "coding-standard": { "name": "coding-standard" }
+      }
+    }
+  },
+  "model": "proxyku/coding-standard"
+}

@@ -187,8 +187,8 @@ const approvalChip = {
   approved: { text: 'Approved', color: 'success', caption: 'Approved by' },
   rejected: { text: 'Rejected', color: 'error', caption: 'Rejected by' },
   revision: { text: 'Revision', color: 'warning', caption: 'Revision requested by' },
-  pending: { text: 'Waiting', color: 'grey', caption: 'Awaiting approval' },
-  cancelled: { text: 'Cancelled', color: 'grey', caption: 'Not processed' },
+  pending: { text: 'Waiting', color: 'warning', caption: 'Awaiting approval' },
+  cancelled: { text: 'Cancelled', color: 'secondary', caption: 'Not processed' },
 }
 
 const historyChip = {

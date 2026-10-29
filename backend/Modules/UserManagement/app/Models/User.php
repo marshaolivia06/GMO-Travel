@@ -11,6 +11,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Modules\MasterManagement\Models\Department;
 use Spatie\Permission\Traits\HasRoles;
+use Modules\AnnualTicket\Models\MasterDestination;
 
 class User extends Authenticatable
 {
@@ -22,6 +23,7 @@ class User extends Authenticatable
         'password',
         'status',
         'grade',
+        'eligible_destination_id',
     ];    
 
     protected $hidden = [
@@ -47,5 +49,10 @@ class User extends Authenticatable
     public function getDefaultGuardName(): string
     {
         return 'web';
+    }
+
+    public function eligibleDestination(): BelongsTo
+    {
+        return $this->belongsTo(MasterDestination::class, 'eligible_destination_id');
     }
 }

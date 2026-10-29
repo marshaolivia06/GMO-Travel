@@ -71,11 +71,13 @@ const filteredUsers = computed(() => {
     const roles = (user.roles || [])
       .map(role => role.name?.toLowerCase() || '')
       .join(' ')
+    const destination = user.eligible_destination?.city_name?.toLowerCase() || ''
 
     return (
       name.includes(keyword) ||
       email.includes(keyword) ||
-      roles.includes(keyword)
+      roles.includes(keyword) ||
+      destination.includes(keyword)
     )
   })
 })
@@ -397,10 +399,16 @@ onMounted(() => {
   { title: 'Name', key: 'name' },
   { title: 'Email', key: 'email' },
   { title: 'Grade', key: 'grade', width: 100 },
+  { title: 'Eligible Destination', key: 'eligible_destination' },
   { title: 'Role', key: 'role' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
 ]":items="filteredUsers" :loading="loading" item-value="id" density="default" hover>
+
+  <template #item.eligible_destination="{ item }">
+    <span v-if="item.eligible_destination">{{ item.eligible_destination.city_name }}</span>
+    <span v-else>-</span>
+  </template>
 
   <template #item.role="{ item }">
     <div class="d-flex flex-wrap ga-1">

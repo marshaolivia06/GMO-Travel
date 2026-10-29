@@ -13,15 +13,16 @@ const NAV_ITEMS = [
     subject: 'all',
     children: [
       nav('Master Management', null, 'master-management'),
-      nav('Master Advance', null, 'master-advance'),
       nav('Master Region', null, 'master-region'),
       nav('Master Rate', null, 'master-rate'),
+      nav('Master Dependent', null, 'master-dependent'),
+      nav('Master Destination', null, 'master-destination'),
     ],
   },
   nav('Authority Matrix', 'ri-git-branch-line', 'authority-matrix'),
+  nav('Annual Ticket', 'ri-ticket-2-line', 'annual-ticket'),
   nav('Travel Order', 'ri-flight-takeoff-line', 'travel-order'),
   nav('Travel Expense Report', 'ri-receipt-line', 'travel-expense-report'),
-  nav('Annual Leave', 'ri-calendar-check-line', 'annual-leave'),
 ]
 
 export function useNavItems() {

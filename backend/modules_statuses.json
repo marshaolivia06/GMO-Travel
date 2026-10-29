@@ -6,5 +6,6 @@
     "UserManagement": true,
     "MasterManagement": true,
     "TravelOrder": true,
-    "AuthorityMatrix": true
+    "AuthorityMatrix": true,
+    "AnnualTicket": true
 }

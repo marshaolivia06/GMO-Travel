@@ -32,6 +32,7 @@ class TravelOrder extends Model
         'departure_time',
         'return_date',
         'return_time',
+        'region_id',
         'purpose',
         'remarks',
         'travel_region',

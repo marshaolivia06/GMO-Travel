@@ -1,16 +1,18 @@
+
 import BlankLayout from '../../layouts/blank.vue'
 import DefaultLayoutWithVerticalNav from '../../layouts/components/DefaultLayoutWithVerticalNav.vue'
 import LoginView from '../../views/LoginView.vue'
 import { dashboardRoutes } from '../../modules/dashboard/routes'
-import { annualLeaveRoutes } from '../../modules/annual-leave/routes'
 import { travelOrderRoutes } from '../../modules/travel-order/routes'
 import { travelExpenseReportRoutes } from '../../modules/travel-expense-report/routes'
 import { userManagementRoutes } from '../../modules/user-management/routes'
 import { masterManagementRoutes } from '../../modules/master-management/routes'
-import { masterAdvanceRoutes } from '../../modules/master-advance/routes'
 import { masterRegionRoutes } from '../../modules/master-region/routes'
 import { masterRateRoutes } from '../../modules/master-rate/routes'
 import { authorityMatrixRoutes } from '../../modules/authority-matrix/routes'
+import { annualTicketRoutes } from '../../modules/annual-ticket/routes'
+import { masterDependentRoutes } from '../../modules/master-dependent/routes'
+import { masterDestinationRoutes } from '../../modules/master-destination/routes'
 
 const routes = [
   // ─── Blank layout (login) ───────────────────────────────
@@ -30,15 +32,16 @@ const routes = [
     children: [
       { path: '', redirect: { name: 'user-management' } },
       ...dashboardRoutes,
-      ...annualLeaveRoutes,
       ...travelOrderRoutes,
       ...travelExpenseReportRoutes,
       ...userManagementRoutes,
       ...masterManagementRoutes,
-      ...masterAdvanceRoutes,
       ...masterRegionRoutes,
       ...masterRateRoutes,
+      ...masterDependentRoutes,
+      ...masterDestinationRoutes,
       ...authorityMatrixRoutes,
+      ...annualTicketRoutes,
     ],
   },
 

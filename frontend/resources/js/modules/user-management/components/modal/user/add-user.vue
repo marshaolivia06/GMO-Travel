@@ -3,12 +3,15 @@ import { onMounted, reactive, ref } from 'vue'
 import { createUser, getRoles } from '../../../services/userService'
 import { useConfirm } from '../../../../../composables/useConfirm'
 import { useToastStore } from '../../../../../stores/toast'
+import { getMasterDestinations } from '../../../../master-destination/services/masterDestinationService'
 
 const emit = defineEmits(['close', 'created'])
 
 const loading = ref(false)
 const rolesLoading = ref(false)
 const roles = ref([])
+const destinations = ref([])
+const destinationsLoading = ref(false)
 const { confirm } = useConfirm()
 const toast = useToastStore()
 const rolesError = ref('')
@@ -19,6 +22,7 @@ const errors = reactive({
   password: '',
   confirmPassword: '',
   role: '',
+  eligible_destination_id: '',
   grade: '',
 })
 
@@ -29,6 +33,7 @@ const form = reactive({
   confirmPassword: '',
   role: '',
   grade: null,
+  eligible_destination_id: null,
 })
 
 function clearErrors() {
@@ -38,6 +43,7 @@ function clearErrors() {
   errors.confirmPassword = ''
   errors.role = ''
   errors.grade = ''
+  errors.eligible_destination_id = ''
 }
 
 function handleValidationError(err) {
@@ -51,6 +57,7 @@ function handleValidationError(err) {
   errors.confirmPassword = validationErrors.confirmPassword?.[0] || ''
   errors.role = validationErrors.role?.[0] || ''
   errors.grade = validationErrors.grade?.[0] || ''
+  errors.eligible_destination_id = validationErrors.eligible_destination_id?.[0] || ''
 }
 
 async function fetchRoles() {
@@ -66,6 +73,20 @@ async function fetchRoles() {
       'Failed to fetch roles.'
   } finally {
     rolesLoading.value = false
+  }
+}
+
+async function fetchDestinations() {
+  destinationsLoading.value = true
+
+  try {
+    const data = await getMasterDestinations()
+
+    destinations.value = data.filter(item => item.is_active)
+  } catch {
+    destinations.value = []
+  } finally {
+    destinationsLoading.value = false
   }
 }
 
@@ -132,6 +153,7 @@ if (!isAdminRole && (form.grade === null || form.grade === '')) {
       password: form.password,
       role: form.role,
       grade: form.grade,
+      eligible_destination_id: form.eligible_destination_id,
     })
 
     toast.success(`User ${form.name} has been added successfully.`)
@@ -158,7 +180,10 @@ function close() {
   if (!loading.value) emit('close')
 }
 
-onMounted(fetchRoles)
+onMounted(() => {
+  fetchRoles()
+  fetchDestinations()
+})
 </script>
 
 <template>
@@ -196,6 +221,10 @@ onMounted(fetchRoles)
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Role</label>
               <VAutocomplete v-model="form.role" :items="roles" item-title="name" item-value="name" :loading="rolesLoading" :disabled="loading || rolesLoading" :error-messages="errors.role ? [errors.role] : []" clearable placeholder="Select role" hide-details="auto"/>
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Eligible Destination</label>
+              <VAutocomplete v-model="form.eligible_destination_id" :items="destinations" item-title="city_name" item-value="id" :loading="destinationsLoading" :disabled="loading || destinationsLoading" :error-messages="errors.eligible_destination_id ? [errors.eligible_destination_id] : []" clearable placeholder="Select eligible destination" hide-details="auto"/>
             </VCol>
           </VRow>
 

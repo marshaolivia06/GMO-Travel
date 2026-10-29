@@ -3,6 +3,9 @@ import { onMounted, ref, watch } from 'vue'
 import { useMasterRateStore } from '../stores/masterRateStore'
 import { useMasterRegionStore } from '../../master-region/stores/masterRegionStore'
 import AddMasterRate from '../components/modal/add-master-rate.vue'
+import EditMasterRate from '../components/modal/edit-master-rate.vue'
+import { useConfirm } from '../../../composables/useConfirm'
+import { useToastStore } from '../../../stores/toast'
 
 const masterRateStore = useMasterRateStore()
 const masterRegionStore = useMasterRegionStore()
@@ -10,6 +13,44 @@ const masterRegionStore = useMasterRegionStore()
 const search = ref('')
 const regionFilter = ref(null)
 const showAddMasterRateModal = ref(false)
+const showEditMasterRateModal = ref(false)
+const selectedMasterRate = ref(null)
+
+function openEdit(item) {
+  selectedMasterRate.value = item
+  showEditMasterRateModal.value = true
+}
+
+function closeEdit() {
+  showEditMasterRateModal.value = false
+  selectedMasterRate.value = null
+}
+
+const { confirm } = useConfirm()
+const toast = useToastStore()
+const deletingId = ref(null)
+
+async function deleteRate(item) {
+  if (deletingId.value !== null) return
+
+  const regionName = item.region ? `${item.region.code} - ${item.region.name}` : 'this region'
+  const confirmed = await confirm({
+    title: 'Delete Master Rate',
+    text: `Are you sure you want to delete the rate for ${regionName}, grade ${item.grade_min} - ${item.grade_max}?`,
+  })
+  if (!confirmed) return
+
+  deletingId.value = item.id
+
+  try {
+    await masterRateStore.removeMasterRate(item.id, regionFilter.value)
+    toast.success('Master rate has been deleted successfully.')
+  } catch (err) {
+    toast.error(err.response?.data?.message || err.message || 'Failed to delete master rate.')
+  } finally {
+    deletingId.value = null
+  }
+}
 
 const headers = [
   { title: 'Actions', key: 'actions', sortable: false, width: 120 },
@@ -25,6 +66,7 @@ const headers = [
   { title: 'Max / Trip', key: 'daily_allowance_max_per_trip' },
   { title: 'Flight Class', key: 'flight_class' },
   { title: 'Effective From', key: 'effective_from' },
+  { title: 'Effective To', key: 'effective_to' },
 ]
 
 const mealBasisLabel = { limit: 'Limit', at_cost: 'At Cost' }
@@ -87,14 +129,15 @@ onMounted(() => {
         <template #item.flight_class="{ item }">{{ flightClassLabel[item.flight_class] || item.flight_class }}</template>
         <template #item.effective_to="{ item }">{{ item.effective_to || '-' }}</template>
 
-        <template #item.actions>
-          <div class="d-flex align-center ga-1 flex-nowrap">
-            <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" />
-            <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" />
-          </div>
-        </template>
+        <template #item.actions="{ item }">
+  <div class="d-flex align-center ga-1 flex-nowrap">
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEdit(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :loading="deletingId === item.id" @click="deleteRate(item)" />
+  </div>
+</template>
       </VDataTable>
   </BrandCard>
 
   <AddMasterRate v-if="showAddMasterRateModal" :region-filter="regionFilter" @close="showAddMasterRateModal = false" />
+<EditMasterRate v-if="showEditMasterRateModal" :master-rate="selectedMasterRate" :region-filter="regionFilter" @close="closeEdit" />
 </template>

@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { updateUser, getRoles } from '../../../services/userService'
 import { useConfirm } from '../../../../../composables/useConfirm'
 import { useToastStore } from '../../../../../stores/toast'
+import { getMasterDestinations } from '../../../../master-destination/services/masterDestinationService'
 
 const props = defineProps({
   user: { type: Object, required: true },
@@ -14,6 +15,8 @@ const loading = ref(false)
 const rolesLoading = ref(false)
 const generalError = ref('')
 const roles = ref([])
+const destinations = ref([])
+const destinationsLoading = ref(false)
 const { confirm } = useConfirm()
 const toast = useToastStore()
 
@@ -24,6 +27,7 @@ const errors = reactive({
   confirmPassword: '',
   role: '',
   grade: '',
+  eligible_destination_id: '',
 })
 
 const form = reactive({
@@ -33,6 +37,7 @@ const form = reactive({
   password: '',
   confirmPassword: '',
   role: props.user?.roles?.[0]?.name || '',
+  eligible_destination_id: props.user?.eligible_destination_id ?? null,
 })
 
 function clearErrors() {
@@ -42,6 +47,7 @@ function clearErrors() {
   errors.confirmPassword = ''
   errors.role = ''
   errors.grade = ''
+  errors.eligible_destination_id = ''
   generalError.value = ''
 }
 
@@ -55,6 +61,7 @@ function handleValidationError(err) {
   errors.password = validationErrors.password?.[0] || ''
   errors.confirmPassword = validationErrors.confirmPassword?.[0] || ''
   errors.role = validationErrors.role?.[0] || ''
+  errors.eligible_destination_id = validationErrors.eligible_destination_id?.[0] || ''
 }
 
 async function fetchRoles() {
@@ -116,6 +123,7 @@ if (!confirmed) return
       name: form.name.trim(),
       email: form.email.trim(),
       grade: form.grade,
+      eligible_destination_id: form.eligible_destination_id,
     }
 
     if (form.role) data.role = form.role
@@ -141,11 +149,30 @@ if (!confirmed) return
   }
 }
 
+async function fetchDestinations() {
+  destinationsLoading.value = true
+
+  try {
+    const data = await getMasterDestinations()
+
+    destinations.value = data.filter(
+      item => item.is_active || item.id === props.user?.eligible_destination_id,
+    )
+  } catch {
+    destinations.value = []
+  } finally {
+    destinationsLoading.value = false
+  }
+}
+
 function close() {
   if (!loading.value) emit('close')
 }
 
-onMounted(fetchRoles)
+onMounted(() => {
+  fetchRoles()
+  fetchDestinations()
+})
 </script>
 
 <template>
@@ -184,6 +211,10 @@ onMounted(fetchRoles)
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Role</label>
               <VAutocomplete v-model="form.role" :items="roles" item-title="name" item-value="name" :loading="rolesLoading" :disabled="loading || rolesLoading" :error-messages="errors.role ? [errors.role] : []" clearable  placeholder="Select role" hide-details="auto"/>
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Eligible Destination</label>
+              <VAutocomplete v-model="form.eligible_destination_id" :items="destinations" item-title="city_name" item-value="id" :loading="destinationsLoading" :disabled="loading || destinationsLoading" :error-messages="errors.eligible_destination_id ? [errors.eligible_destination_id] : []" clearable placeholder="Select eligible destination" hide-details="auto"/>
             </VCol>
           </VRow>
 

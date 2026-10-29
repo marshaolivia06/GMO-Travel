@@ -9,7 +9,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\{DB, Mail, Storage};
 use Modules\MasterManagement\Models\{Department, MasterDivision, Section};
 use Modules\TravelOrder\Emails\TravelOrderDeclinedMail;
-use Modules\TravelOrder\Models\{TravelOrder, TravelOrderGroup};
+use Modules\TravelOrder\Models\{MasterRegion, TravelOrder, TravelOrderGroup};
 use Illuminate\Database\Eloquent\Collection;
 use Modules\TravelOrder\Repositories\{TravelOrderAdvanceRepository, TravelOrderGroupRepository, TravelOrderRepository};
 use Modules\UserManagement\Models\User;
@@ -18,7 +18,7 @@ class TravelOrderService
 {
     public function __construct(
         private TravelOrderRepository $repository, private TravelOrderAdvanceRepository $advanceRepository,
-        private TravelAdvanceService $advanceService, private TravelOrderApprovalService $approvalService,
+        private MasterRateLimitService $rateLimitService, private TravelOrderApprovalService $approvalService,
         private TravelOrderGroupRepository $groupRepository
     ) {}
 
@@ -269,11 +269,12 @@ public function create(array $data, User $user): TravelOrder
     $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHead ? null : ($data['department_id'] ?? null));
 
     abort_if(!$departmentId && !$isDivHead, 422, 'Department is required.');
+    $data = $this->applyRegion($data);
 
     if (($data['status'] ?? 'draft') === 'submitted') {
         $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
 
-        $validation = $this->advanceService->validateAdvance($data['travel_region'], $data['currency'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) $user->grade, $days);
+        $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) $user->grade, $days, $data['departure_date']);
 
         abort_if(!$validation['valid'], 422, $validation['message']);
     }
@@ -324,11 +325,12 @@ $isDivHead = $user->getRoleNames()->contains('Div Head');
 $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHead ? null : ($data['department_id'] ?? $travelOrder->department_id ?? null));
 
 abort_if(!$departmentId && !$isDivHead, 422, 'Department is required.');
+$data = $this->applyRegion($data);
 
         if (($data['status'] ?? 'draft') === 'submitted') {
             $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
 
-            $validation = $this->advanceService->validateAdvance($data['travel_region'], $data['currency'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) $user->grade, $days);
+            $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) $user->grade, $days, $data['departure_date']);
 
             abort_if(!$validation['valid'], 422, $validation['message']);
         }
@@ -359,6 +361,17 @@ abort_if(!$departmentId && !$isDivHead, 422, 'Department is required.');
             return $travelOrder->fresh()->load('group.members.user');
         });
     }
+
+    private function applyRegion(array $data): array
+{
+    if (empty($data['region_id'])) return $data;
+
+    $region = MasterRegion::findOrFail($data['region_id']);
+    $data['travel_region'] = match ($region->code) { 'DN' => 'Domestic', 'LN-SG' => 'Singapore', default => 'Overseas' };
+    $data['currency'] = $region->currency;
+
+    return $data;
+}
 
     private function generateOrderNumber(): string
     {

@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\TravelOrder\Http\Controllers\{TravelAdvanceMasterController, TravelOrderController, TravelOrderGroupController, MasterRegionController, MasterRateController};
+use Modules\TravelOrder\Http\Controllers\{TravelOrderController, TravelOrderGroupController, MasterRegionController, MasterRateController};
 
 Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     Route::prefix('travel-orders')->group(function () {
@@ -45,19 +45,10 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     Route::post('/{id}/members', [TravelOrderGroupController::class, 'addMembers'])->middleware('permission:travel-order.update');
     Route::delete('/{id}/members/{userId}', [TravelOrderGroupController::class, 'removeMember'])->middleware('permission:travel-order.update');
 });
-
-    // TRAVEL ADVANCE MASTER
-    Route::get('travel-advance-masters/limit', [TravelAdvanceMasterController::class, 'limit'])->middleware('permission:travel-order.create');
-    Route::get('travel-advance-masters/limit-by-grade', [TravelAdvanceMasterController::class, 'limitByGrade'])->middleware('permission:travel-order.create');
-    Route::get('travel-advance-masters/regions', [TravelAdvanceMasterController::class, 'regions'])->middleware('permission:travel-order.create');
-    Route::get('travel-advance-masters/countries', [TravelAdvanceMasterController::class, 'countries'])->middleware('permission:travel-order.create');
-    Route::apiResource('travel-advance-masters', TravelAdvanceMasterController::class);
-
         // MASTER REGION
         Route::apiResource('master-regions', MasterRegionController::class);
 
-        // MASTER RATE
+        Route::get('master-rates/limits', [MasterRateController::class, 'limits'])->middleware('permission:travel-order.create');
         Route::apiResource('master-rates', MasterRateController::class);
-
 });
 
