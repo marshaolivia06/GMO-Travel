@@ -7,6 +7,9 @@ const props = defineProps({
   route: { type: Object, required: true },
   quotaYear: { type: Number, default: () => new Date().getFullYear() },
   submitting: { type: Boolean, default: false },
+  initial: { type: Object, default: null },
+  evidenceRequired: { type: Boolean, default: true },
+  submitLabel: { type: String, default: 'Submit Annual Ticket Request' },
 })
 
 const emit = defineEmits(['back', 'submit'])
@@ -16,8 +19,8 @@ const arrangementOptions = [
   { title: 'Booked by Company', value: 'booked_by_company' },
 ]
 
-const arrangement = ref('direct_payment')
-const remarks = ref('')
+const arrangement = ref(props.initial?.arrangement ?? 'direct_payment')
+const remarks = ref(props.initial?.remarks ?? '')
 const evidenceFile = ref(null)
 
 function setEvidenceFile(event) {
@@ -56,7 +59,7 @@ const arrangementStatus = computed(() => {
     ? { label: 'Excess Potential', color: 'info' }
     : { label: 'Not Reimbursable', color: 'warning' }
 })
-const canSubmit = computed(() => confirmInfo.value && (!hasDifferentRoute.value || confirmSettle.value) && !!evidenceFile.value)
+const canSubmit = computed(() => confirmInfo.value && (!hasDifferentRoute.value || confirmSettle.value) && (!props.evidenceRequired || !!evidenceFile.value))
 const travelerRole = traveler => (traveler.type === 'employee' ? 'Employee' : traveler.relationship)
 
 watch(hasDifferentRoute, value => {
@@ -162,7 +165,16 @@ const onSubmit = () => emit('submit', { arrangement: arrangement.value, remarks:
       <VCardText>
         <VRow>
           <VCol cols="12" md="6">
-            <div class="text-caption font-weight-medium mb-1">Upload Approved Annual Ticket Screenshot <span class="text-error">*</span></div>
+            <div class="text-caption font-weight-medium mb-1 d-flex align-center ga-1">
+              <span>Upload Approved Annual Ticket Screenshot</span>
+              <span v-if="props.evidenceRequired" class="text-error">*</span>
+              <VTooltip v-else location="top" max-width="260">
+                <template #activator="{ props: tooltipProps }">
+                  <VIcon v-bind="tooltipProps" icon="ri-information-line" size="14" class="text-medium-emphasis" />
+                </template>
+                <span>Optional — keep the current evidence if not replaced.</span>
+              </VTooltip>
+            </div>
             <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
               <input type="file" accept=".jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setEvidenceFile" />
             </div>
@@ -189,6 +201,6 @@ const onSubmit = () => emit('submit', { arrangement: arrangement.value, remarks:
 
   <VCardActions class="px-6 py-4 ga-2">
     <VSpacer />
-    <VBtn variant="flat" color="primary" :disabled="!canSubmit || props.submitting" :loading="props.submitting" @click="onSubmit">Submit Annual Ticket Request</VBtn>
+    <VBtn variant="flat" color="primary" :disabled="!canSubmit || props.submitting" :loading="props.submitting" @click="onSubmit">{{ props.submitLabel }}</VBtn>
   </VCardActions>
 </template>

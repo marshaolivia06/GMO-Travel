@@ -20,6 +20,10 @@ const optionsLoading = ref(false)
 const loading = ref(false)
 
 const travelRegions = ['Domestic', 'Singapore', 'Overseas'] // BARU
+const actionTypes = [
+  { title: 'Check', value: 'check' },
+  { title: 'Approval', value: 'approve' },
+]
 
 const form = reactive({
   document_type: '',
@@ -31,7 +35,7 @@ const form = reactive({
 const errors = reactive({ document_type: '', steps: '' })
 
 function createStep(step) {
-  return { step, role_id: null, label: '', role_level: null, is_specific_section: false, section_id: null, is_specific_department: false, department_id: null }
+  return { step, role_id: null, label: '', action_type: 'approve', role_level: null, is_specific_section: false, section_id: null, is_specific_department: false, department_id: null }
 }
 
 function isSectionRole(item) {
@@ -84,6 +88,7 @@ function loadData() {
     step: item.step,
     role_id: item.role_id,
     label: item.label,
+    action_type: item.action_type || 'approve',
     role_level: item.role_level,
     is_specific_section: !!item.is_specific_section,
     section_id: item.section_id,
@@ -178,7 +183,7 @@ onMounted(async () => {
           </VRow>
 
           <div class="d-flex align-center justify-space-between mb-4 mt-6">
-            <div class="text-subtitle-1 font-weight-medium">Approval Step</div>
+            <div class="text-subtitle-1 font-weight-medium">Process Step</div>
             <div class="text-caption text-medium-emphasis">from lowest to highest level</div>
           </div>
 
@@ -201,6 +206,11 @@ onMounted(async () => {
                       <div class="mb-4">
 <label class="text-body-medium font-weight-600 d-block mb-1">Label</label>
 <VTextField v-model="item.label" :disabled="loading"  placeholder="Enter label" hide-details="auto"/></div>
+                    </VCol>
+                    <VCol cols="12" md="3">
+                      <div class="mb-4">
+<label class="text-body-medium font-weight-600 d-block mb-1">Action Type</label>
+<VSelect v-model="item.action_type" :items="actionTypes" item-title="title" item-value="value" :disabled="loading" placeholder="Select action" hide-details="auto"/></div>
                     </VCol>
                     <VCol cols="12" md="3">
                       <div class="mb-4">

@@ -7,6 +7,7 @@ const props = defineProps({
   quotaYear: { type: Number, default: () => new Date().getFullYear() },
   route: { type: Object, default: () => ({ origin: 'Batam', destination: '' }) },
   draft: { type: Object, default: null },
+  validateDateWindow: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['update', 'next'])
@@ -67,7 +68,7 @@ function dateError(direction, item) {
   if (!item.date)
     return ''
 
-  if (item.date < minDate.value || item.date > maxDate.value)
+  if (props.validateDateWindow && (item.date < minDate.value || item.date > maxDate.value))
     return `Date must be between ${minDate.value} and ${maxDate.value}.`
 
   if (direction === 'return' && item.date < floorOf(direction, item))

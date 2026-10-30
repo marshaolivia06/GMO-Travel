@@ -3,6 +3,7 @@
 namespace Modules\AuthorityMatrix\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateAuthorityMatrixRequest extends FormRequest
 {
@@ -17,6 +18,7 @@ class UpdateAuthorityMatrixRequest extends FormRequest
             'steps.*.step' => ['required', 'integer', 'min:1'],
             'steps.*.role_id' => ['required', 'exists:roles,id'],
             'steps.*.label' => ['required', 'string', 'max:255'],
+            'steps.*.action_type' => ['required', Rule::in(['check', 'approve'])],
             'steps.*.role_level' => ['nullable', 'integer', 'min:1'],
             'steps.*.is_specific_section' => ['boolean'],
             'steps.*.section_id' => ['nullable', 'exists:sections,id'],

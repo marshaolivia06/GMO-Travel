@@ -33,7 +33,7 @@
 
     $division = MasterDivision::where('division_head_id', $employeeId)->first();
 
-    $dates = $ticket->legs->pluck('travel_date')->filter()->sort()->values();
+    $dates = $ticket->legs->map(fn ($leg) => $leg->reschedule_date ?? $leg->travel_date)->filter()->sort()->values();
     $travelPeriod = $dates->isEmpty()
         ? '-'
         : ($dates->count() > 1 ? $dates->first()->format('d M Y') . ' - ' . $dates->last()->format('d M Y') : $dates->first()->format('d M Y'));
@@ -139,7 +139,7 @@
                         <td class="center">{{ $loop->iteration }}</td>
                         <td style="text-align: left;">{{ $val($leg->name) }}</td>
                         <td class="center">{{ $val($leg->relationship ?? ucfirst($leg->traveler_type)) }}</td>
-                        <td class="center">{{ $date($leg->travel_date) }}</td>
+                        <td class="center">{{ $date($leg->reschedule_date ?? $leg->travel_date) }}</td>
                         <td class="center">{{ $val($leg->travel_from) }} → {{ $val($leg->travel_to) }}</td>
                     </tr>
                 @empty
@@ -167,7 +167,7 @@
                         <td class="center">{{ $loop->iteration }}</td>
                         <td style="text-align: left;">{{ $val($leg->name) }}</td>
                         <td class="center">{{ $val($leg->relationship ?? ucfirst($leg->traveler_type)) }}</td>
-                        <td class="center">{{ $date($leg->travel_date) }}</td>
+                        <td class="center">{{ $date($leg->reschedule_date ?? $leg->travel_date) }}</td>
                         <td class="center">{{ $val($leg->travel_from) }} → {{ $val($leg->travel_to) }}</td>
                     </tr>
                 @empty
@@ -192,9 +192,9 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse ($approvals->sortBy('acted_at') as $step)
+                @forelse ($approvals->sortBy('sequence') as $step)
                     @php
-                        $role = $step->role;
+                        $role = $step->role instanceof \Spatie\Permission\Models\Role ? $step->role->name : $step->role;
 
                         $organization = match ($role) {
                             'Sect Head' => $section?->name,
@@ -210,14 +210,18 @@
 
                         $statusStyle = match ($step->status) {
                             'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;',
-                            'approved' => 'background-color: #DCFCE7; color: #15803D;',
+                            'approved', 'checked' => 'background-color: #DCFCE7; color: #15803D;',
+                            'revision', 'pending' => 'background-color: #FEF9C3; color: #A16207;',
                             default => '',
                         };
 
                         $statusLabel = match ($step->status) {
                             'submitted' => 'Requested',
+                            'checked' => 'Checked',
                             'approved' => 'Approved',
+                            'revision' => 'Revision',
                             'rejected' => 'Rejected',
+                            'pending' => ($step->action_type ?? 'approve') === 'check' ? 'Awaiting Check' : 'Awaiting Approval',
                             default => $step->status,
                         };
                     @endphp
@@ -246,7 +250,14 @@
             <tr>
                 <td>
                     No.
-                    {{ $approvals->where('status', '!=', 'submitted')->isNotEmpty() && $approvals->where('status', '!=', 'submitted')->every(fn ($step) => $step->status === 'approved') ? $val('AT-' . str_pad($ticket->id, 5, '0', STR_PAD_LEFT)) : '-' }}
+                    @php
+                        // Nomor dokumen muncul begitu step terakhir pada round terakhir selesai diproses
+                        $lastStage = $approvals->sortBy('sequence')->last();
+                        $documentNo = $lastStage && in_array($lastStage->status, ['checked', 'approved'], true)
+                            ? $ticket->document_number
+                            : '-';
+                    @endphp
+                    {{ $val($documentNo) }}
                 </td>
                 <td class="right">Generated: {{ now()->format('d M Y H:i') }}</td>
             </tr>

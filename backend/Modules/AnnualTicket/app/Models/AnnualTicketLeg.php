@@ -15,12 +15,14 @@ class AnnualTicketLeg extends Model
         'relationship',
         'direction',
         'travel_date',
+        'reschedule_date',
         'travel_from',
         'travel_to',
     ];
 
     protected $casts = [
         'travel_date' => 'date',
+        'reschedule_date' => 'date',
     ];
 
     public function ticket(): BelongsTo

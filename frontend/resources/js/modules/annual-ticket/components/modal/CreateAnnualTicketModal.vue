@@ -4,13 +4,16 @@ import TravelLegInformationDialog from './TravelLegInformationDialog.vue'
 import ReviewSubmit from './ReviewSubmit.vue'
 import { useToastStore } from '../../../../stores/toast'
 import { useConfirm } from '../../../../composables/useConfirm'
-import { createAnnualTicket } from '../../services/annualTicketService'
+import { createAnnualTicket, resubmitAnnualTicket } from '../../services/annualTicketService'
 
 const props = defineProps({
   travelers: { type: Object, required: true },
+  ticket: { type: Object, default: null },
 })
 
 const emit = defineEmits(['close', 'submitted'])
+
+const isResubmit = computed(() => !!props.ticket)
 
 const step = ref(1)
 const steps = [{ value: 1, title: 'Select Travelers' }, { value: 2, title: 'Travel Leg Information' }, { value: 3, title: 'Review & Submit' }]
@@ -22,6 +25,50 @@ const committedSignature = ref('')
 const legsDraft = ref(null)
 const legsValid = ref(false)
 const legsKey = ref(0)
+
+const initialLegs = props.ticket
+  ? ['departure', 'return'].flatMap(direction => (props.ticket.legs || []).filter(leg => leg.direction === direction).map(leg => ({ direction, leg })))
+  : []
+const initialRemarks = props.ticket?.remarks || ''
+const initialArrangement = props.ticket?.ticket_arrangement === 'Booked by Company' ? 'booked_by_company' : 'direct_payment'
+
+// travel_date dari API berupa ISO UTC (mis. 2026-11-04T17:00:00.000000Z) →
+// input date butuh YYYY-MM-DD sesuai zona Asia/Jakarta agar tanggalnya tidak geser
+const toInputDate = value => {
+  if (!value)
+    return ''
+
+  const date = new Date(value)
+
+  return isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+}
+
+if (props.ticket) {
+  const legsOf = (type, id, direction) => initialLegs.find(row => row.direction === direction && row.leg.traveler_type === type && (type === 'employee' || row.leg.traveler_id === id))?.leg ?? null
+
+  employee.departure = !!legsOf('employee', props.travelers.employee.id, 'departure')
+  employee.return = !!legsOf('employee', props.travelers.employee.id, 'return')
+
+  dependents.forEach(item => {
+    const departure = legsOf('dependent', item.id, 'departure')
+    const returnLeg = legsOf('dependent', item.id, 'return')
+
+    item.selected = !!(departure || returnLeg)
+    item.departure = !!departure
+    item.return = !!returnLeg
+  })
+
+  selectedTravelers.value = [
+    { type: 'employee', id: props.travelers.employee.id, name: props.travelers.employee.name, departure: employee.departure, return: employee.return },
+    ...dependents.filter(item => item.selected).map(item => ({ type: 'dependent', id: item.id, name: item.name, relationship: item.relationship, departure: item.departure, return: item.return })),
+  ]
+  committedSignature.value = JSON.stringify([employee.departure, employee.return, dependents.filter(item => item.selected).map(item => [item.id, item.departure, item.return])])
+  legsDraft.value = {
+    departure: initialLegs.filter(row => row.direction === 'departure').map(row => ({ type: row.leg.traveler_type, id: row.leg.traveler_type === 'employee' ? props.travelers.employee.id : row.leg.traveler_id, name: row.leg.name, relationship: row.leg.relationship, date: toInputDate(row.leg.travel_date), from: row.leg.travel_from, to: row.leg.travel_to })),
+    return: initialLegs.filter(row => row.direction === 'return').map(row => ({ type: row.leg.traveler_type, id: row.leg.traveler_type === 'employee' ? props.travelers.employee.id : row.leg.traveler_id, name: row.leg.name, relationship: row.leg.relationship, date: toInputDate(row.leg.travel_date), from: row.leg.travel_from, to: row.leg.travel_to })),
+  }
+  legsValid.value = true
+}
 
 const employeeValid = computed(() => employee.departure || employee.return)
 const defaultRoute = computed(() => ({ origin: 'Batam', destination: props.travelers.eligible_destination || '' }))
@@ -120,15 +167,22 @@ async function submit(payload) {
   })
 
   try {
-    await createAnnualTicket({
+    const body = {
       quota_year: new Date().getFullYear(),
       route_condition: payload.routeCondition,
       ticket_arrangement: payload.arrangement === 'booked_by_company' ? 'Booked by Company' : 'Direct Payment',
       remarks: payload.remarks,
       travelers,
-    }, payload.evidenceFile)
+    }
 
-    toast.success('Annual ticket request submitted successfully.')
+    if (isResubmit.value) {
+      await resubmitAnnualTicket(props.ticket.id, body, payload.evidenceFile)
+      toast.success('Annual ticket has been resubmitted successfully.')
+    } else {
+      await createAnnualTicket(body, payload.evidenceFile)
+      toast.success('Annual ticket request submitted successfully.')
+    }
+
     emit('submitted')
     emit('close')
   } catch (err) {
@@ -158,7 +212,7 @@ watch(step, async () => {
     <VCard ref="cardRef">
       <VCardTitle class="d-flex align-center justify-space-between px-6 py-5">
         <div>
-          <div class="text-h6 font-weight-bold">Create Annual Ticket</div>
+          <div class="text-h6 font-weight-bold">{{ isResubmit ? 'Edit Annual Ticket' : 'Create Annual Ticket' }}</div>
           <div class="text-body-2 text-medium-emphasis">{{ subtitles[step] }}</div>
         </div>
         <DialogCloseBtn @click="emit('close')" />
@@ -234,9 +288,9 @@ watch(step, async () => {
         </VCardActions>
       </template>
 
-      <TravelLegInformationDialog v-else-if="step === 2" :key="legsKey" :travelers="selectedTravelers" :route="defaultRoute" :draft="legsDraft" @update="onLegsUpdate" @next="goTo(3)" />
+      <TravelLegInformationDialog v-else-if="step === 2" :key="legsKey" :travelers="selectedTravelers" :route="defaultRoute" :draft="legsDraft" :validate-date-window="!isResubmit" :date-created="props.ticket?.created_at ?? undefined" @update="onLegsUpdate" @next="goTo(3)" />
 
-      <ReviewSubmit v-else :travelers="selectedTravelers" :legs="legsDraft" :route="defaultRoute" :submitting="submitting" @back="step = 2" @submit="submit" />
+      <ReviewSubmit v-else :travelers="selectedTravelers" :legs="legsDraft" :route="defaultRoute" :submitting="submitting" :initial="{ arrangement: initialArrangement, remarks: initialRemarks }" :evidence-required="!isResubmit" :submit-label="isResubmit ? 'Resubmit Annual Ticket Request' : 'Submit Annual Ticket Request'" @back="step = 2" @submit="submit" />
     </VCard>
   </VDialog>
 </template>
