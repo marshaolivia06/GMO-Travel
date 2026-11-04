@@ -6,6 +6,7 @@ use Modules\UserManagement\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
 class AnnualTicket extends Model
@@ -16,6 +17,7 @@ class AnnualTicket extends Model
         'route_condition',
         'ticket_arrangement',
         'status',
+        'status_before_cancellation',
         'document_number',
         'remarks',
         'evidence_path',
@@ -52,5 +54,25 @@ class AnnualTicket extends Model
     public function fareReferenceAttachments(): HasMany
     {
         return $this->hasMany(AnnualTicketFareReferenceAttachment::class, 'request_id');
+    }
+
+    public function booking(): HasOne
+    {
+        return $this->hasOne(AnnualTicketBooking::class, 'request_id');
+    }
+
+    public function bookingDocuments(): HasMany
+    {
+        return $this->hasMany(AnnualTicketBookingDocument::class, 'request_id');
+    }
+
+    public function legCancellations(): HasMany
+    {
+        return $this->hasMany(AnnualTicketLegCancellation::class, 'request_id');
+    }
+
+    public function emails(): HasMany
+    {
+        return $this->hasMany(AnnualTicketEmail::class)->latest();
     }
 }

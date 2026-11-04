@@ -6,6 +6,7 @@ export const annualTicketRoutes = [
       meta: {
         title: 'Annual Ticket',
         requiresAuth: true,
+        permission: 'annual-ticket.view',
       },
     },
   ]

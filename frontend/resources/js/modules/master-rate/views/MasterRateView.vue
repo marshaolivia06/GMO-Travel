@@ -1,14 +1,19 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useMasterRateStore } from '../stores/masterRateStore'
 import { useMasterRegionStore } from '../../master-region/stores/masterRegionStore'
 import AddMasterRate from '../components/modal/add-master-rate.vue'
 import EditMasterRate from '../components/modal/edit-master-rate.vue'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
 
 const masterRateStore = useMasterRateStore()
 const masterRegionStore = useMasterRegionStore()
+const auth = useAuthStore()
+const canCreate = computed(() => auth.can('master-rate.create'))
+const canUpdate = computed(() => auth.can('master-rate.update'))
+const canDelete = computed(() => auth.can('master-rate.delete'))
 
 const search = ref('')
 const regionFilter = ref(null)
@@ -95,6 +100,7 @@ onMounted(() => {
           variant="flat"
           color="primary"
           prepend-icon="ri-add-line"
+          :disabled="!canCreate"
           @click="showAddMasterRateModal = true"
         >
           Add Master Rate
@@ -131,8 +137,8 @@ onMounted(() => {
 
         <template #item.actions="{ item }">
   <div class="d-flex align-center ga-1 flex-nowrap">
-    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEdit(item)" />
-    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :loading="deletingId === item.id" @click="deleteRate(item)" />
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEdit(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!canDelete" :loading="deletingId === item.id" @click="deleteRate(item)" />
   </div>
 </template>
       </VDataTable>

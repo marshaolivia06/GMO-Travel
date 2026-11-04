@@ -1,0 +1,28 @@
+{
+    "name": "nwidart/externalformrequest",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\ExternalFormRequest\\": "app/",
+            "Modules\\ExternalFormRequest\\Database\\Factories\\": "database/factories/",
+            "Modules\\ExternalFormRequest\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\ExternalFormRequest\\Tests\\": "tests/"
+        }
+    }
+}

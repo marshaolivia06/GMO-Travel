@@ -11,6 +11,7 @@ import { masterRegionRoutes } from '../../modules/master-region/routes'
 import { masterRateRoutes } from '../../modules/master-rate/routes'
 import { authorityMatrixRoutes } from '../../modules/authority-matrix/routes'
 import { annualTicketRoutes } from '../../modules/annual-ticket/routes'
+import { externalFormRequestRoutes } from '../../modules/external-form-request/routes'
 import { masterDependentRoutes } from '../../modules/master-dependent/routes'
 import { masterDestinationRoutes } from '../../modules/master-destination/routes'
 
@@ -42,6 +43,7 @@ const routes = [
       ...masterDestinationRoutes,
       ...authorityMatrixRoutes,
       ...annualTicketRoutes,
+      ...externalFormRequestRoutes,
     ],
   },
 

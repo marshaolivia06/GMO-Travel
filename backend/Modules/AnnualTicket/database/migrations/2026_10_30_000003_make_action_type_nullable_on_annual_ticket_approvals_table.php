@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('action_type', 20)->nullable()->default(null)->change();
         });
 
-        // Baris submitted bukan aksi check/approve → dikosongkan
+        // Baris submitted bukan aksi check/approve -> dikosongkan
         DB::table('annual_ticket_approvals')
             ->where('status', 'submitted')
             ->update(['action_type' => null]);

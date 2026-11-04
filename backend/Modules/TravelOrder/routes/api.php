@@ -9,11 +9,12 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::get('/department-lock', [TravelOrderController::class, 'departmentLock'])->middleware('permission:travel-order.create');
         Route::post('/', [TravelOrderController::class, 'store'])->middleware('permission:travel-order.create');
 
-        Route::put('/{id}/gmo/schedule', [TravelOrderController::class, 'updateGmoSchedule'])->middleware('permission:travel-order.view');
-        Route::post('/{id}/gmo/booking-items', [TravelOrderController::class, 'updateGmoBookingItems'])->middleware('permission:travel-order.view');
-        Route::post('/{id}/gmo/cancellations/{itemType}', [TravelOrderController::class, 'cancelGmoBookingItem'])->middleware('permission:travel-order.view');
-        Route::put('/{id}/gmo/cancellations/{itemType}/refund', [TravelOrderController::class, 'updateGmoRefund'])->middleware('permission:travel-order.view');
-        Route::post('/{id}/gmo/resend-email', [TravelOrderController::class, 'resendGmoBookingEmail'])->middleware('permission:travel-order.view');
+        // Aksi GMO - bagian dari alur approval/pemrosesan
+        Route::put('/{id}/gmo/schedule', [TravelOrderController::class, 'updateGmoSchedule'])->middleware('permission:travel-order.approve');
+        Route::post('/{id}/gmo/booking-items', [TravelOrderController::class, 'updateGmoBookingItems'])->middleware('permission:travel-order.approve');
+        Route::post('/{id}/gmo/cancellations/{itemType}', [TravelOrderController::class, 'cancelGmoBookingItem'])->middleware('permission:travel-order.approve');
+        Route::put('/{id}/gmo/cancellations/{itemType}/refund', [TravelOrderController::class, 'updateGmoRefund'])->middleware('permission:travel-order.approve');
+        Route::post('/{id}/gmo/resend-email', [TravelOrderController::class, 'resendGmoBookingEmail'])->middleware('permission:travel-order.approve');
 
         Route::get('/{id}', [TravelOrderController::class, 'show'])->middleware('permission:travel-order.view');
         Route::get('/{id}/pdf', [TravelOrderController::class, 'pdf'])->middleware('permission:travel-order.view');
@@ -22,9 +23,10 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 
         Route::post('/{id}/approve', [TravelOrderController::class, 'approve'])->middleware('permission:travel-order.approve');
         Route::post('/{id}/reject', [TravelOrderController::class, 'reject'])->middleware('permission:travel-order.approve');
-        Route::post('/{id}/cancel', [TravelOrderController::class, 'cancel']);
-        Route::post('/{id}/revision', [TravelOrderController::class, 'revision']);
-        Route::post('/{id}/complete-gmo-processing', [TravelOrderController::class, 'completeGmoProcessing'])->middleware('permission:travel-order.view');
+        // Cancel oleh pemohon, revision oleh approver
+        Route::post('/{id}/cancel', [TravelOrderController::class, 'cancel'])->middleware('permission:travel-order.create');
+        Route::post('/{id}/revision', [TravelOrderController::class, 'revision'])->middleware('permission:travel-order.approve');
+        Route::post('/{id}/complete-gmo-processing', [TravelOrderController::class, 'completeGmoProcessing'])->middleware('permission:travel-order.approve');
         Route::get('group-trip/users', [TravelOrderGroupController::class, 'users'])->middleware('permission:travel-order.update');
     });
 
@@ -45,10 +47,20 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     Route::post('/{id}/members', [TravelOrderGroupController::class, 'addMembers'])->middleware('permission:travel-order.update');
     Route::delete('/{id}/members/{userId}', [TravelOrderGroupController::class, 'removeMember'])->middleware('permission:travel-order.update');
 });
-        // MASTER REGION
-        Route::apiResource('master-regions', MasterRegionController::class);
+        // MASTER REGION & RATE
+        // Baca dipakai form Travel Order - longgar; kelola (CRUD) admin saja
+        Route::apiResource('master-regions', MasterRegionController::class)
+            ->middlewareFor(['index', 'show'], 'permission:travel-order.view')
+            ->middlewareFor('store', 'permission:master-region.create')
+            ->middlewareFor('update', 'permission:master-region.update')
+            ->middlewareFor('destroy', 'permission:master-region.delete');
 
         Route::get('master-rates/limits', [MasterRateController::class, 'limits'])->middleware('permission:travel-order.create');
-        Route::apiResource('master-rates', MasterRateController::class);
+
+        Route::apiResource('master-rates', MasterRateController::class)
+            ->middlewareFor(['index', 'show'], 'permission:travel-order.view')
+            ->middlewareFor('store', 'permission:master-rate.create')
+            ->middlewareFor('update', 'permission:master-rate.update')
+            ->middlewareFor('destroy', 'permission:master-rate.delete');
 });
 

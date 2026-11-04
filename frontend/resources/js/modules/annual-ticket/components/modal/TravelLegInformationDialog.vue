@@ -5,7 +5,7 @@ const props = defineProps({
   travelers: { type: Array, required: true },
   dateCreated: { type: [String, Date], default: () => new Date() },
   quotaYear: { type: Number, default: () => new Date().getFullYear() },
-  route: { type: Object, default: () => ({ origin: 'Batam', destination: '' }) },
+  route: { type: Object, default: () => ({ origin: '', destination: '' }) },
   draft: { type: Object, default: null },
   validateDateWindow: { type: Boolean, default: true },
 })

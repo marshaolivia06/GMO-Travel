@@ -1,14 +1,19 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useMasterRegionStore } from '../stores/masterRegionStore'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
 import AddMasterRegion from '../components/modal/add-master-region.vue'
 import EditMasterRegion from '../components/modal/edit-master-region.vue'
 
 const masterRegionStore = useMasterRegionStore()
 const { confirm } = useConfirm()
 const toast = useToastStore()
+const auth = useAuthStore()
+const canCreate = computed(() => auth.can('master-region.create'))
+const canUpdate = computed(() => auth.can('master-region.update'))
+const canDelete = computed(() => auth.can('master-region.delete'))
 
 const showAddMasterRegionModal = ref(false)
 const showEditMasterRegionModal = ref(false)
@@ -62,6 +67,7 @@ onMounted(() => {
         variant="flat"
         color="primary"
         prepend-icon="ri-add-line"
+        :disabled="!canCreate"
         @click="showAddMasterRegionModal = true"
       >
         Add Master Region
@@ -88,8 +94,8 @@ onMounted(() => {
         <template #item.destinations="{ item }">{{ item.destinations?.length ? item.destinations.join(', ') : '-' }}</template>
         <template #item.actions="{ item }">
   <div class="d-flex align-center ga-1 flex-nowrap">
-    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEditMasterRegion(item)" />
-    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteMasterRegion(item)" />
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEditMasterRegion(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!canDelete" @click="deleteMasterRegion(item)" />
   </div>
 </template>
       </VDataTable>

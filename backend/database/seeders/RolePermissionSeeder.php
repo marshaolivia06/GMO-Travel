@@ -37,6 +37,15 @@ class RolePermissionSeeder extends Seeder
             'user-management',
             'travel-order',
             'annual-leave',
+            'annual-ticket',
+            'master-management',
+            'authority-matrix',
+            'master-dependent',
+            'master-destination',
+            'master-region',
+            'master-rate',
+            'travel-expense-report',
+            'external-form-request',
         ];
 
         $actions = [
@@ -52,6 +61,8 @@ class RolePermissionSeeder extends Seeder
                 Permission::firstOrCreate([
                     'name' => "{$module}.{$action}",
                     'guard_name' => 'web',
+                ], [
+                    'module' => $module,
                 ]);
             }
         }

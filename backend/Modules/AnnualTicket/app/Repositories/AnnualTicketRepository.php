@@ -9,25 +9,34 @@ use Modules\AnnualTicket\Models\AnnualTicket;
 
 class AnnualTicketRepository
 {
-    // Status tahapan GMO — terlihat oleh role Admin-GMO
+    // Status tahapan GMO - terlihat oleh role Admin-GMO
     public const GMO_STATUSES = [
         'awaiting_fare_reference_gmo',
         'awaiting_ticket_processing',
         'processed_by_gmo',
     ];
 
-    // Status yang masih boleh diajukan pembatalan oleh employee
+    // Status tiket yang sudah diproses & masih bisa dikelola GMO (dokumen, jadwal, pembatalan leg, refund)
+    public const GMO_MANAGEABLE_STATUSES = [
+        'processed_by_gmo',
+        'partially_cancelled',
+    ];
+
+    // Status yang terlihat oleh Admin-GMO di daftar
+    public const GMO_VISIBLE_STATUSES = [
+        ...self::GMO_STATUSES,
+        'partially_cancelled',
+        'awaiting_cancellation_finalization_gmo',
+    ];
+
+    // Cancellation request hanya bisa diajukan setelah tiket diproses GMO
     public const CANCELLABLE_STATUSES = [
-        'awaiting_check_hr_admin',
-        'awaiting_approval_hr_supervisor',
-        'awaiting_fare_reference_gmo',
-        'awaiting_ticket_processing',
         'processed_by_gmo',
     ];
 
     public function allForEmployee(User $user): Collection
     {
-        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments'])
+        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments', 'booking', 'bookingDocuments', 'legCancellations', 'emails'])
             ->where('employee_id', $user->id)
             ->latest()
             ->get();
@@ -35,7 +44,7 @@ class AnnualTicketRepository
 
     public function allVisibleFor(User $user): Collection
     {
-        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments'])
+        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments', 'booking', 'bookingDocuments', 'legCancellations', 'emails'])
             ->when(! $user->hasRole('Admin'), fn ($query) => $query->where($this->visibilityScope($user)))
             ->latest()
             ->get();
@@ -43,7 +52,7 @@ class AnnualTicketRepository
 
     public function findByIdFor(User $user, int $id): AnnualTicket
     {
-        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments'])
+        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments', 'booking', 'bookingDocuments', 'legCancellations', 'emails'])
             ->when(! $user->hasRole('Admin'), fn ($query) => $query->where($this->visibilityScope($user)))
             ->findOrFail($id);
     }
@@ -60,14 +69,14 @@ class AnnualTicketRepository
                 });
 
             if ($user->hasRole('Admin-GMO')) {
-                $query->orWhereIn('status', self::GMO_STATUSES);
+                $query->orWhereIn('status', self::GMO_VISIBLE_STATUSES);
             }
         };
     }
 
     public function findByIdForEmployee(User $user, int $id): AnnualTicket
     {
-        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments'])
+        return AnnualTicket::with(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments', 'booking', 'bookingDocuments', 'legCancellations', 'emails'])
             ->where('employee_id', $user->id)
             ->findOrFail($id);
     }

@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
 import { useCategoryStore } from '../stores/categoryStore'
 import { useDepartmentStore } from '../stores/departmentStore'
 import { useSectionStore } from '../stores/sectionStore'
@@ -18,6 +19,10 @@ const route = useRoute()
 const router = useRouter()
 const { confirm } = useConfirm()
 const toast = useToastStore()
+const auth = useAuthStore()
+const canCreate = computed(() => auth.can('master-management.create'))
+const canUpdate = computed(() => auth.can('master-management.update'))
+const canDelete = computed(() => auth.can('master-management.delete'))
 
 const categoryStore = useCategoryStore()
 const departmentStore = useDepartmentStore()
@@ -185,21 +190,21 @@ onMounted(() => {
       <VBtn
         v-if="activeTab === 'departments'"
         variant="flat"
-        color="primary" prepend-icon="ri-add-line" @click="showDepartmentModal = true"
+        color="primary" prepend-icon="ri-add-line" :disabled="!canCreate" @click="showDepartmentModal = true"
       >
         Add Department
       </VBtn>
       <VBtn
         v-if="activeTab === 'sections'"
         variant="flat"
-        color="primary" prepend-icon="ri-add-line" @click="showSectionModal = true"
+        color="primary" prepend-icon="ri-add-line" :disabled="!canCreate" @click="showSectionModal = true"
       >
         Add Section
       </VBtn>
       <VBtn
         v-if="activeTab === 'categories'"
         variant="flat"
-        color="primary" prepend-icon="ri-add-line" @click="showCategoryModal = true"
+        color="primary" prepend-icon="ri-add-line" :disabled="!canCreate" @click="showCategoryModal = true"
       >
         Add Category
       </VBtn>
@@ -251,8 +256,8 @@ onMounted(() => {
 
             <template #item.actions="{ item }">
               <div class="d-flex align-center ga-1 flex-nowrap">
-                <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEditDepartment(item)" />
-                <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedDepartment(item)" />
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEditDepartment(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!canDelete" @click="deleteSelectedDepartment(item)" />
               </div>
             </template>
           </VDataTable>
@@ -272,8 +277,8 @@ onMounted(() => {
 
             <template #item.actions="{ item }">
               <div class="d-flex align-center ga-1 flex-nowrap">
-                <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEditSection(item)" />
-                <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedSection(item)" />
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEditSection(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!canDelete" @click="deleteSelectedSection(item)" />
               </div>
             </template>
           </VDataTable>
@@ -291,8 +296,8 @@ onMounted(() => {
 
             <template #item.actions="{ item }">
               <div class="d-flex align-center ga-1 flex-nowrap">
-                <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEditCategory(item)" />
-                <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="deleteSelectedCategory(item)" />
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEditCategory(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!canDelete" @click="deleteSelectedCategory(item)" />
               </div>
             </template>
           </VDataTableServer>

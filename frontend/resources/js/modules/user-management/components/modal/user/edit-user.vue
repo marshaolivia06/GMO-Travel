@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { updateUser, getRoles } from '../../../services/userService'
+import { updateUser, getRoles, getOfficeLocations } from '../../../services/userService'
 import { useConfirm } from '../../../../../composables/useConfirm'
 import { useToastStore } from '../../../../../stores/toast'
 import { getMasterDestinations } from '../../../../master-destination/services/masterDestinationService'
@@ -17,6 +17,7 @@ const generalError = ref('')
 const roles = ref([])
 const destinations = ref([])
 const destinationsLoading = ref(false)
+const officeLocations = ref([])
 const { confirm } = useConfirm()
 const toast = useToastStore()
 
@@ -28,6 +29,8 @@ const errors = reactive({
   role: '',
   grade: '',
   eligible_destination_id: '',
+  date_of_join: '',
+  office_location: '',
 })
 
 const form = reactive({
@@ -38,6 +41,8 @@ const form = reactive({
   confirmPassword: '',
   role: props.user?.roles?.[0]?.name || '',
   eligible_destination_id: props.user?.eligible_destination_id ?? null,
+  date_of_join: props.user?.date_of_join ?? null,
+  office_location: props.user?.office_location ?? null,
 })
 
 function clearErrors() {
@@ -48,6 +53,8 @@ function clearErrors() {
   errors.role = ''
   errors.grade = ''
   errors.eligible_destination_id = ''
+  errors.date_of_join = ''
+  errors.office_location = ''
   generalError.value = ''
 }
 
@@ -62,6 +69,8 @@ function handleValidationError(err) {
   errors.confirmPassword = validationErrors.confirmPassword?.[0] || ''
   errors.role = validationErrors.role?.[0] || ''
   errors.eligible_destination_id = validationErrors.eligible_destination_id?.[0] || ''
+  errors.date_of_join = validationErrors.date_of_join?.[0] || ''
+  errors.office_location = validationErrors.office_location?.[0] || ''
 }
 
 async function fetchRoles() {
@@ -124,6 +133,8 @@ if (!confirmed) return
       email: form.email.trim(),
       grade: form.grade,
       eligible_destination_id: form.eligible_destination_id,
+      date_of_join: form.date_of_join || null,
+      office_location: form.office_location || null,
     }
 
     if (form.role) data.role = form.role
@@ -165,6 +176,14 @@ async function fetchDestinations() {
   }
 }
 
+async function fetchOfficeLocations() {
+  try {
+    officeLocations.value = await getOfficeLocations()
+  } catch {
+    officeLocations.value = []
+  }
+}
+
 function close() {
   if (!loading.value) emit('close')
 }
@@ -172,6 +191,7 @@ function close() {
 onMounted(() => {
   fetchRoles()
   fetchDestinations()
+  fetchOfficeLocations()
 })
 </script>
 
@@ -215,6 +235,14 @@ onMounted(() => {
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Eligible Destination</label>
               <VAutocomplete v-model="form.eligible_destination_id" :items="destinations" item-title="city_name" item-value="id" :loading="destinationsLoading" :disabled="loading || destinationsLoading" :error-messages="errors.eligible_destination_id ? [errors.eligible_destination_id] : []" clearable placeholder="Select eligible destination" hide-details="auto"/>
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Date of Join</label>
+              <VTextField v-model="form.date_of_join" type="date" :disabled="loading" :error-messages="errors.date_of_join ? [errors.date_of_join] : []" placeholder="Select date of join" hide-details="auto"/>
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Office Location</label>
+              <VAutocomplete v-model="form.office_location" :items="officeLocations" :disabled="loading" :error-messages="errors.office_location ? [errors.office_location] : []" clearable placeholder="Select office location" hide-details="auto"/>
             </VCol>
           </VRow>
 

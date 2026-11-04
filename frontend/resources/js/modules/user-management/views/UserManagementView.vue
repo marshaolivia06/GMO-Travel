@@ -38,6 +38,22 @@ const formatDate = date => {
   }).format(new Date(date))
 }
 
+// Format dd-mm-yyyy khusus Date of Join
+const formatDateDMY = date => {
+  if (!date) return '-'
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(date))
+
+  const get = type => parts.find(part => part.type === type)?.value
+
+  return `${get('day')}-${get('month')}-${get('year')}`
+}
+
 const hasPermission = permission =>
   (authStore.user?.permissions || []).includes(permission)
 
@@ -400,6 +416,8 @@ onMounted(() => {
   { title: 'Email', key: 'email' },
   { title: 'Grade', key: 'grade', width: 100 },
   { title: 'Eligible Destination', key: 'eligible_destination' },
+  { title: 'Date of Join', key: 'date_of_join' },
+  { title: 'Office Location', key: 'office_location' },
   { title: 'Role', key: 'role' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
@@ -409,6 +427,9 @@ onMounted(() => {
     <span v-if="item.eligible_destination">{{ item.eligible_destination.city_name }}</span>
     <span v-else>-</span>
   </template>
+
+  <template #item.date_of_join="{ item }">{{ formatDateDMY(item.date_of_join) }}</template>
+  <template #item.office_location="{ item }"><span v-if="item.office_location">{{ item.office_location }}</span><span v-else>-</span></template>
 
   <template #item.role="{ item }">
     <div class="d-flex flex-wrap ga-1">

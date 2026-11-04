@@ -5,11 +5,16 @@ import AddMasterDependent from '../components/modal/add-master-dependent.vue'
 import EditMasterDependent from '../components/modal/edit-master-dependent.vue'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
 
 const MAX_ELIGIBLE_AGE = 23
 const { confirm } = useConfirm()
 const deletingId = ref(null)
 const toast = useToastStore()
+const auth = useAuthStore()
+const canCreate = computed(() => auth.can('master-dependent.create'))
+const canUpdate = computed(() => auth.can('master-dependent.update'))
+const canDelete = computed(() => auth.can('master-dependent.delete'))
 const showAddModal = ref(false)
 const showEditModal = ref(false)
 const editingEmployee = ref(null)
@@ -178,7 +183,7 @@ const dependentHeaders = [
 <template>
   <BrandCard>
     <template #action>
-        <VBtn variant="flat" color="primary" prepend-icon="ri-add-line" @click="openAdd">
+        <VBtn variant="flat" color="primary" prepend-icon="ri-add-line" :disabled="!canCreate" @click="openAdd">
         Add Dependent
       </VBtn>
     </template>
@@ -200,8 +205,8 @@ const dependentHeaders = [
       <template #item.actions="{ item }">
         <div class="d-flex align-center ga-1 flex-nowrap">
           <VBtn icon="ri-eye-line" size="small" variant="text" color="info" @click="openDetail(item)" />
-          <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEdit(item)" />
-          <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!item.total" :loading="deletingId === item.id" @click="deleteDependents(item)" />
+          <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEdit(item)" />
+          <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!item.total || !canDelete" :loading="deletingId === item.id" @click="deleteDependents(item)" />
         </div>
       </template>
     </VDataTable>

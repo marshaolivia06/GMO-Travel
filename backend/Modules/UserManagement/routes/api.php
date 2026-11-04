@@ -4,10 +4,15 @@ use Illuminate\Support\Facades\Route;
 use Modules\UserManagement\Http\Controllers\UserController;
 use Modules\UserManagement\Http\Controllers\RoleController;
 use Modules\UserManagement\Http\Controllers\PermissionController;
+use Modules\UserManagement\Http\Controllers\CompanyController;
 
 Route::middleware(['auth:sanctum'])
     ->prefix('v1')
     ->group(function () {
+
+        // COMPANY - dipakai form manajemen user
+        Route::get('company/office-locations', [CompanyController::class, 'officeLocations'])
+            ->middleware('permission:user-management.view');
 
             // GROUP TRIP USERS
         Route::get(

@@ -12,12 +12,18 @@ class ProcessAnnualTicketRequest extends FormRequest
         return true;
     }
 
-    // Fare references dikirim dari FormData sebagai string JSON
+    // Fare references & email dikirim dari FormData sebagai string JSON
     protected function prepareForValidation(): void
     {
         if ($this->filled('fare_references') && is_string($this->input('fare_references'))) {
             $this->merge([
                 'fare_references' => json_decode($this->input('fare_references'), true),
+            ]);
+        }
+
+        if ($this->filled('email') && is_string($this->input('email'))) {
+            $this->merge([
+                'email' => json_decode($this->input('email'), true),
             ]);
         }
     }
@@ -33,6 +39,14 @@ class ProcessAnnualTicketRequest extends FormRequest
             'fare_references.*.currency' => ['nullable', 'string', 'max:10'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'booking_currency' => ['nullable', 'string', 'max:10'],
+            'booking_amount' => ['nullable', 'numeric', 'min:1'],
+            'e_ticket' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'email' => ['nullable', 'array'],
+            'email.to' => ['nullable', 'string', 'max:255'],
+            'email.cc' => ['nullable', 'string', 'max:255'],
+            'email.subject' => ['nullable', 'string', 'max:255'],
+            'email.message' => ['nullable', 'string'],
         ];
     }
 }

@@ -24,7 +24,9 @@ class User extends Authenticatable
         'status',
         'grade',
         'eligible_destination_id',
-    ];    
+        'date_of_join',
+        'office_location',
+    ];
 
     protected $hidden = [
         'password',
@@ -38,6 +40,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'status' => 'boolean',
         'grade' => 'integer',
+        'date_of_join' => 'date:Y-m-d',
     ];
 }
 

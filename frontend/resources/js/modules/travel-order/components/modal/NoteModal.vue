@@ -58,8 +58,16 @@ function submit() {
 </VCardTitle>
       <VDivider />
       <VCardText class="px-5 py-4">
-        <div class="text-body-2 text-medium-emphasis mb-2">{{ meta.label || 'Remark' }}</div>
-        <VTextarea v-model="text" placeholder="Enter remark" variant="outlined" rows="3" auto-grow :error-messages="error" @update:model-value="error = ''" />
+        <div class="text-body-2 text-medium-emphasis mb-2 d-flex align-center ga-1">
+          <span>{{ meta.label || 'Remark' }}</span>
+          <VTooltip v-if="meta.info" location="top" max-width="280">
+            <template #activator="{ props: tooltipProps }">
+              <VIcon v-bind="tooltipProps" icon="ri-information-line" size="14" class="cursor-pointer" />
+            </template>
+            <span>{{ meta.info }}</span>
+          </VTooltip>
+        </div>
+        <VTextarea v-model="text" :placeholder="meta.placeholder || 'Enter remark'" variant="outlined" rows="3" auto-grow :error-messages="error" @update:model-value="error = ''" />
         <template v-if="requiresEvidence()">
   <div class="text-caption font-weight-medium mb-1 mt-0">Upload Evidence <span class="text-error"></span></div>
   <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">

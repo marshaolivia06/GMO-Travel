@@ -975,6 +975,7 @@ onMounted(() => {
           variant="flat"
           color="primary"
           prepend-icon="ri-add-line"
+          :disabled="!authStore.can('travel-order.create')"
           @click="openNewRequest"
         >
           New Request

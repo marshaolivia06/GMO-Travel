@@ -64,6 +64,16 @@ class UserController extends Controller
                 'integer',
                 'exists:master_destinations,id',
             ],
+            'date_of_join' => [
+                'nullable',
+                'date',
+                'before_or_equal:today',
+            ],
+            'office_location' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
         ]);
 
         return response()->json([
@@ -113,6 +123,18 @@ class UserController extends Controller
                 'nullable',
                 'integer',
                 'exists:master_destinations,id',
+            ],
+            'date_of_join' => [
+                'sometimes',
+                'nullable',
+                'date',
+                'before_or_equal:today',
+            ],
+            'office_location' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
             ],
         ]);
 

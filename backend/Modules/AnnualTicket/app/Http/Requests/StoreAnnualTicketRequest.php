@@ -34,7 +34,21 @@ class StoreAnnualTicketRequest extends FormRequest
                 'max:1000',
             ],
             'evidence' => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'travelers' => ['required', 'array', 'min:1'],
+            // Maksimal 3 anak yang bisa ikut (employee & spouse tidak dihitung)
+            'travelers' => [
+                'required',
+                'array',
+                'min:1',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    $children = collect($value)->filter(
+                        fn ($traveler) => ($traveler['type'] ?? '') === 'dependent' && ($traveler['relationship'] ?? '') !== 'Spouse',
+                    );
+
+                    if ($children->count() > 3) {
+                        $fail('A maximum of 3 children can be included in the annual ticket.');
+                    }
+                },
+            ],
             'travelers.*.type' => ['required', Rule::in(['employee', 'dependent'])],
             'travelers.*.traveler_id' => [
                 'nullable',

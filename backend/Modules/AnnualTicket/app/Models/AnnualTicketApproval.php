@@ -13,6 +13,7 @@ class AnnualTicketApproval extends Model
         'sequence',
         'authority_matrix_step_id',
         'action_type',
+        'flow_type',
         'role_id',
         'user_id',
         'status',

@@ -166,8 +166,8 @@
 <body>
     <div class="doc-head">
         <div style="text-align: left; font-size: 11px; font-weight: bold; letter-spacing: 0; margin-bottom: 18px;">
-            PT. Ecogreen Oleochemicals<br>
-            Batam Plant
+            {{ config('company.name') }}<br>
+            {{ config('company.plant') }}
         </div>
         <div class="doc-title">TRAVEL ORDER</div>
     </div>

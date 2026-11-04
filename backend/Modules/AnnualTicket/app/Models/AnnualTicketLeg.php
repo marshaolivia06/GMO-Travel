@@ -4,6 +4,7 @@ namespace Modules\AnnualTicket\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AnnualTicketLeg extends Model
 {
@@ -28,5 +29,10 @@ class AnnualTicketLeg extends Model
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(AnnualTicket::class, 'annual_ticket_id');
+    }
+
+    public function cancellation(): HasOne
+    {
+        return $this->hasOne(AnnualTicketLegCancellation::class, 'leg_id');
     }
 }

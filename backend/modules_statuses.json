@@ -7,5 +7,6 @@
     "MasterManagement": true,
     "TravelOrder": true,
     "AuthorityMatrix": true,
-    "AnnualTicket": true
+    "AnnualTicket": true,
+    "ExternalFormRequest": true
 }

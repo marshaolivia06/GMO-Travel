@@ -6,7 +6,9 @@ export const travelExpenseReportRoutes = [
     name: 'travel-expense-report',
     component: TravelExpenseReportView,
     meta: {
-      title: 'Travel Expense Report'
+      title: 'Travel Expense Report',
+      requiresAuth: true,
+      permission: 'travel-expense-report.view'
     }
   }
 ]

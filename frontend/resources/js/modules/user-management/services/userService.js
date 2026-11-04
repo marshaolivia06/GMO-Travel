@@ -76,4 +76,10 @@ export const deleteUser = (id) => {
   return request(`/users/${id}`, {
     method: 'DELETE',
   })
-} 
+}
+
+export const getOfficeLocations = async () => {
+  const response = await request('/company/office-locations')
+
+  return response.data ?? []
+}
