@@ -63,6 +63,14 @@ class AnnualTicketRepository
             $query->where('employee_id', $user->id)
                 ->orWhereHas('approvals', function ($approvals) use ($user) {
                     $approvals->where('status', 'pending')
+                        // Hanya tahap yang sedang berjalan - step pending lebih awal tidak dihitung
+                        ->whereNotExists(function ($sub) {
+                            $sub->select(DB::raw(1))
+                                ->from('annual_ticket_approvals as prev')
+                                ->whereColumn('prev.annual_ticket_id', 'annual_ticket_approvals.annual_ticket_id')
+                                ->where('prev.status', 'pending')
+                                ->whereColumn('prev.sequence', '<', 'annual_ticket_approvals.sequence');
+                        })
                         ->whereHas('role', function ($roles) use ($user) {
                             $roles->whereIn('name', $user->getRoleNames());
                         });

@@ -686,7 +686,7 @@ class AnnualTicketService
     }
 
     // Tolak pengajuan pembatalan (HR Supervisor) -> tiket kembali ke status semula
-    public function cancelReject(User $user, int $id, string $remark): AnnualTicket
+    public function cancelReject(User $user, int $id, ?string $remark = null): AnnualTicket
     {
         $ticket = $this->repository->findByIdFor($user, $id);
 

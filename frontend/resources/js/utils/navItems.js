@@ -1,9 +1,4 @@
 import { computed } from 'vue'
-
-// action/subject match the CASL default-allow rule ({ action: 'manage', subject: 'all' })
-// registered in plugins/casl/index.js — real authorization is enforced by the router & backend.
-// Item dengan `permission` TETAP tampil di menu; jika user tidak punya permission-nya,
-// router guard akan mengarahkan ke halaman 403 saat dibuka.
 const nav = (title, icon, to, permission) => ({
   title,
   ...(icon && { icon: { icon } }),

@@ -24,6 +24,9 @@
 
     $officeLocation = $employee?->office_location;
 
+    // Letterhead mengikuti office location employee - format "{location} Plant" (Batam/Jakarta/Singapore)
+    $officeLabel = $officeLocation ? "{$officeLocation} Plant" : config('company.plant');
+
     $division = MasterDivision::where('division_head_id', $employeeId)->first();
 
     $dates = $ticket->legs->map(fn ($leg) => $leg->reschedule_date ?? $leg->travel_date)->filter()->sort()->values();
@@ -68,7 +71,7 @@
     <div class="doc-head">
         <div style="text-align: left; font-size: 11px; font-weight: bold; margin-bottom: 18px;">
             {{ config('company.name') }}<br>
-            {{ config('company.plant') }}
+            {{ $officeLabel }}
         </div>
         <div class="doc-title">ANNUAL TICKET</div>
     </div>
@@ -129,7 +132,7 @@
                         <td style="text-align: left;">{{ $val($leg->name) }}</td>
                         <td class="center">{{ $val($leg->relationship ?? ucfirst($leg->traveler_type)) }}</td>
                         <td class="center">{{ $date($leg->reschedule_date ?? $leg->travel_date) }}</td>
-                        <td class="center">{{ $val($leg->travel_from) }} -> {{ $val($leg->travel_to) }}</td>
+                        <td class="center">{{ $val($leg->travel_from) }} - {{ $val($leg->travel_to) }}</td>
                     </tr>
                 @empty
                     <tr>
@@ -157,7 +160,7 @@
                         <td style="text-align: left;">{{ $val($leg->name) }}</td>
                         <td class="center">{{ $val($leg->relationship ?? ucfirst($leg->traveler_type)) }}</td>
                         <td class="center">{{ $date($leg->reschedule_date ?? $leg->travel_date) }}</td>
-                        <td class="center">{{ $val($leg->travel_from) }} -> {{ $val($leg->travel_to) }}</td>
+                        <td class="center">{{ $val($leg->travel_from) }} - {{ $val($leg->travel_to) }}</td>
                     </tr>
                 @empty
                     <tr>
@@ -206,13 +209,13 @@
 
                         $statusLabel = match ($step->status) {
                             'submitted' => 'Requested',
-                            'checked' => 'Checked',
+                            'checked' => 'Reviewed',
                             'approved' => 'Approved',
                             'revision' => 'Revision',
                             'finalized' => 'Finalized',
                             'rejected' => 'Rejected',
                             'pending' => match ($step->action_type) {
-                                'check' => 'Awaiting Check',
+                                'check' => 'Awaiting Review',
                                 'finalization' => 'Awaiting Finalization',
                                 default => 'Awaiting Approval',
                             },

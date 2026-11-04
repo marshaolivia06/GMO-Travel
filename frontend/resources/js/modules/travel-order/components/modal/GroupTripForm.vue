@@ -130,7 +130,7 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
       <VDivider />
       <VCardActions class="pa-4 justify-end">
         <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
-        <VBtn type="submit" :color="initialData ? 'success' : 'primary'" variant="flat" :loading="loading" :disabled="!canCreate">{{ initialData ? 'Save' : 'Create Group' }}</VBtn>
+        <VBtn type="submit" color="primary" variant="flat" :loading="loading" :disabled="!canCreate">{{ initialData ? 'Save' : 'Create Group' }}</VBtn>
       </VCardActions>
     </VForm>
   </VCard>

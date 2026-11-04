@@ -92,8 +92,8 @@ const onProcess = () => {
 </script>
 
 <template>
-  <VDialog :model-value="modelValue" max-width="1100" scrollable @update:model-value="emit('update:modelValue', $event)">
-    <VCard rounded="lg">
+  <VDialog :model-value="modelValue" max-width="1250" scrollable @update:model-value="emit('update:modelValue', $event)">
+    <VCard rounded="lg" style="height: min(90vh, 960px)">
       <VCardItem class="px-6 py-4">
         <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">{{ showFareReference ? 'Travel Legs & Fare Reference' : 'Travel Legs & Booking' }}</VCardTitle>
         <template #append><VBtn icon="ri-close-line" size="small" variant="text" @click="close" /></template>

@@ -2,8 +2,6 @@
   overflow: hidden;
 }
 
-/* Sticky footer: main content grows to fill the viewport so the footer
-   always sits at the bottom instead of right after short page content. */
 .layout-page-content {
   flex: 1 1 auto;
 }
@@ -22,7 +20,6 @@
   opacity: 1 !important;
 }
 
-/* Data table sort icon: stacked carets, active direction highlighted */
 .v-data-table .v-table__wrapper > table > thead > tr > th .v-data-table-header__sort-icon {
   opacity: 1 !important;
   margin-inline-start: 6px;
@@ -57,7 +54,6 @@
   color: rgb(var(--v-theme-primary));
 }
 
-/* Form dialogs (Laborix standard) */
 .v-dialog .v-field {
   border-radius: 8px;
 }

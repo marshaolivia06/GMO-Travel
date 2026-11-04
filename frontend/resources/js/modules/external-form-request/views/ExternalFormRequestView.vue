@@ -1,15 +1,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getExternalFormRequests, getExternalFormRequestHistory } from '../services/externalFormRequestService'
+import { getExternalFormRequests, getExternalFormRequestHistory, getExternalFormRequestPdf, approveExternalFormRequest, revisionExternalFormRequest, rejectExternalFormRequest } from '../services/externalFormRequestService'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
+import { useConfirm } from '../../../composables/useConfirm'
 import PickTypeModal from '../../travel-order/components/modal/PickTypeModal.vue'
+import PdfViewerModal from '../../travel-order/components/modal/PdfViewerModal.vue'
+import NoteModal from '../../travel-order/components/modal/NoteModal.vue'
 import AirplaneFerryFormModal from '../components/modal/AirplaneFerryFormModal.vue'
 import HotelReservationFormModal from '../components/modal/HotelReservationFormModal.vue'
 import HistoryLogModal from '../components/modal/HistoryLogModal.vue'
 
 const toast = useToastStore()
 const auth = useAuthStore()
+const { confirm } = useConfirm()
 const requests = ref([])
 const loading = ref(false)
 const search = ref('')
@@ -22,6 +26,18 @@ const editingItem = ref(null)
 const historyDialog = ref(false)
 const historyLoading = ref(false)
 const historyLogs = ref([])
+
+const historyChip = {
+  submit: { text: 'Requested', color: 'primary' },
+  draft: { text: 'Draft Saved', color: 'secondary' },
+  checked: { text: 'Reviewed', color: 'success' },
+  approved: { text: 'Approved', color: 'success' },
+  revision: { text: 'Revision Required', color: 'warning' },
+  rejected: { text: 'Rejected', color: 'error' },
+  processed: { text: 'Processed by GMO', color: 'success' },
+  booking_payment_updated: { text: 'Booking & Payment Updated', color: 'info' },
+  released: { text: 'Released', color: 'success' },
+}
 
 const formTypes = [
   {
@@ -90,6 +106,103 @@ async function openHistory(row) {
   }
 }
 
+const pdfDialog = ref(false)
+const pdfLoading = ref(false)
+const pdfUrl = ref(null)
+const pdfRow = ref(null)
+const pdfReviewMode = ref('view')
+const pdfCanDecide = computed(() => pdfReviewMode.value === 'decide')
+const deciding = ref(false)
+
+const noteDialog = ref(false)
+const noteAction = ref('revision')
+
+const noteMeta = computed(() => noteAction.value === 'reject'
+  ? { action: 'reject', title: 'Reject External Form Request', label: 'Remark', button: 'Rejected', color: 'error' }
+  : { action: 'revision', title: 'Return for Revision', label: 'Remark', button: 'Revision Required', color: 'warning' })
+
+function openNote(action) {
+  noteAction.value = action
+  noteDialog.value = true
+}
+
+async function handleDecision(action, remark = null) {
+  if (deciding.value || !pdfRow.value) return
+
+  deciding.value = true
+
+  try {
+    const api = action === 'revision' ? revisionExternalFormRequest : action === 'reject' ? rejectExternalFormRequest : approveExternalFormRequest
+
+    const response = await api(pdfRow.value.id, remark)
+
+    toast.success(response?.message || 'Decision recorded successfully.')
+    pdfDialog.value = false
+    noteDialog.value = false
+    await fetchRequests()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to record decision.')
+  } finally {
+    deciding.value = false
+  }
+}
+
+async function handleNoteSubmit({ text }) {
+  const isReject = noteAction.value === 'reject'
+
+  const ok = await confirm({
+    title: isReject ? 'Reject Request' : 'Return for Revision',
+    text: isReject
+      ? 'Are you sure you want to reject this external form request?'
+      : 'Are you sure you want to return this external form request for revision?',
+    confirmText: isReject ? 'Rejected' : 'Revision Required',
+    color: isReject ? 'error' : 'warning',
+  })
+
+  if (!ok) return
+
+  await handleDecision(noteAction.value, text || null)
+}
+
+async function handleApproveConfirm() {
+  const ok = await confirm({
+    title: 'Approve Request',
+    text: 'Are you sure you want to approve this external form request?',
+    confirmText: 'Approve',
+    color: 'primary',
+  })
+
+  if (!ok) return
+
+  await handleDecision('approve')
+}
+
+async function openPdf(row, mode = 'view') {
+  pdfRow.value = row
+  pdfDialog.value = true
+  pdfLoading.value = true
+  pdfUrl.value = null
+  pdfReviewMode.value = row.raw.can_approve ? 'decide' : mode
+
+  try {
+    const blob = await getExternalFormRequestPdf(row.id)
+
+    pdfUrl.value = URL.createObjectURL(blob)
+  } catch (err) {
+    pdfDialog.value = false
+
+    const data = err?.response?.data
+
+    const message = data instanceof Blob
+      ? await data.text().then(text => { try { return JSON.parse(text)?.message } catch { return null } }).catch(() => null)
+      : data?.message
+
+    toast.error(message || 'Failed to load the PDF document.')
+  } finally {
+    pdfLoading.value = false
+  }
+}
+
 const typeMeta = {
   Airplane: 'blue',
   Ferry: 'success-darken-1',
@@ -123,6 +236,25 @@ function buildTripLabel(item) {
 const formatDate = value => value
   ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value))
   : null
+
+function formatDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return isNaN(date.getTime()) ? '' : date.toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function buildHistoryRounds(logs) {
+  const groups = new Map()
+  for (const log of logs) {
+    const round = log.round ?? 1
+    if (!groups.has(round)) groups.set(round, { round, items: [] })
+    const meta = historyChip[log.event] || { text: log.description || log.event, color: 'grey' }
+    groups.get(round).items.push({ key: log.id, chipText: meta.text, chipColor: meta.color, time: formatDateTime(log.created_at), role: log.role || '-', name: log.causer || '', note: log.note || '', remark: log.remark || '', evidence: log.evidence || '', documents: Array.isArray(log.documents) ? log.documents : [] })
+  }
+  return [...groups.values()].sort((a, b) => a.round - b.round)
+}
+
+const historyRounds = computed(() => buildHistoryRounds(historyLogs.value))
 
 function buildTraveler(item) {
   const names = (item.travelers ?? []).map(traveler => traveler.name).filter(Boolean)
@@ -250,8 +382,9 @@ const filteredRows = computed(() => {
     <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No external form requests found.">
       <template #item.action="{ item }">
         <VBtnGroup density="compact" variant="tonal">
-          <VBtn v-if="item.raw.status === 'draft'" color="green-darken-1" @click="editDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit Draft</VTooltip></VBtn>
-          <VBtn v-else color="grey-darken-1" @click="() => {}"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+          <VBtn v-if="item.raw.status === 'draft' || item.raw.status === 'revision_required'" color="green-darken-1" @click="editDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
+          <VBtn v-else-if="item.raw.can_approve" color="grey-darken-1" @click="openPdf(item, 'decide')"><VIcon icon="ri-checkbox-circle-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+          <VBtn v-else color="grey-darken-1" @click="openPdf(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
           <VBtn color="blue-grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
         </VBtnGroup>
       </template>
@@ -284,5 +417,29 @@ const filteredRows = computed(() => {
 
   <HotelReservationFormModal v-model="showHotelReservationForm" :edit-item="editingItem" @submitted="fetchRequests" @back="backToPickType" />
 
-  <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :logs="historyLogs" />
+  <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
+
+  <PdfViewerModal
+    v-model="pdfDialog"
+    title="External Travel Purchase Request"
+    :pdf-url="pdfUrl"
+    :loading="pdfLoading"
+    :can-decide="pdfCanDecide"
+    :approving="deciding"
+    confirm-text="I confirm that I have reviewed the External Form Request document and agree to proceed with my decision."
+    @approve="handleDecision('approve')"
+    @reject="handleDecision('reject')"
+    @revision="handleDecision('revision')"
+  >
+    <template #decide="{ agreed }">
+      <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
+        <VBtn variant="flat" color="warning" @click="openNote('revision')">Revision Required</VBtn>
+        <VBtn variant="flat" color="error" @click="openNote('reject')">Rejected</VBtn>
+        <VBtn variant="flat" color="primary" :loading="deciding" @click="handleApproveConfirm">Approve</VBtn>
+      </VCardActions>
+    </template>
+  </PdfViewerModal>
+
+  <NoteModal v-model="noteDialog" :meta="noteMeta" @submit="handleNoteSubmit" />
+
 </template>

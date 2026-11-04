@@ -17,6 +17,12 @@ class ExternalFormRequest extends Model
 
     public const STATUS_AWAITING_DEPT_HEAD = 'awaiting_approval_dept_head';
 
+    public const STATUS_AWAITING_REVIEW_GMO = 'awaiting_review_gmo';
+
+    public const STATUS_AWAITING_DIV_HEAD = 'awaiting_approval_div_head';
+
+    public const STATUS_BOOKING_PAYMENT = 'booking_payment_in_progress';
+
     protected $fillable = [
         'employee_id',
         'type',
@@ -32,6 +38,8 @@ class ExternalFormRequest extends Model
         'return_date',
         'check_in_date',
         'check_out_date',
+        'hotel',
+        'room_type',
         'remark',
     ];
 
@@ -53,6 +61,11 @@ class ExternalFormRequest extends Model
     public function travelers(): HasMany
     {
         return $this->hasMany(ExternalFormTraveler::class);
+    }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(ExternalFormApproval::class)->orderBy('step');
     }
 
     // Format nomor dokumen: EF-<Ym>-<0001>, urut per bulan

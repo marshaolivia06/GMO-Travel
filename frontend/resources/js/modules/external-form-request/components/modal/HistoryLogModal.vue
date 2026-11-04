@@ -2,20 +2,16 @@
 defineProps({
   modelValue: Boolean,
   loading: Boolean,
-  logs: { type: Array, default: () => [] },
+  rounds: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue'])
 
-const eventMeta = {
-  submit: { text: 'Submitted', color: 'primary' },
-  draft: { text: 'Draft Saved', color: 'secondary' },
-}
-
-const formatTime = value => {
-  if (!value) return ''
-
-  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
+function openEvidence(path) {
+  if (!path) return
+  const baseUrl = import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '')
+  const filePath = String(path).replace(/^\/?storage\//, '').replace(/^\/+/, '')
+  window.open(`${baseUrl}/storage/${filePath}`, '_blank', 'noopener,noreferrer')
 }
 </script>
 
@@ -24,33 +20,32 @@ const formatTime = value => {
     <VCard rounded="lg">
       <VCardItem class="px-6 py-4">
         <VCardTitle class="text-h6 font-weight-bold">History Log</VCardTitle>
-        <template #append>
-          <VBtn icon="ri-close-line" variant="text" size="small" color="grey-darken-1" @click="emit('update:modelValue', false)" />
-        </template>
+        <template #append><VBtn icon="ri-close-line" variant="text" size="small" color="grey-darken-1" @click="emit('update:modelValue', false)" /></template>
       </VCardItem>
-
       <VDivider />
       <VProgressLinear v-if="loading" indeterminate color="grey" />
-
       <VCardText class="px-6 py-5">
-        <div v-if="!loading && !logs.length" class="text-body-2 text-medium-emphasis text-center py-6">
-          No history found.
+        <div v-if="!loading && !rounds.length" class="text-body-2 text-medium-emphasis text-center py-6">No history found.</div>
+        <div v-for="(group, index) in rounds" :key="group.round" :class="index ? 'mt-6' : ''">
+          <div class="d-flex align-center ga-2 mb-3"><span class="text-subtitle-2 font-weight-bold text-no-wrap">Round {{ group.round }}</span></div>
+          <VTimeline side="end" align="start" density="compact" :line-thickness="1" line-color="grey-lighten-2">
+            <VTimelineItem v-for="item in group.items" :key="item.key" dot-color="grey" size="x-small">
+              <div class="d-flex align-center ga-3"><span class="text-body-2 font-weight-bold">{{ item.chipText }}</span><span class="text-caption text-medium-emphasis text-no-wrap">{{ item.time }}</span></div>
+              <div class="text-caption text-medium-emphasis mt-1">{{ item.role }}<template v-if="item.name"> · {{ item.name }}</template></div>
+              <VCard v-if="item.note || item.remark || item.evidence || (item.documents && item.documents.length)" variant="flat" color="grey-lighten-4" rounded="md" class="mt-2">
+                <VCardText class="pa-2">
+                  <div v-if="item.note" class="text-body-2"><span class="font-weight-medium">Remark:</span> {{ item.note }}</div>
+                  <div v-if="item.remark" class="text-body-2"><span class="font-weight-medium">Remark:</span> {{ item.remark }}</div>
+                  <VBtn v-if="item.evidence" variant="text" color="primary" size="small" prepend-icon="ri-attachment-2" class="mt-1" @click="openEvidence(item.evidence)">View Evidence</VBtn>
+                  <template v-if="item.documents && item.documents.length">
+                    <div class="text-caption font-weight-medium mt-1 mb-1">Sent Documents:</div>
+                    <VBtn v-for="doc in item.documents" :key="doc.url" variant="text" color="primary" size="small" prepend-icon="ri-file-text-line" class="mr-1" :href="doc.url" target="_blank" rel="noopener">{{ doc.name }}</VBtn>
+                  </template>
+                </VCardText>
+              </VCard>
+            </VTimelineItem>
+          </VTimeline>
         </div>
-
-        <VTimeline v-else side="end" align="start" density="compact" :line-thickness="1" line-color="grey-lighten-2">
-          <VTimelineItem v-for="item in logs" :key="item.id" dot-color="grey" size="x-small">
-            <div class="d-flex align-center ga-3">
-              <VChip size="x-small" variant="tonal" :color="eventMeta[item.event]?.color || 'grey'" class="text-no-wrap">
-                {{ eventMeta[item.event]?.text || item.event }}
-              </VChip>
-              <span class="text-caption text-medium-emphasis text-no-wrap">{{ formatTime(item.created_at) }}</span>
-            </div>
-
-            <div class="text-caption text-medium-emphasis mt-1">{{ item.causer || '-' }}</div>
-
-            <div class="text-body-2 mt-1">{{ item.description }}</div>
-          </VTimelineItem>
-        </VTimeline>
       </VCardText>
     </VCard>
   </VDialog>

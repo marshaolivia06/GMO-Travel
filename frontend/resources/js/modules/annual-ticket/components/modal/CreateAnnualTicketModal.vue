@@ -126,14 +126,14 @@ watch(step, async () => { await nextTick(); const el = cardRef.value?.$el; if (!
 </script>
 
 <template>
-  <VDialog :model-value="true" max-width="1200" persistent scrollable>
-    <VCard ref="cardRef">
-      <VCardTitle class="d-flex align-center justify-space-between px-6 py-5">
+  <VDialog :model-value="true" max-width="1250" persistent scrollable>
+    <VCard ref="cardRef" style="height: min(92vh, 1000px)">
+      <VCardTitle class="d-flex align-center justify-space-between px-6 py-4">
         <div><div class="text-h6 font-weight-bold">{{ isResubmit ? 'Edit Annual Ticket' : 'Create Annual Ticket' }}</div><div class="text-body-2 text-medium-emphasis">{{ subtitles[step] }}</div></div>
         <DialogCloseBtn @click="emit('close')" />
       </VCardTitle>
       <VDivider />
-      <VCardText class="px-6 pt-6 pb-0 flex-grow-0 flex-shrink-0 position-relative" style="z-index: 1">
+      <VCardText class="px-6 pt-4 pb-0 flex-grow-0 flex-shrink-0 position-relative" style="z-index: 1">
         <VRow>
           <VCol v-for="item in steps" :key="item.value" cols="12" md="4">
             <VCard :variant="step === item.value ? 'tonal' : 'outlined'" :color="step === item.value ? 'primary' : undefined" class="px-4 py-3 d-flex align-center ga-3" :class="{ 'cursor-pointer': canOpen(item.value), 'opacity-50': !canOpen(item.value) }" @click="goTo(item.value)">
@@ -145,10 +145,10 @@ watch(step, async () => { await nextTick(); const el = cardRef.value?.$el; if (!
       </VCardText>
 
       <template v-if="step === 1">
-        <VCardText class="px-6 py-6">
-          <div class="d-flex align-center justify-space-between mb-4"><span class="text-h6 font-weight-bold">HR Dependent Master</span><span class="text-body-2 text-medium-emphasis">Employee must participate in at least one direction · Maximum {{ MAX_CHILDREN }} children</span></div>
-          <VAlert v-if="!employeeValid" type="error" variant="tonal" density="compact" class="mb-4">Employee must participate in at least one direction.</VAlert>
-          <VCard variant="tonal" color="primary" class="px-5 py-4 mb-4 d-flex align-center ga-4">
+        <VCardText class="px-6 py-4">
+          <div class="d-flex align-center justify-space-between mb-3"><span class="text-body-1 font-weight-bold">HR Dependent Master</span><span class="text-body-2 text-medium-emphasis">Employee must participate in at least one direction · Maximum {{ MAX_CHILDREN }} children</span></div>
+          <VAlert v-if="!employeeValid" type="error" variant="tonal" density="compact" class="mb-3">Employee must participate in at least one direction.</VAlert>
+          <VCard variant="tonal" color="primary" class="px-5 py-3 mb-3 d-flex align-center ga-4">
             <VCheckbox :model-value="true" disabled hide-details density="compact" class="flex-grow-0" />
             <div>
               <div class="text-subtitle-1 font-weight-bold">{{ props.travelers.employee.name }}</div>
@@ -157,7 +157,7 @@ watch(step, async () => { await nextTick(); const el = cardRef.value?.$el; if (!
             <VSpacer />
             <div class="d-flex align-center ga-6"><VCheckbox v-model="employee.departure" label="Departure" hide-details density="comfortable" /><VCheckbox v-model="employee.return" label="Return" hide-details density="comfortable" /></div>
           </VCard>
-          <VCard v-for="item in dependents" :key="item.id" :variant="item.selected ? 'tonal' : 'outlined'" :color="item.selected ? 'primary' : undefined" class="px-5 py-4 mb-4 d-flex align-center ga-4" :class="{ 'opacity-60': !item.eligible }">
+          <VCard v-for="item in dependents" :key="item.id" :variant="item.selected ? 'tonal' : 'outlined'" :color="item.selected ? 'primary' : undefined" class="px-5 py-3 mb-3 d-flex align-center ga-4" :class="{ 'opacity-60': !item.eligible }">
             <VCheckbox :model-value="item.selected" :disabled="!item.eligible || (!item.selected && !isSpouseDependent(item) && childrenLimitReached)" hide-details density="compact" class="flex-grow-0" @update:model-value="toggle(item, $event)" />
             <div>
               <div class="text-subtitle-1 font-weight-bold">{{ item.name }}</div>

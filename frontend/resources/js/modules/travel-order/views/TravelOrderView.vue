@@ -125,11 +125,10 @@ const gmoAwaitingStatuses = ['awaiting_gmo_processing', 'awaiting_gmo_booking_do
 const gmoHistoryStatuses = ['processed_by_gmo', 'cancelled']
 
 const groupStatusColor = { draft: 'success', open: 'warning', closed: 'error' }
-const statusLabel = { awaiting_approval: 'Awaiting Approval', awaiting_approval_gmo: 'Awaiting Approval GMO', revision_required: 'Revision Required', draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required', awaiting_gmo_processing: 'Awaiting GMO Processing', awaiting_gmo_booking_document_issuance: 'Awaiting GMO Booking & Document Issuance', processed_by_gmo: 'Processed by GMO' }
+const statusLabel = { awaiting_approval: 'Awaiting Approval', revision_required: 'Revision Required', draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required', awaiting_gmo_processing: 'Awaiting GMO Processing', awaiting_gmo_booking_document_issuance: 'Awaiting GMO Booking & Document Issuance', processed_by_gmo: 'Processed by GMO' }
 const statusMeta = {
   draft: { color: 'secondary', icon: 'ri-draft-line' },
   awaiting_approval: { color: 'warning', icon: 'ri-time-line' },
-  awaiting_approval_gmo: { color: 'warning', icon: 'ri-user-star-line' },
   revision_required: { color: 'info', icon: 'ri-edit-2-line' },
   awaiting_gmo_processing: { color: 'warning', icon: 'ri-loader-2-line' },
   awaiting_gmo_booking_document_issuance: { color: 'info', icon: 'ri-ticket-2-line' },
@@ -1037,7 +1036,7 @@ onMounted(() => {
       <VIcon icon="ri-edit-line" />
       <VTooltip activator="parent" location="top">Edit</VTooltip>
     </VBtn>
-    <VBtn color="error" :loading="deletingGroupId === item.id" @click="deleteGroupTrip(item)">
+    <VBtn color="grey-600" :loading="deletingGroupId === item.id" @click="deleteGroupTrip(item)">
       <VIcon icon="ri-delete-bin-line" />
       <VTooltip activator="parent" location="top">Delete</VTooltip>
     </VBtn>
@@ -1052,7 +1051,7 @@ onMounted(() => {
   <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ formatDate(item.departure_date) }} - {{ formatDate(item.return_date) }}</span></template>
   <template #item.departments="{ item }">
   <div class="d-flex flex-wrap ga-1">
-    <VChip v-for="name in groupDepartments(item)" :key="name" size="small" color="grey-lighten-3" variant="flat" class="text-no-wrap">{{ name }}</VChip>
+    <VChip v-for="name in groupDepartments(item)" :key="name" size="small" color="grey" variant="tonal" class="text-no-wrap">{{ name }}</VChip>
     <span v-if="!groupDepartments(item).length" class="text-body-2">-</span>
   </div>
 </template>

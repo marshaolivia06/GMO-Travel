@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { getMyDependents, getAnnualTickets, getAnnualTicketQuota, getAnnualTicketHistory, getAnnualTicketPdf, checkAnnualTicket, approveAnnualTicket, revisionAnnualTicket, processAnnualTicketByGmoWithFare, updateAnnualTicketSchedule, addAnnualTicketBookingDocuments, cancelAnnualTicketLeg, updateAnnualTicketLegRefund, resendAnnualTicketEmail, finalizeAnnualTicketCancellation, rejectAnnualTicketCancellation, requestAnnualTicketCancellation } from '../services/annualTicketService'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
@@ -40,7 +40,7 @@ function formatPeriod(rowLegs = []) {
 
 async function fetchRequests() {
   loading.value = true
-  try { const data = await getAnnualTickets(); const rows = Array.isArray(data) ? data : data?.data ?? []; requests.value = rows.map(item => ({ id: item.id, raw: item, status: item.status, travel_period: formatPeriod(item.legs ?? []), route_condition: item.route_condition, ticket_arrangement: item.ticket_arrangement, can_process: item.can_process === true, can_gmo_process: item.can_gmo_process === true, can_gmo_summary: item.can_gmo_summary === true, stage_action: item.stage_action, stage_role: item.stage_role })) } catch (err) { toast.error(err.response?.data?.message || 'Failed to load annual tickets.') } finally { loading.value = false }
+  try { const data = await getAnnualTickets(); const rows = Array.isArray(data) ? data : data?.data ?? []; requests.value = rows.map(item => ({ id: item.id, raw: item, status: item.status === 'awaiting_fare_reference_gmo' ? 'awaiting_ticket_processing' : item.status, travel_period: formatPeriod(item.legs ?? []), route_condition: item.route_condition, ticket_arrangement: item.ticket_arrangement, can_process: item.can_process === true, can_gmo_process: item.can_gmo_process === true, can_gmo_summary: item.can_gmo_summary === true, stage_action: item.stage_action, stage_role: item.stage_role })) } catch (err) { toast.error(err.response?.data?.message || 'Failed to load annual tickets.') } finally { loading.value = false }
 }
 
 async function fetchQuota() {
@@ -49,15 +49,21 @@ async function fetchQuota() {
 
 onMounted(() => { fetchRequests(); fetchQuota() })
 
+// Setelah create/resubmit sukses - reset filter tab supaya pengajuan baru langsung terlihat
+async function handleSubmitted() {
+  statusTab.value = 'all'
+  cancelSubTab.value = 'all'
+  await fetchRequests()
+}
+
 const statusMeta = {
   draft: { title: 'Draft', color: 'secondary', icon: 'ri-draft-line' },
-  awaiting_check_hr_admin: { title: 'Awaiting Check - HR Admin', color: 'warning', icon: 'ri-time-line' },
+  awaiting_check_hr_admin: { title: 'Awaiting Review - HR Admin', color: 'warning', icon: 'ri-time-line' },
   awaiting_approval_hr_supervisor: { title: 'Awaiting Approval - HR Supervisor', color: 'warning', icon: 'ri-user-star-line' },
-  awaiting_cancellation_check_hr_admin: { title: 'Awaiting Cancellation Check - HR Admin', color: 'warning', icon: 'ri-time-line' },
+  awaiting_cancellation_check_hr_admin: { title: 'Awaiting Cancellation Review - HR Admin', color: 'warning', icon: 'ri-time-line' },
   awaiting_cancellation_approval_hr_supervisor: { title: 'Awaiting Cancellation Approval - HR Supervisor', color: 'warning', icon: 'ri-user-star-line' },
-  awaiting_fare_reference_gmo: { title: 'Awaiting Fare Reference - GMO', color: 'info', icon: 'ri-money-dollar-circle-line' },
   awaiting_cancellation_finalization_gmo: { title: 'Awaiting Cancellation Finalization - GMO', color: 'info', icon: 'ri-close-circle-line' },
-  awaiting_ticket_processing: { title: 'Awaiting Ticket Processing', color: 'info', icon: 'ri-ticket-2-line' },
+  awaiting_ticket_processing: { title: 'Awaiting Processing - GMO', color: 'info', icon: 'ri-ticket-2-line' },
   revision_required: { title: 'Revision Required', color: 'info', icon: 'ri-edit-2-line' },
   partially_cancelled: { title: 'Partially Cancelled', color: 'warning', icon: 'ri-close-circle-line' },
   cancelled: { title: 'Cancelled', color: 'error', icon: 'ri-forbid-line' },
@@ -78,13 +84,56 @@ const headers = [
   col('TICKET ARRANGEMENT', 'ticket_arrangement', { align: 'center' }),
 ]
 
-const statusTabs = computed(() => { const countOf = status => requests.value.filter(row => row.status === status).length; return [{ value: 'all', title: 'Total', icon: 'ri-stack-line', color: 'primary', count: requests.value.length }, ...Object.entries(statusMeta).map(([value, meta]) => ({ value, ...meta, count: countOf(value) }))] })
+// Status alur cancellation digabung ke satu tab induk "Cancelled" (anakan masing-masing)
+const cancellationStatuses = [
+  'awaiting_cancellation_check_hr_admin',
+  'awaiting_cancellation_approval_hr_supervisor',
+  'awaiting_cancellation_finalization_gmo',
+  'partially_cancelled',
+  'cancelled',
+]
 
-const filteredRows = computed(() => { const query = search.value.trim().toLowerCase(); return requests.value.filter(row => (statusTab.value === 'all' || row.status === statusTab.value) && (!query || `${row.id} ${row.travel_period}`.toLowerCase().includes(query))) })
+const statusTabs = computed(() => {
+  const countOf = status => requests.value.filter(row => row.status === status).length
+  const tabs = [{ value: 'all', title: 'Total', icon: 'ri-stack-line', color: 'primary', count: requests.value.length }]
+
+  for (const [value, meta] of Object.entries(statusMeta)) {
+    if (cancellationStatuses.includes(value)) continue
+
+    if (value === 'processed_by_gmo') {
+      tabs.push({ value: 'cancelled-group', title: 'Cancelled', color: 'error', icon: 'ri-forbid-line', count: cancellationStatuses.reduce((sum, status) => sum + countOf(status), 0) })
+    }
+
+    tabs.push({ value, ...meta, count: countOf(value) })
+  }
+
+  return tabs
+})
+
+const cancelSubTab = ref('all')
+
+watch(statusTab, () => { cancelSubTab.value = 'all' })
+
+const cancelSubTabs = computed(() => [
+  { value: 'all', title: 'All Cancellations', count: requests.value.filter(row => cancellationStatuses.includes(row.status)).length },
+  ...cancellationStatuses.map(status => ({ value: status, title: statusMeta[status].title, count: requests.value.filter(row => row.status === status).length })),
+])
+
+const filteredRows = computed(() => {
+  const query = search.value.trim().toLowerCase()
+
+  return requests.value.filter(row => {
+    const matchesTab = statusTab.value === 'all'
+      || (statusTab.value === 'cancelled-group' && (cancelSubTab.value === 'all' ? cancellationStatuses.includes(row.status) : row.status === cancelSubTab.value))
+      || row.status === statusTab.value
+
+    return matchesTab && (!query || `${row.id} ${row.travel_period}`.toLowerCase().includes(query))
+  })
+})
 
 const historyChip = {
   submitted: { text: 'Requested', color: 'primary' },
-  checked: { text: 'Checked', color: 'success' },
+  checked: { text: 'Reviewed', color: 'success' },
   approved: { text: 'Approved', color: 'success' },
   revision: { text: 'Revision', color: 'warning' },
   processed: { text: 'Processed by GMO', color: 'success' },
@@ -105,7 +154,7 @@ const noteDialog = ref(false)
 const noteTarget = ref(null)
 const revisionMeta = { action: 'revision', title: 'Return for Revision', label: 'Remark', button: 'Revision', color: 'warning', requireEvidence: false }
 const cancellationMeta = { action: 'cancel-request', title: 'Cancellation Request', label: 'Remark', button: 'Submit', color: 'error', requireEvidence: false, info: 'This cancellation will be checked by HR Admin, approved by HR Supervisor, and noted by GMO before the request becomes Cancelled.' }
-const cancelRejectMeta = { action: 'cancel-reject', title: 'Reject Cancellation', label: 'Remark', button: 'Reject', color: 'error', requireEvidence: false, info: 'Rejecting this request will cancel the cancellation flow and restore the ticket to its previous status.' }
+const cancelRejectMeta = { action: 'cancel-reject', title: 'Reject Cancellation', label: 'Remark', button: 'Rejected', color: 'error', requireEvidence: false, info: 'Rejecting this request will cancel the cancellation flow and restore the ticket to its previous status.' }
 const noteMeta = ref(revisionMeta)
 
 const isCancellationReview = computed(() => String(reviewItem.value?.raw?.status || '').startsWith('awaiting_cancellation_'))
@@ -118,8 +167,8 @@ const reviewConfirmText = computed(() => {
 })
 
 const reviewActionLabel = computed(() => {
-  if (isCancellationReview.value) { if (reviewItem.value?.stage_action === 'check') return 'Checked Cancellation'; if (reviewItem.value?.stage_action === 'finalization') return 'Cancellation Noted'; return 'Approved Cancellation' }
-  return reviewItem.value?.stage_action === 'check' ? 'Checked' : 'Approved'
+  if (isCancellationReview.value) { if (reviewItem.value?.stage_action === 'check') return 'Reviewed Cancellation'; if (reviewItem.value?.stage_action === 'finalization') return 'Cancellation'; return 'Approved Cancellation' }
+  return reviewItem.value?.stage_action === 'check' ? 'Reviewed' : 'Approved'
 })
 
 function handleReviewRevision() { if (!reviewItem.value) return; noteTarget.value = reviewItem.value; noteMeta.value = revisionMeta; noteDialog.value = true }
@@ -132,18 +181,18 @@ async function handleNoteSubmit({ text }) {
   const action = noteMeta.value.action
   const isCancellationRequest = action === 'cancel-request'
   const isCancellationReject = action === 'cancel-reject'
-  const confirmed = await confirm(isCancellationRequest ? { title: 'Cancellation Request', text: 'Are you sure you want to request the cancellation of this Annual Ticket?', color: 'error' } : isCancellationReject ? { title: 'Reject Cancellation', text: 'Are you sure you want to reject this cancellation request? The ticket will be restored to its previous status.', color: 'error' } : { title: 'Return for Revision', text: 'Are you sure you want to return this Annual Ticket for revision?', color: 'warning' })
+  const confirmed = await confirm(isCancellationRequest ? { title: 'Cancellation Request', text: 'Are you sure you want to request the cancellation of this Annual Ticket?', color: 'error' } : isCancellationReject ? { title: 'Reject Cancellation', text: 'Are you sure you want to reject this cancellation request? The ticket will be restored to its previous status.', confirmText: 'Yes, Reject', color: 'error' } : { title: 'Return for Revision', text: 'Are you sure you want to return this Annual Ticket for revision?', color: 'warning' })
   if (!confirmed) return
   processing.value = true
   try {
     if (isCancellationRequest) { await requestAnnualTicketCancellation(target.id, text); toast.success('Cancellation request has been submitted successfully.'); noteDialog.value = false; summaryDialog.value = false; await fetchRequests() }
-    else if (isCancellationReject) { await rejectAnnualTicketCancellation(target.id, text); toast.success('Cancellation request has been rejected.'); noteDialog.value = false; pdfDialog.value = false; await fetchRequests() }
+    else if (isCancellationReject) { await rejectAnnualTicketCancellation(target.id, text); toast.success('Cancellation request has been rejected. The ticket has been restored.'); noteDialog.value = false; pdfDialog.value = false; await fetchRequests() }
     else { await revisionAnnualTicket(target.id, text); toast.success('Annual Ticket has been returned for revision.'); noteDialog.value = false; pdfDialog.value = false; await fetchRequests() }
   } catch (err) { toast.error(err.response?.data?.message || (isCancellationRequest ? 'Failed to submit the cancellation request.' : isCancellationReject ? 'Failed to reject the cancellation request.' : 'Failed to return the Annual Ticket for revision.')) } finally { processing.value = false }
 }
 
 async function handleCheck(item) {
-  const confirmed = await confirm({ title: 'Check Annual Ticket', text: `Are you sure you want to mark this Annual Ticket as checked?`, color: 'primary' })
+  const confirmed = await confirm({ title: 'Check Annual Ticket', text: `Are you sure you want to mark this Annual Ticket as reviewed?`, color: 'primary' })
   if (!confirmed || processing.value) return
   processing.value = true
   try { await checkAnnualTicket(item.id); toast.success('Annual Ticket has been checked successfully.'); pdfDialog.value = false; await fetchRequests() } catch (err) { toast.error(err.response?.data?.message || 'Failed to check the Annual Ticket.') } finally { processing.value = false }
@@ -154,6 +203,19 @@ async function handleApprove(item) {
   if (!confirmed || processing.value) return
   processing.value = true
   try { await approveAnnualTicket(item.id); toast.success('Annual Ticket has been approved successfully.'); pdfDialog.value = false; await fetchRequests() } catch (err) { toast.error(err.response?.data?.message || 'Failed to approve the Annual Ticket.') } finally { processing.value = false }
+}
+
+async function handleCancellationProceed(item) {
+  const isCheck = item.stage_action === 'check'
+  const confirmed = await confirm({ title: 'Proceed Cancellation', text: 'Are you sure you want to proceed with this cancellation request?', confirmText: 'Yes, Proceed', color: 'primary' })
+  if (!confirmed || processing.value) return
+  processing.value = true
+  try {
+    if (isCheck) { await checkAnnualTicket(item.id); toast.success('Cancellation request has been reviewed successfully.') }
+    else { await approveAnnualTicket(item.id); toast.success('Cancellation request has been approved successfully.') }
+    pdfDialog.value = false
+    await fetchRequests()
+  } catch (err) { toast.error(err.response?.data?.message || 'Failed to proceed the cancellation request.') } finally { processing.value = false }
 }
 
 const historyDialog = ref(false)
@@ -173,7 +235,7 @@ function buildHistoryRounds(logs) {
     if (!groups.has(round)) groups.set(round, { round, items: [] })
     const meta = historyChip[log.event] || { text: log.description || log.event, color: 'grey' }
     let chipText = meta.text
-    if (log.flow === 'cancellation') { if (log.event === 'checked') chipText = 'Checked Cancellation'; else if (log.event === 'approved') chipText = 'Approved Cancellation' }
+    if (log.flow === 'cancellation') { if (log.event === 'checked') chipText = 'Reviewed Cancellation'; else if (log.event === 'approved') chipText = 'Approved Cancellation' }
     groups.get(round).items.push({ key: log.id, chipText, chipColor: meta.color, time: formatDateTime(log.created_at), role: log.role || '-', name: log.causer || '', note: log.note || '', remark: log.remark || '', evidence: log.evidence || '', documents: Array.isArray(log.documents) ? log.documents : [] })
   }
   return [...groups.values()].sort((a, b) => a.round - b.round)
@@ -322,6 +384,10 @@ async function handleFareProcess(payload) {
             <VCard :variant="statusTab === tab.value ? 'tonal' : 'outlined'" :color="statusTab === tab.value ? tab.color : undefined" class="pa-3 d-flex align-center cursor-pointer stat-tile h-100" style="gap: 12px" @click="statusTab = tab.value"><VAvatar :color="tab.color" variant="tonal" rounded="lg" size="40"><VIcon :icon="tab.icon" size="20" /></VAvatar><div><div class="text-h6 font-weight-bold">{{ tab.count }}</div><div class="text-caption text-medium-emphasis">{{ tab.title }}</div></div></VCard>
           </VCol>
         </VRow>
+        <div v-if="statusTab === 'cancelled-group'" class="d-flex flex-wrap align-center ga-2 mt-3 px-4 py-3 rounded-lg bg-grey-lighten-4">
+          <span class="text-caption font-weight-bold text-medium-emphasis text-uppercase mr-2">Cancellation Detail</span>
+          <VBtn v-for="sub in cancelSubTabs" :key="sub.value" size="small" variant="tonal" :color="cancelSubTab === sub.value ? 'error' : 'grey'" rounded="pill" class="text-none font-weight-regular" @click="cancelSubTab = sub.value">{{ sub.title }} ({{ sub.count }})</VBtn>
+        </div>
       </template>
       <template #action>
         <VTooltip :disabled="quota?.has_quota" location="top">
@@ -339,7 +405,7 @@ async function handleFareProcess(payload) {
         <template #item.attachment="{ item }"><VBtn v-if="item.raw?.evidence_url" color="grey-darken-1" variant="tonal" @click="openAttachments(item)"><VIcon icon="ri-attachment-2" /><VTooltip activator="parent" location="top">View Attachments</VTooltip></VBtn><span v-else>-</span></template>
         <template #item.action="{ item }">
           <VBtnGroup density="compact" variant="tonal">
-            <template v-if="item.can_process"><VBtn color="grey-darken-1" :disabled="processing" @click="openReview(item)"><VIcon :icon="item.stage_action === 'check' ? 'ri-checkbox-multiple-line' : 'ri-check-line'" /><VTooltip activator="parent" location="top">{{ item.stage_action === 'check' ? 'Check' : 'Approval' }}</VTooltip></VBtn></template>
+            <template v-if="item.can_process"><VBtn color="grey-darken-1" :disabled="processing" @click="openReview(item)"><VIcon :icon="item.stage_action === 'check' ? 'ri-eye-line' : 'ri-check-line'" /><VTooltip activator="parent" location="top">{{ item.stage_action === 'check' ? 'Review' : 'Approval' }}</VTooltip></VBtn></template>
             <VBtn v-else-if="item.can_gmo_process" color="grey-darken-1" :disabled="processing" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
             <VBtn v-else-if="item.status === 'revision_required' && item.raw?.is_owner" color="grey-darken-1" @click="openResubmit(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
             <VBtn v-else-if="['processed_by_gmo', 'partially_cancelled'].includes(item.status) && (item.can_gmo_summary || item.raw?.is_owner)" color="grey-darken-1" :disabled="processing" @click="openSummary(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
@@ -352,7 +418,7 @@ async function handleFareProcess(payload) {
         <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="statusMeta[item.status]?.color || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start /> {{ statusMeta[item.status]?.title || item.status }}</VChip></template>
       </VDataTable>
     </BrandCard>
-    <CreateAnnualTicketModal v-if="showCreateModal" :travelers="travelers" :ticket="resubmitTicket" :quota-year="quota?.quota_year ?? new Date().getFullYear()" @close="showCreateModal = false" @submitted="fetchRequests" />
+    <CreateAnnualTicketModal v-if="showCreateModal" :travelers="travelers" :ticket="resubmitTicket" :quota-year="quota?.quota_year ?? new Date().getFullYear()" @close="showCreateModal = false" @submitted="handleSubmitted" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <AttachmentsModal v-model="attachmentsDialog" :ticket="attachmentsTicket" />
     <NoteModal v-model="noteDialog" :meta="noteMeta" @submit="handleNoteSubmit" />
@@ -361,9 +427,17 @@ async function handleFareProcess(payload) {
         <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
           <template v-if="reviewItem?.can_gmo_process"><VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">Continue</VBtn></template>
           <template v-else>
-            <template v-if="isCancellationReview"><VBtn v-if="['check', 'approve'].includes(reviewItem?.stage_action)" variant="flat" color="error" :disabled="processing" @click="handleCancelReject(reviewItem)">{{ reviewItem?.stage_action === 'approve' ? 'Reject Cancellation' : 'No Cancellation' }}</VBtn></template>
-            <VBtn v-else variant="flat" color="warning" :disabled="processing" @click="handleReviewRevision">Revision</VBtn>
-            <VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">{{ reviewActionLabel }}</VBtn>
+            <template v-if="isCancellationReview">
+              <template v-if="['check', 'approve'].includes(reviewItem?.stage_action)">
+                <VBtn variant="flat" color="primary" :disabled="processing" @click="handleCancellationProceed(reviewItem)">Cancellation</VBtn>
+                <VBtn variant="flat" color="error" :disabled="processing" @click="handleCancelReject(reviewItem)">Rejected</VBtn>
+              </template>
+              <VBtn v-else variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">{{ reviewActionLabel }}</VBtn>
+            </template>
+            <template v-else>
+              <VBtn variant="flat" color="warning" :disabled="processing" @click="handleReviewRevision">Revision</VBtn>
+              <VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">{{ reviewActionLabel }}</VBtn>
+            </template>
           </template>
         </VCardActions>
       </template>

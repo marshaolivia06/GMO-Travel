@@ -21,7 +21,7 @@ const loading = ref(false)
 
 const travelRegions = ['Domestic', 'Singapore', 'Overseas'] // BARU
 const actionTypes = [
-  { title: 'Check', value: 'check' },
+  { title: 'Review', value: 'check' },
   { title: 'Approval', value: 'approve' },
 ]
 

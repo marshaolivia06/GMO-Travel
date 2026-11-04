@@ -168,8 +168,9 @@ class AnnualTicketApprovalService
                 return;
             }
 
-            // Semua step matrix selesai -> lanjut ke GMO, status tergantung ticket_arrangement
-            $ticket->update(['status' => $ticket->ticket_arrangement === 'Booked by Company' ? 'awaiting_ticket_processing' : 'awaiting_fare_reference_gmo']);
+            // Semua step matrix selesai -> lanjut ke GMO dengan satu status; fare reference / e-ticket
+            // ditentukan sistem dari ticket_arrangement & route_condition saat diproses Admin-GMO
+            $ticket->update(['status' => 'awaiting_ticket_processing']);
         });
     }
 
@@ -259,7 +260,7 @@ class AnnualTicketApprovalService
     }
 
     // Tolak pengajuan pembatalan (tahap check oleh HR Admin / approve oleh HR Supervisor) -> tiket kembali ke status semula
-    public function rejectCancellation(AnnualTicket $ticket, User $user, string $remark): void
+    public function rejectCancellation(AnnualTicket $ticket, User $user, ?string $remark = null): void
     {
         $stage = $this->currentStage($ticket);
 
@@ -267,7 +268,6 @@ class AnnualTicketApprovalService
         abort_if(! in_array($stage->action_type, ['check', 'approve'], true), 422, 'Only the check or approval stage can reject the cancellation.');
         abort_unless(str_starts_with($ticket->status, 'awaiting_cancellation_'), 422, 'The Annual Ticket is not in the cancellation flow.');
         abort_unless($this->canProcess($ticket, $user), 403, 'You are not allowed to process this Annual Ticket.');
-        abort_if(trim($remark) === '', 422, 'Remark is required.');
 
         DB::transaction(function () use ($ticket, $user, $stage, $remark) {
             $stage->update(['status' => 'rejected', 'user_id' => $user->id, 'note' => $remark, 'acted_at' => now()]);
