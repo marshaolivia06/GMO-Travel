@@ -14,6 +14,7 @@ import { annualTicketRoutes } from '../../modules/annual-ticket/routes'
 import { externalFormRequestRoutes } from '../../modules/external-form-request/routes'
 import { masterDependentRoutes } from '../../modules/master-dependent/routes'
 import { masterDestinationRoutes } from '../../modules/master-destination/routes'
+import { masterEmployeeRoutes } from '../../modules/master-employee/routes'
 
 const routes = [
   // ─── Blank layout (login) ───────────────────────────────
@@ -41,6 +42,7 @@ const routes = [
       ...masterRateRoutes,
       ...masterDependentRoutes,
       ...masterDestinationRoutes,
+      ...masterEmployeeRoutes,
       ...authorityMatrixRoutes,
       ...annualTicketRoutes,
       ...externalFormRequestRoutes,

@@ -50,9 +50,12 @@ class ExternalFormRequestService
     {
         $form = $this->repository->findFor($user, $id);
 
-        $view = $form->type === ExternalFormRequest::TYPE_HOTEL_RESERVATION
-            ? 'externalformrequest::pdf.external_form_hotel'
-            : 'externalformrequest::pdf.external_form_ticket';
+        $view = match (true) {
+            $form->type === ExternalFormRequest::TYPE_HOTEL_RESERVATION => 'externalformrequest::pdf.external_form_hotel',
+            $form->transport_mode === 'Airplane' => 'externalformrequest::pdf.external_form_airplane',
+            $form->transport_mode === 'Ferry' => 'externalformrequest::pdf.external_form_ferry',
+            default => 'externalformrequest::pdf.external_form_ticket',
+        };
 
         // Nama approver hanya tampil setelah dia approve/review (baris pending tetap '-');
         // PDF menampilkan rantai approval round terakhir saja

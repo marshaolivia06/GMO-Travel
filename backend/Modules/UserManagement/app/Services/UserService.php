@@ -23,8 +23,6 @@ class UserService
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'grade' => $data['grade'] ?? null,
-            'eligible_destination_id' => $data['eligible_destination_id'] ?? null,
             'role' => $data['role'],
         ]);
 

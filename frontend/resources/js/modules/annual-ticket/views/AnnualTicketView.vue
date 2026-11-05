@@ -110,12 +110,11 @@ const statusTabs = computed(() => {
   return tabs
 })
 
-const cancelSubTab = ref('all')
+const cancelSubTab = ref('awaiting_cancellation_check_hr_admin')
 
-watch(statusTab, () => { cancelSubTab.value = 'all' })
+watch(statusTab, () => { cancelSubTab.value = 'awaiting_cancellation_check_hr_admin' })
 
 const cancelSubTabs = computed(() => [
-  { value: 'all', title: 'All Cancellations', count: requests.value.filter(row => cancellationStatuses.includes(row.status)).length },
   ...cancellationStatuses.map(status => ({ value: status, title: statusMeta[status].title, count: requests.value.filter(row => row.status === status).length })),
 ])
 
@@ -124,7 +123,7 @@ const filteredRows = computed(() => {
 
   return requests.value.filter(row => {
     const matchesTab = statusTab.value === 'all'
-      || (statusTab.value === 'cancelled-group' && (cancelSubTab.value === 'all' ? cancellationStatuses.includes(row.status) : row.status === cancelSubTab.value))
+      || (statusTab.value === 'cancelled-group' && row.status === cancelSubTab.value)
       || row.status === statusTab.value
 
     return matchesTab && (!query || `${row.id} ${row.travel_period}`.toLowerCase().includes(query))

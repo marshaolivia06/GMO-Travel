@@ -55,25 +55,6 @@ class UserController extends Controller
                 'string',
                 'exists:roles,name',
             ],
-            'grade' => [
-                'nullable',
-                'integer',
-            ],
-            'eligible_destination_id' => [
-                'nullable',
-                'integer',
-                'exists:master_destinations,id',
-            ],
-            'date_of_join' => [
-                'nullable',
-                'date',
-                'before_or_equal:today',
-            ],
-            'office_location' => [
-                'nullable',
-                'string',
-                'max:100',
-            ],
         ]);
 
         return response()->json([
@@ -113,37 +94,7 @@ class UserController extends Controller
                 'string',
                 'exists:roles,name',
             ],
-            'grade' => [
-                'sometimes',
-                'nullable',
-                'integer',
-            ],
-            'eligible_destination_id' => [
-                'sometimes',
-                'nullable',
-                'integer',
-                'exists:master_destinations,id',
-            ],
-            'date_of_join' => [
-                'sometimes',
-                'nullable',
-                'date',
-                'before_or_equal:today',
-            ],
-            'office_location' => [
-                'sometimes',
-                'nullable',
-                'string',
-                'max:100',
-            ],
         ]);
-
-        if (
-            isset($validated['role']) &&
-            str_starts_with(strtolower($validated['role']), 'admin')
-        ) {
-            $validated['grade'] = null;
-        }
 
         return response()->json(
             $this->userRepository->updateUser($id, $validated)

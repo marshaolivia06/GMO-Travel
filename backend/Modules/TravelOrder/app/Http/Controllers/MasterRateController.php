@@ -36,7 +36,7 @@ class MasterRateController extends Controller
 {
     $data = $request->validate(['region_id' => ['required', 'integer', 'exists:master_regions,id'], 'destination' => ['nullable', 'string', 'max:255'], 'departure_date' => ['required', 'date'], 'return_date' => ['required', 'date', 'after_or_equal:departure_date']]);
     $days = (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1;
-    $limits = $this->masterRateLimitService->getLimits((int) $data['region_id'], $data['destination'] ?? null, (int) $request->user()->grade, $days, $data['departure_date']);
+    $limits = $this->masterRateLimitService->getLimits((int) $data['region_id'], $data['destination'] ?? null, (int) ($request->user()->employee?->grade ?? 0), $days, $data['departure_date']);
 
     abort_if(! $limits, 404, 'Master Rate data not found.');
 

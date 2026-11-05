@@ -28,6 +28,20 @@ $matrix = AuthorityMatrix::with('steps.role')
     ->whereIn('requester_role_id', $submitter->roles->pluck('id'))
     ->first();
 
+// Fallback: role tanpa matrix khusus (mis. Admin-GMO) mengikuti flow Sect Head
+if (!$matrix) {
+    $sectHeadRole = \Spatie\Permission\Models\Role::where('name', 'Sect Head')->first();
+
+    if ($sectHeadRole) {
+        $matrix = AuthorityMatrix::with('steps.role')
+            ->where('document_type', 'Travel Order')
+            ->where('status', 1)
+            ->where('travel_region', $order->travel_region)
+            ->where('requester_role_id', $sectHeadRole->id)
+            ->first();
+    }
+}
+
 if (!$matrix || $matrix->steps->isEmpty()) {
     throw new \RuntimeException('The "Travel Order" authority matrix has not been created or does not yet have any steps defined.');
 }

@@ -21,6 +21,7 @@ const NAV_ITEMS = [
       nav('Master Rate', null, 'master-rate'),
       nav('Master Dependent', null, 'master-dependent'),
       nav('Master Destination', null, 'master-destination'),
+      nav('Master Employee', null, 'master-employee'),
     ],
   },
   nav('Authority Matrix', 'ri-git-branch-line', 'authority-matrix'),

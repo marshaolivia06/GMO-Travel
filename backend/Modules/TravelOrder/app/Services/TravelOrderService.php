@@ -268,13 +268,12 @@ public function create(array $data, User $user): TravelOrder
 
     $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHead ? null : ($data['department_id'] ?? null));
 
-    abort_if(!$departmentId && !$isDivHead, 422, 'Department is required.');
     $data = $this->applyRegion($data);
 
     if (($data['status'] ?? 'draft') === 'submitted') {
         $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
 
-        $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) $user->grade, $days, $data['departure_date']);
+        $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) ($user->employee?->grade ?? 0), $days, $data['departure_date']);
 
         abort_if(!$validation['valid'], 422, $validation['message']);
     }
@@ -324,13 +323,12 @@ $isDivHead = $user->getRoleNames()->contains('Div Head');
 
 $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHead ? null : ($data['department_id'] ?? $travelOrder->department_id ?? null));
 
-abort_if(!$departmentId && !$isDivHead, 422, 'Department is required.');
 $data = $this->applyRegion($data);
 
         if (($data['status'] ?? 'draft') === 'submitted') {
             $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
 
-            $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) $user->grade, $days, $data['departure_date']);
+            $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) ($user->employee?->grade ?? 0), $days, $data['departure_date']);
 
             abort_if(!$validation['valid'], 422, $validation['message']);
         }

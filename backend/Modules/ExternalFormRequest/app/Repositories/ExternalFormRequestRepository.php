@@ -59,10 +59,12 @@ class ExternalFormRequestRepository
 
     public function historyFor(ExternalFormRequest $request): array
     {
+        // Draft tidak masuk history - log dimulai dari submit (Requested)
         return Activity::with('causer')
             ->where('log_name', self::LOG_NAME)
             ->where('subject_type', $request->getMorphClass())
             ->where('subject_id', $request->id)
+            ->where('event', '!=', 'draft')
             ->orderBy('id')
             ->get()
             ->map(fn (Activity $log) => [

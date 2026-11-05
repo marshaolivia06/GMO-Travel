@@ -303,10 +303,7 @@ function validate(isSubmit = true) {
   let valid = true
   if (!isSubmit) return true
 
-  const isDivHead = authStore.user?.roles?.includes('Div Head')
   const required = ['employee', 'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate', 'returnTime', 'purpose', 'regionId', 'ferryTicketType', 'ferryArrangement', 'accommodationArrangement']
-
-  if (!isDivHead) required.push('department')
 
   required.forEach(key => {
     if (!String(form[key] ?? '').trim()) {
@@ -452,8 +449,8 @@ onMounted(() => {
               { l: 'Period', v: sourcePeriod, md: 4 },
               { l: 'Departments', v: sourceDepartments.join(', '), md: 12 },
             ]" :key="i.l" cols="12" sm="6" :md="i.md">
-             <VCard variant="flat" color="grey-lighten-4" rounded="lg" class="h-100">
-                <VCardText class="pa-3 text-high-emphasis">
+             <VCard variant="flat" color="grey-lighten-4" border rounded="lg" class="locked-look">
+                <VCardText class="pa-3">
                   <div class="text-caption text-medium-emphasis">{{ i.l }}</div>
                   <div class="text-body-2 font-weight-bold mt-1">{{ i.v || '-' }}</div>
                 </VCardText>
@@ -470,7 +467,7 @@ onMounted(() => {
         </VCardItem>
         <VDivider />
         <VCardText class="pa-4 d-flex flex-column ga-3">
-            <VCard v-for="entry in otherMembersByDepartment" :key="entry.department" variant="flat" color="grey-lighten-4" rounded="lg">
+            <VCard v-for="entry in otherMembersByDepartment" :key="entry.department" variant="flat" color="grey-lighten-4" border rounded="lg">
             <VCardText class="pa-4">
               <div class="d-flex align-center justify-space-between mb-3">
                 <div class="text-body-2 font-weight-bold text-primary">{{ entry.department }}</div>
@@ -478,7 +475,7 @@ onMounted(() => {
               </div>
               <VRow dense>
                 <VCol v-for="member in entry.members" :key="member.id" cols="12" sm="6" md="4">
-                    <VCard variant="flat" color="grey-lighten-3" rounded="lg" class="h-100">
+                    <VCard variant="flat" color="white" border rounded="lg" class="locked-look h-100">
                     <VCardText class="pa-3">
                       <div class="text-body-2 font-weight-bold">{{ member.name }}</div>
                       <div class="text-caption text-medium-emphasis">{{ entry.department }}</div>
@@ -705,4 +702,33 @@ onMounted(() => {
 
 <style scoped>
 .text-right-input :deep(input) { text-align: right; }
+.text-caption {
+  color: rgb(var(--v-theme-on-surface));
+}
+:deep(.v-field:not(.v-field--disabled)) {
+  background-color: rgb(var(--v-theme-surface));
+}
+:deep(.v-field:not(.v-field--disabled) .v-field__input),
+:deep(.v-field:not(.v-field--disabled) .v-label) {
+  color: rgb(var(--v-theme-on-surface));
+}
+:deep(.v-field--disabled) {
+  background-color: rgba(var(--v-theme-on-surface), 0.05);
+  opacity: 1;
+}
+:deep(.v-field--disabled .v-field__input),
+:deep(.v-field--disabled .v-field__append-inner) {
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+:deep(.v-field--disabled .v-field__outline) {
+  --v-field-border-opacity: 0.18;
+}
+.locked-look {
+  background-color: rgba(var(--v-theme-on-surface), 0.05) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.15) !important;
+}
+.locked-look .text-body-2,
+.locked-look .text-caption {
+  color: rgb(var(--v-theme-on-surface));
+}
 </style>

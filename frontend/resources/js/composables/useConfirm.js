@@ -12,9 +12,9 @@ const state = reactive({
 })
 
 export function useConfirm() {
-  function confirm({ title = 'Confirmation', text = '', confirmText = 'Confirm', cancelText = 'Cancel', color = 'primary' } = {}) {
+  function confirm({ title = 'Confirmation', text = '', message = '', confirmText = 'Confirm', cancelText = 'Cancel', color = 'primary' } = {}) {
     state.title = title
-    state.text = text
+    state.text = text || message
     state.confirmText = confirmText
     state.cancelText = cancelText
     state.color = color

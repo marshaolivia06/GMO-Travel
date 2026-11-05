@@ -155,10 +155,7 @@ async function submit() {
   <VDialog :model-value="modelValue" max-width="1000" scrollable @update:model-value="!$event && close()">
     <VCard rounded="lg">
       <VCardTitle class="d-flex align-center justify-space-between pa-5">
-        <div class="d-flex align-center ga-3">
-          <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" @click="emit('back')" />
-          <div class="text-h6 font-weight-bold">{{ isEdit ? 'Edit Hotel Reservation Request' : 'New Hotel Reservation Request' }}</div>
-        </div>
+        <div class="text-h6 font-weight-bold">{{ isEdit ? 'Edit Hotel Reservation Request' : 'New Hotel Reservation Request' }}</div>
         <VBtn icon="ri-close-line" variant="text" @click="close" />
       </VCardTitle>
       <VDivider />

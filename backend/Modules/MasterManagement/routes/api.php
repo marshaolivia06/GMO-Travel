@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 use Modules\MasterManagement\Http\Controllers\CategoryController;
 use Modules\MasterManagement\Http\Controllers\DepartmentController;
+use Modules\MasterManagement\Http\Controllers\MasterEmployeeController;
 use Modules\MasterManagement\Http\Controllers\SectionController;
 
 Route::middleware(['auth:sanctum'])
@@ -55,4 +56,11 @@ Route::middleware(['auth:sanctum'])
          ->middlewareFor('store', 'permission:master-management.create')
          ->middlewareFor('update', 'permission:master-management.update')
          ->middlewareFor('destroy', 'permission:master-management.delete');
+
+        // MASTER EMPLOYEE - dikelola Admin saja
+        Route::apiResource('master-employees', MasterEmployeeController::class)
+            ->middlewareFor(['index', 'show'], 'permission:master-employee.view')
+            ->middlewareFor('store', 'permission:master-employee.create')
+            ->middlewareFor('update', 'permission:master-employee.update')
+            ->middlewareFor('destroy', 'permission:master-employee.delete');
     });

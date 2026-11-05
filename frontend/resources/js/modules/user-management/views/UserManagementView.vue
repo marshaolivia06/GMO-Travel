@@ -14,7 +14,7 @@ import EditRole from '../components/modal/role/edit-role.vue'
 import AddPermission from '../components/modal/permission/add-permission.vue'
 import EditPermission from '../components/modal/permission/edit-permission.vue'
 
-import { deleteUser } from '../services/userService'
+import { deleteUser, getUser } from '../services/userService'
 import { getRoles, deleteRole } from '../services/roleService'
 import { getPermissions, deletePermission } from '../services/permissionService'
 
@@ -87,13 +87,11 @@ const filteredUsers = computed(() => {
     const roles = (user.roles || [])
       .map(role => role.name?.toLowerCase() || '')
       .join(' ')
-    const destination = user.eligible_destination?.city_name?.toLowerCase() || ''
 
     return (
       name.includes(keyword) ||
       email.includes(keyword) ||
-      roles.includes(keyword) ||
-      destination.includes(keyword)
+      roles.includes(keyword)
     )
   })
 })
@@ -223,8 +221,14 @@ const addUser = () => {
   showAddUser.value = true
 }
 
-const openEditUser = user => {
+const openEditUser = async user => {
   selectedUser.value = user
+  try {
+    selectedUser.value = await getUser(user.id)
+  } catch {
+    // tetap pakai data baris index kalau fetch gagal
+  }
+  showEditUser.value = true
   showEditUser.value = true
 }
 
@@ -414,22 +418,10 @@ onMounted(() => {
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Email', key: 'email' },
-  { title: 'Grade', key: 'grade', width: 100 },
-  { title: 'Eligible Destination', key: 'eligible_destination' },
-  { title: 'Date of Join', key: 'date_of_join' },
-  { title: 'Office Location', key: 'office_location' },
   { title: 'Role', key: 'role' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
 ]":items="filteredUsers" :loading="loading" item-value="id" density="default" hover>
-
-  <template #item.eligible_destination="{ item }">
-    <span v-if="item.eligible_destination">{{ item.eligible_destination.city_name }}</span>
-    <span v-else>-</span>
-  </template>
-
-  <template #item.date_of_join="{ item }">{{ formatDateDMY(item.date_of_join) }}</template>
-  <template #item.office_location="{ item }"><span v-if="item.office_location">{{ item.office_location }}</span><span v-else>-</span></template>
 
   <template #item.role="{ item }">
     <div class="d-flex flex-wrap ga-1">

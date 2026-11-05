@@ -10,6 +10,8 @@ use Modules\TravelOrder\Http\Requests\StoreTravelOrderGroupRequest;
 use Modules\TravelOrder\Http\Requests\UpdateTravelOrderGroupRequest;
 use Modules\TravelOrder\Services\TravelOrderGroupService;
 use Modules\UserManagement\Models\User;
+use Modules\MasterManagement\Models\Department;
+use Modules\MasterManagement\Models\Section;
 
 class TravelOrderGroupController extends Controller
 {
@@ -74,7 +76,54 @@ class TravelOrderGroupController extends Controller
 
     public function users(): JsonResponse
     {
-        $users = User::query()->with('department:id,name')->orderBy('name')->get(['id', 'name', 'department_id']);
-        return response()->json(['data' => $users]);
+        $users = User::query()
+            ->with('roles:id,name')
+            ->where('status', 1)
+            ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'Admin'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
+        $userIds = $users->pluck('id');
+
+        $sections = Section::query()
+            ->with('department:id,name')
+            ->where('status', 1)
+            ->whereIn('section_head_id', $userIds)
+            ->get()
+            ->keyBy('section_head_id');
+
+        $departments = Department::query()
+            ->where('status', 1)
+            ->whereIn('dept_head_id', $userIds)
+            ->get()
+            ->keyBy('dept_head_id');
+
+        $data = $users->map(function (User $user) use ($sections, $departments) {
+            $roleNames = $user->roles->pluck('name');
+            $section = $sections->get($user->id);
+            $department = $departments->get($user->id);
+
+            if ($roleNames->contains('Sect Head') && $section) {
+                $sectionName = $section->name;
+                $departmentName = $section->department?->name;
+                $departmentId = $section->department_id;
+            } else {
+                $sectionName = null;
+                $departmentName = $department?->name;
+                $departmentId = $department?->id;
+            }
+
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $roleNames,
+                'section_name' => $sectionName,
+                'department_id' => $departmentId,
+                'department_name' => $departmentName,
+            ];
+        });
+
+        return response()->json(['data' => $data]);
     }
 }

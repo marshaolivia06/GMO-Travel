@@ -42,6 +42,7 @@ class RolePermissionSeeder extends Seeder
             'authority-matrix',
             'master-dependent',
             'master-destination',
+            'master-employee',
             'master-region',
             'master-rate',
             'travel-expense-report',

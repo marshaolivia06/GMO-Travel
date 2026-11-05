@@ -2,11 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 
 const MAX_ELIGIBLE_AGE = 23
-
-const props = defineProps({
-  employee: { type: Object, required: true },
-})
-
+const props = defineProps({ employee: { type: Object, required: true } })
 const emit = defineEmits(['close', 'submit'])
 
 const formRef = ref(null)
@@ -23,14 +19,11 @@ const onlyOneSpouse = v => v !== 'Spouse' || spouseCount.value <= 1 || 'Only one
 
 function ageInfo(item) {
   if (!item.dob || !item.relationship) return null
-
   const birth = new Date(item.dob)
   const today = new Date()
   let age = today.getFullYear() - birth.getFullYear()
   const month = today.getMonth() - birth.getMonth()
-
   if (month < 0 || (month === 0 && today.getDate() < birth.getDate())) age--
-
   return { age, eligible: item.relationship === 'Spouse' || age < MAX_ELIGIBLE_AGE }
 }
 
@@ -39,69 +32,56 @@ const removeDependent = index => dependents.splice(index, 1)
 
 async function submit() {
   const { valid } = await formRef.value.validate()
-
   if (!valid) return
-
-  emit('submit', {
-    employee_id: props.employee.id,
-    dependents: dependents.map(({ id, name, relationship, dob }) => ({ id, name, relationship, dob })),
-  })
+  emit('submit', { employee_id: props.employee.id, dependents: dependents.map(({ id, name, relationship, dob }) => ({ id, name, relationship, dob })) })
 }
 </script>
 
 <template>
-  <VDialog :model-value="true" max-width="900" persistent scrollable>
-    <VCard>
-      <VCardTitle class="d-flex align-center justify-space-between pa-5">
-        <div>
-          <div class="text-h6">Edit Dependents</div>
-          <div class="text-body-2 text-medium-emphasis">{{ props.employee.name }}</div>
+  <VDialog :model-value="true" max-width="900" persistent>
+    <VCard rounded="lg" class="d-flex flex-column" style="max-height: 90vh">
+      <div class="d-flex align-center justify-space-between px-5 bg-primary rounded-t-lg flex-shrink-0" style="height: 60px">
+        <div class="d-flex flex-column">
+          <span class="text-title-large font-weight-bold text-white">Edit Dependents</span>
+          <span class="text-body-small text-white">{{ props.employee.name }}</span>
         </div>
-        <DialogCloseBtn @click="emit('close')" />
-      </VCardTitle>
+        <VBtn icon="ri-close-line" variant="text" color="white" density="comfortable" @click="emit('close')" />
+      </div>
 
-      <VDivider />
-
-      <VCardText class="pa-5">
-        <div class="d-flex justify-end mb-4">
-          <VBtn variant="tonal" color="primary" size="small" prepend-icon="ri-add-line" @click="addRow">
-            Add Family Member
-          </VBtn>
-        </div>
-
-        <VForm ref="formRef" @submit.prevent="submit">
-          <VRow v-for="(item, index) in dependents" :key="item.key" align="center">
+      <VForm ref="formRef" class="d-flex flex-column" style="min-height: 0; flex: 1 1 auto" @submit.prevent="submit">
+        <VCardText class="pa-5" style="overflow-y: auto; flex: 1 1 auto">
+          <div class="d-flex justify-end mb-4">
+            <VBtn variant="tonal" color="primary" size="small" prepend-icon="ri-add-line" @click="addRow">Add Family Member</VBtn>
+          </div>
+          <VRow v-for="(item, index) in dependents" :key="item.key" dense>
             <VCol cols="12" md="4">
-              <AppTextField v-model="item.name" label="Dependent Name" placeholder="Enter dependent name" :rules="[required]" />
+              <label class="text-body-medium font-weight-600 d-block mb-1">Dependent Name</label>
+              <VTextField v-model="item.name" :rules="[required]" placeholder="Enter dependent name" hide-details="auto"/>
             </VCol>
-
             <VCol cols="12" md="3">
-              <AppSelect v-model="item.relationship" :items="relationshipOptions" label="Relationship" placeholder="Select relationship" :rules="[required, onlyOneSpouse]" />
+              <label class="text-body-medium font-weight-600 d-block mb-1">Relationship</label>
+              <VAutocomplete v-model="item.relationship" :items="relationshipOptions" :rules="[required, onlyOneSpouse]" placeholder="Select relationship" hide-details="auto"/>
             </VCol>
-
             <VCol cols="12" md="3">
-              <AppTextField v-model="item.dob" type="date" label="Date of Birth" :rules="[required, beforeToday]" />
+              <label class="text-body-medium font-weight-600 d-block mb-1">Date of Birth</label>
+              <VTextField v-model="item.dob" type="date" :rules="[required, beforeToday]" hide-details="auto"/>
             </VCol>
-
-            <VCol cols="10" md="1" class="text-center">
-              <VChip v-if="ageInfo(item)" size="small" variant="tonal" :color="ageInfo(item).eligible ? 'success' : 'error'" class="text-no-wrap">
-                {{ ageInfo(item).age }} th
-              </VChip>
+            <VCol cols="10" md="1" class="d-flex align-end justify-center">
+              <VChip v-if="ageInfo(item)" size="small" variant="tonal" :color="ageInfo(item).eligible ? 'success' : 'error'" class="text-no-wrap mb-2">{{ ageInfo(item).age }} th</VChip>
             </VCol>
-
-            <VCol cols="2" md="1" class="text-center">
+            <VCol cols="2" md="1" class="d-flex align-end justify-center">
               <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="dependents.length === 1" @click="removeDependent(index)" />
             </VCol>
           </VRow>
-        </VForm>
-      </VCardText>
+        </VCardText>
 
-      <VDivider />
-
-      <VCardActions class="pa-5 justify-end ga-2">
-        <VBtn variant="outlined" color="secondary" @click="emit('close')">Cancel</VBtn>
-        <VBtn variant="flat" color="primary" @click="submit">Save</VBtn>
-      </VCardActions>
+        <VDivider class="flex-shrink-0" />
+        <VCardActions class="pa-5 flex-shrink-0">
+          <VSpacer />
+          <VBtn variant="tonal" @click="emit('close')">Close</VBtn>
+          <VBtn type="submit" color="primary" variant="flat">Save</VBtn>
+        </VCardActions>
+      </VForm>
     </VCard>
   </VDialog>
 </template>

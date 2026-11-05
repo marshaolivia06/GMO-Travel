@@ -521,4 +521,25 @@ onMounted(() => {
 
 <style scoped>
 .text-right-input :deep(input) { text-align: right; }
+.text-caption {
+  color: rgb(var(--v-theme-on-surface));
+}
+:deep(.v-field:not(.v-field--disabled)) {
+  background-color: rgb(var(--v-theme-surface));
+}
+:deep(.v-field:not(.v-field--disabled) .v-field__input),
+:deep(.v-field:not(.v-field--disabled) .v-label) {
+  color: rgb(var(--v-theme-on-surface));
+}
+:deep(.v-field--disabled) {
+  background-color: rgba(var(--v-theme-on-surface), 0.05);
+  opacity: 1;
+}
+:deep(.v-field--disabled .v-field__input),
+:deep(.v-field--disabled .v-field__append-inner) {
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+:deep(.v-field--disabled .v-field__outline) {
+  --v-field-border-opacity: 0.18;
+}
 </style>

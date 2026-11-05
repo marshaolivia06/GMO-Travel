@@ -33,6 +33,9 @@ const request = async (url, options = {}) => {
 export const getUsers = () => {
   return request('/users')
 }
+export const getUser = (id) => {
+  return request(`/users/${id}`)
+}
 
 export const createUser = (user) => {
   return request('/users', {
