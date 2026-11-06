@@ -16,6 +16,11 @@ class ExternalFormRequestService
         return $this->repository->allFor($user);
     }
 
+    public function divHeads()
+    {
+        return $this->repository->divHeads();
+    }
+
     public function create(User $user, array $data, array $travelers): ExternalFormRequest
     {
         return $this->repository->create($user, $data, $travelers);
@@ -26,9 +31,14 @@ class ExternalFormRequestService
         return $this->repository->update($user, $id, $data, $travelers);
     }
 
-    public function approve(User $user, int $id): ExternalFormRequest
+    public function approve(User $user, int $id, array $data = []): ExternalFormRequest
     {
-        return $this->repository->decide($user, $id, 'approve');
+        return $this->repository->approve($user, $id, $data);
+    }
+
+    public function release(User $user, int $id, array $data, ?string $attachmentPath = null, ?string $attachmentName = null): ExternalFormRequest
+    {
+        return $this->repository->release($user, $id, $data, $attachmentPath, $attachmentName);
     }
 
     public function revision(User $user, int $id, ?string $remark = null): ExternalFormRequest

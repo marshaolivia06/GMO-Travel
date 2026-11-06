@@ -22,6 +22,13 @@ class ExternalFormRequestController extends Controller
         );
     }
 
+    public function divHeads(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->service->divHeads()
+        );
+    }
+
     public function store(StoreExternalFormRequest $request): JsonResponse
     {
         $form = $this->service->create(
@@ -47,7 +54,57 @@ class ExternalFormRequestController extends Controller
 
     public function approve(Request $request, int $id): JsonResponse
     {
-        return $this->respondDecision($this->service->approve($request->user(), $id));
+        $data = $request->validate([
+            'div_head_id' => ['nullable', 'integer', 'exists:users,id'],
+            'operator' => ['nullable', 'string', 'max:255'],
+            'flight_vessel_no' => ['nullable', 'string', 'max:255'],
+            'departure_atd' => ['nullable', 'date'],
+            'departure_ata' => ['nullable', 'date'],
+            'return_operator' => ['nullable', 'string', 'max:255'],
+            'return_flight_vessel_no' => ['nullable', 'string', 'max:255'],
+            'return_atd' => ['nullable', 'date'],
+            'return_ata' => ['nullable', 'date'],
+            'hotel' => ['nullable', 'string', 'max:255'],
+            'room_type' => ['nullable', 'string', 'max:255'],
+            'remark' => ['nullable', 'string'],
+        ]);
+
+        return $this->respondDecision($this->service->approve($request->user(), $id, $data));
+    }
+
+    public function release(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'operator' => ['nullable', 'string', 'max:255'],
+            'flight_vessel_no' => ['nullable', 'string', 'max:255'],
+            'departure_atd' => ['nullable', 'date'],
+            'departure_ata' => ['nullable', 'date'],
+            'return_operator' => ['nullable', 'string', 'max:255'],
+            'return_flight_vessel_no' => ['nullable', 'string', 'max:255'],
+            'return_atd' => ['nullable', 'date'],
+            'return_ata' => ['nullable', 'date'],
+            'hotel' => ['nullable', 'string', 'max:255'],
+            'room_type' => ['nullable', 'string', 'max:255'],
+            'departure_booking_code' => ['nullable', 'string', 'max:255'],
+            'return_booking_code' => ['nullable', 'string', 'max:255'],
+            'reservation_confirmation_no' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'array'],
+            'email.to' => ['required', 'string'],
+            'email.cc' => ['nullable', 'string'],
+            'email.subject' => ['required', 'string', 'max:255'],
+            'email.message' => ['nullable', 'string'],
+            'attachment' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $path = $request->file('attachment')?->store('external-form-releases', 'public');
+        $originalName = $request->file('attachment')?->getClientOriginalName();
+
+        $form = $this->service->release($request->user(), $id, $data, $path, $originalName);
+
+        return response()->json([
+            'message' => 'External form request released successfully.',
+            'data' => $form->load('travelers', 'emails'),
+        ]);
     }
 
     public function revision(Request $request, int $id): JsonResponse

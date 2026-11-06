@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getExternalFormRequests, getExternalFormRequestHistory, getExternalFormRequestPdf, approveExternalFormRequest, revisionExternalFormRequest, rejectExternalFormRequest } from '../services/externalFormRequestService'
+import { getExternalFormRequests, getExternalFormRequestHistory, getExternalFormRequestPdf, getDivHeads, approveExternalFormRequest, releaseExternalFormRequest, revisionExternalFormRequest, rejectExternalFormRequest } from '../services/externalFormRequestService'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
 import { useConfirm } from '../../../composables/useConfirm'
@@ -10,6 +10,8 @@ import NoteModal from '../../travel-order/components/modal/NoteModal.vue'
 import AirplaneFerryFormModal from '../components/modal/AirplaneFerryFormModal.vue'
 import HotelReservationFormModal from '../components/modal/HotelReservationFormModal.vue'
 import HistoryLogModal from '../components/modal/HistoryLogModal.vue'
+import GmoReviewModal from '../components/modal/GmoReviewModal.vue'
+import AttachmentModal from '../components/modal/AttachmentModal.vue'
 
 const toast = useToastStore()
 const auth = useAuthStore()
@@ -27,6 +29,12 @@ const historyDialog = ref(false)
 const historyLoading = ref(false)
 const historyLogs = ref([])
 
+const showGmoReview = ref(false)
+const gmoSubmitting = ref(false)
+const pendingReviewPayload = ref(null)
+const divHeadItems = ref([])
+const divHeadsLoading = ref(false)
+
 const historyChip = {
   submit: { text: 'Requested', color: 'primary' },
   draft: { text: 'Draft Saved', color: 'secondary' },
@@ -36,6 +44,8 @@ const historyChip = {
   rejected: { text: 'Rejected', color: 'error' },
   processed: { text: 'Processed by GMO', color: 'success' },
   booking_payment_updated: { text: 'Booking & Payment Updated', color: 'info' },
+  email_sent: { text: 'Email Sent', color: 'primary' },
+  email_failed: { text: 'Email Failed', color: 'error' },
   released: { text: 'Released', color: 'success' },
 }
 
@@ -112,14 +122,48 @@ const pdfUrl = ref(null)
 const pdfRow = ref(null)
 const pdfReviewMode = ref('view')
 const pdfCanDecide = computed(() => pdfReviewMode.value === 'decide')
+const isReviewStep = computed(() => pdfRow.value?.raw?.pending_action === 'Review')
+const isContinueFlow = computed(() => isReviewStep.value && ['airplane_ferry', 'hotel_reservation'].includes(pdfRow.value?.raw?.type))
+const isReleaseFlow = computed(() => pdfRow.value?.raw?.can_process === true)
 const deciding = ref(false)
+
+const showGmoRelease = ref(false)
+const releasing = ref(false)
+const attachmentDialog = ref(false)
+const attachmentUrl = ref(null)
+
+function openAttachment(item) {
+  attachmentUrl.value = item.raw.attachment_url
+  attachmentDialog.value = true
+}
+
+const releasePrefill = computed(() => {
+  const raw = pdfRow.value?.raw
+  if (!raw) return {}
+
+  return {
+    departure: { operator: raw.operator ?? '', flight_vessel_no: raw.flight_vessel_no ?? '', atd: raw.departure_atd ?? '', ata: raw.departure_ata ?? '' },
+    return: { operator: raw.return_operator ?? '', flight_vessel_no: raw.return_flight_vessel_no ?? '', atd: raw.return_atd ?? '', ata: raw.return_ata ?? '' },
+    hotel: raw.hotel ?? '',
+    room_type: raw.room_type ?? '',
+  }
+})
 
 const noteDialog = ref(false)
 const noteAction = ref('revision')
 
-const noteMeta = computed(() => noteAction.value === 'reject'
-  ? { action: 'reject', title: 'Reject External Form Request', label: 'Remark', button: 'Rejected', color: 'error' }
-  : { action: 'revision', title: 'Return for Revision', label: 'Remark', button: 'Revision Required', color: 'warning' })
+const noteMeta = computed(() => {
+  if (noteAction.value === 'reject')
+    return { action: 'reject', title: 'Reject External Form Request', label: 'Remark', button: 'Rejected', color: 'error' }
+
+  if (noteAction.value === 'review')
+    return { action: 'approved', title: 'Review External Form Request', label: 'Remark (Optional)', button: 'Reviewed', color: 'primary', placeholder: 'Enter remark (optional)' }
+
+  if (noteAction.value === 'approve')
+    return { action: 'approved', title: 'Approve External Form Request', label: 'Remark (Optional)', button: 'Approve', color: 'primary', placeholder: 'Enter remark (optional)' }
+
+  return { action: 'revision', title: 'Return for Revision', label: 'Remark', button: 'Revision Required', color: 'warning' }
+})
 
 function openNote(action) {
   noteAction.value = action
@@ -132,9 +176,11 @@ async function handleDecision(action, remark = null) {
   deciding.value = true
 
   try {
-    const api = action === 'revision' ? revisionExternalFormRequest : action === 'reject' ? rejectExternalFormRequest : approveExternalFormRequest
+    const api = action === 'revision' ? revisionExternalFormRequest : rejectExternalFormRequest
 
-    const response = await api(pdfRow.value.id, remark)
+    const response = action === 'approve'
+      ? await approveExternalFormRequest(pdfRow.value.id, { remark })
+      : await api(pdfRow.value.id, remark)
 
     toast.success(response?.message || 'Decision recorded successfully.')
     pdfDialog.value = false
@@ -148,6 +194,36 @@ async function handleDecision(action, remark = null) {
 }
 
 async function handleNoteSubmit({ text }) {
+  if (noteAction.value === 'review') {
+    const ok = await confirm({
+      title: 'Review Request',
+      text: 'Are you sure you want to mark this external form request as reviewed?',
+      confirmText: 'Reviewed',
+      color: 'primary',
+    })
+
+    if (!ok) return
+
+    await submitReview(pendingReviewPayload.value, text || null)
+
+    return
+  }
+
+  if (noteAction.value === 'approve') {
+    const ok = await confirm({
+      title: 'Approve Request',
+      text: 'Are you sure you want to approve this external form request?',
+      confirmText: 'Approve',
+      color: 'primary',
+    })
+
+    if (!ok) return
+
+    await handleDecision('approve', text || null)
+
+    return
+  }
+
   const isReject = noteAction.value === 'reject'
 
   const ok = await confirm({
@@ -165,16 +241,106 @@ async function handleNoteSubmit({ text }) {
 }
 
 async function handleApproveConfirm() {
+  if (isReleaseFlow.value) {
+    pdfDialog.value = false
+    showGmoRelease.value = true
+
+    return
+  }
+
+  if (isContinueFlow.value) {
+    openGmoReview()
+
+    return
+  }
+
+  noteAction.value = 'approve'
+  noteDialog.value = true
+}
+
+async function loadDivHeads() {
+  if (divHeadItems.value.length) return
+
+  divHeadsLoading.value = true
+
+  try {
+    const rows = await getDivHeads()
+    const users = Array.isArray(rows) ? rows : rows?.data ?? []
+
+    divHeadItems.value = users.map(user => ({ name: user.name, id: user.id }))
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to load Div Head list.')
+  } finally {
+    divHeadsLoading.value = false
+  }
+}
+
+function openGmoReview() {
+  pdfDialog.value = false
+  loadDivHeads()
+  showGmoReview.value = true
+}
+
+function handleGmoBack() {
+  showGmoReview.value = false
+  pdfDialog.value = true
+}
+
+function handleGmoSubmit(payload) {
+  pendingReviewPayload.value = payload
+  noteAction.value = 'review'
+  noteDialog.value = true
+}
+
+async function submitReview(payload, remark) {
+  if (gmoSubmitting.value || !pdfRow.value || !payload) return
+
+  gmoSubmitting.value = true
+
+  try {
+    const response = await approveExternalFormRequest(pdfRow.value.id, { ...payload, remark })
+
+    toast.success(response?.message || 'External form request reviewed successfully.')
+    noteDialog.value = false
+    showGmoReview.value = false
+    await fetchRequests()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to record decision.')
+  } finally {
+    gmoSubmitting.value = false
+  }
+}
+
+function handleGmoReleaseBack() {
+  showGmoRelease.value = false
+  pdfDialog.value = true
+}
+
+async function handleGmoReleaseSubmit(payload) {
+  if (releasing.value || !pdfRow.value || !payload) return
+
   const ok = await confirm({
-    title: 'Approve Request',
-    text: 'Are you sure you want to approve this external form request?',
-    confirmText: 'Approve',
+    title: 'Release Request',
+    text: 'Are you sure you want to release this external form request to the requester?',
+    confirmText: 'Release',
     color: 'primary',
   })
 
   if (!ok) return
 
-  await handleDecision('approve')
+  releasing.value = true
+
+  try {
+    const response = await releaseExternalFormRequest(pdfRow.value.id, payload)
+
+    toast.success(response?.message || 'External form request released successfully.')
+    showGmoRelease.value = false
+    await fetchRequests()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to release the request.')
+  } finally {
+    releasing.value = false
+  }
 }
 
 async function openPdf(row, mode = 'view') {
@@ -182,7 +348,7 @@ async function openPdf(row, mode = 'view') {
   pdfDialog.value = true
   pdfLoading.value = true
   pdfUrl.value = null
-  pdfReviewMode.value = row.raw.can_approve ? 'decide' : mode
+  pdfReviewMode.value = (row.raw.can_approve || row.raw.can_process) ? 'decide' : mode
 
   try {
     const blob = await getExternalFormRequestPdf(row.id)
@@ -322,6 +488,7 @@ const cellClass = 'px-3 py-3'
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
 
 const headers = [
+  col('ATTACHMENT', 'attachment', { align: 'center', width: 130 }),
   col('ACTION', 'action', { align: 'center', width: 160 }),
   col('STATUS', 'status', { align: 'center' }),
   col('TYPE', 'type', { align: 'center' }),
@@ -380,10 +547,18 @@ const filteredRows = computed(() => {
     </template>
 
     <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No external form requests found.">
+      <template #item.attachment="{ item }">
+        <VBtn v-if="item.raw.attachment_url" color="grey-darken-1" variant="tonal" @click="openAttachment(item)">
+          <VIcon icon="ri-attachment-2" />
+          <VTooltip activator="parent" location="top">View Attachment</VTooltip>
+        </VBtn>
+        <span v-else>-</span>
+      </template>
       <template #item.action="{ item }">
         <VBtnGroup density="compact" variant="tonal">
           <VBtn v-if="item.raw.status === 'draft' || item.raw.status === 'revision_required'" color="green-darken-1" @click="editDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
-          <VBtn v-else-if="item.raw.can_approve" color="grey-darken-1" @click="openPdf(item, 'decide')"><VIcon icon="ri-checkbox-circle-line" /><VTooltip activator="parent" location="top">Approval</VTooltip></VBtn>
+          <VBtn v-else-if="item.raw.can_approve" color="grey-darken-1" @click="openPdf(item, 'decide')"><VIcon :icon="item.raw.pending_action === 'Review' ? 'ri-eye-line' : 'ri-checkbox-circle-line'" /><VTooltip activator="parent" location="top">{{ item.raw.pending_action === 'Review' ? 'Review' : 'Approval' }}</VTooltip></VBtn>
+          <VBtn v-else-if="item.raw.can_process" color="orange-darken-3" @click="openPdf(item, 'decide')"><VIcon icon="ri-wallet-3-line" /><VTooltip activator="parent" location="top">Booking & Payment</VTooltip></VBtn>
           <VBtn v-else color="grey-darken-1" @click="openPdf(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
           <VBtn color="blue-grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
         </VBtnGroup>
@@ -419,12 +594,43 @@ const filteredRows = computed(() => {
 
   <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
 
+  <GmoReviewModal
+    v-model="showGmoReview"
+    :submitting="gmoSubmitting"
+    :loading-div-heads="divHeadsLoading"
+    :div-head-items="divHeadItems"
+    :is-hotel="pdfRow?.raw?.type === 'hotel_reservation'"
+    :departure-date="formatDate(pdfRow?.raw?.departure_date)"
+    :return-date="formatDate(pdfRow?.raw?.return_date)"
+    :check-in-date="formatDate(pdfRow?.raw?.check_in_date)"
+    :check-out-date="formatDate(pdfRow?.raw?.check_out_date)"
+    @back="handleGmoBack"
+    @submit="handleGmoSubmit"
+  />
+
+  <GmoReviewModal
+    v-model="showGmoRelease"
+    mode="release"
+    :submitting="releasing"
+    :is-hotel="pdfRow?.raw?.type === 'hotel_reservation'"
+    :departure-date="formatDate(pdfRow?.raw?.departure_date)"
+    :return-date="formatDate(pdfRow?.raw?.return_date)"
+    :check-in-date="formatDate(pdfRow?.raw?.check_in_date)"
+    :check-out-date="formatDate(pdfRow?.raw?.check_out_date)"
+    :prefill="releasePrefill"
+    @back="handleGmoReleaseBack"
+    @submit="handleGmoReleaseSubmit"
+  />
+
+  <AttachmentModal v-model="attachmentDialog" :attachment-url="attachmentUrl" />
+
   <PdfViewerModal
     v-model="pdfDialog"
     title="External Travel Purchase Request"
     :pdf-url="pdfUrl"
     :loading="pdfLoading"
     :can-decide="pdfCanDecide"
+    :hide-back="true"
     :approving="deciding"
     confirm-text="I confirm that I have reviewed the External Form Request document and agree to proceed with my decision."
     @approve="handleDecision('approve')"
@@ -433,9 +639,9 @@ const filteredRows = computed(() => {
   >
     <template #decide="{ agreed }">
       <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
-        <VBtn variant="flat" color="warning" @click="openNote('revision')">Revision Required</VBtn>
-        <VBtn variant="flat" color="error" @click="openNote('reject')">Rejected</VBtn>
-        <VBtn variant="flat" color="primary" :loading="deciding" @click="handleApproveConfirm">Approve</VBtn>
+        <VBtn v-if="!isReleaseFlow" variant="flat" color="warning" @click="openNote('revision')">Revision Required</VBtn>
+        <VBtn v-if="!isReleaseFlow" variant="flat" color="error" @click="openNote('reject')">Rejected</VBtn>
+        <VBtn variant="flat" color="primary" :loading="deciding" @click="handleApproveConfirm">{{ isContinueFlow || isReleaseFlow ? 'Continue' : (isReviewStep ? 'Reviewed' : 'Approve') }}</VBtn>
       </VCardActions>
     </template>
   </PdfViewerModal>

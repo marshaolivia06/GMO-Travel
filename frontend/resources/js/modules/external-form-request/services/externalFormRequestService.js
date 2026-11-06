@@ -25,6 +25,8 @@ const toPayload = (type, form, action) => ({
 
 export const getExternalFormRequests = () => http.get(BASE).then(res => res.data)
 
+export const getDivHeads = () => http.get(`${BASE}/div-heads`).then(res => res.data)
+
 export const getExternalFormRequestHistory = id => http.get(`${BASE}/${id}/history`).then(res => res.data)
 
 export const getExternalFormRequestPdf = id => http.get(`${BASE}/${id}/pdf`, { responseType: 'blob' }).then(res => res.data)
@@ -33,7 +35,25 @@ export const createExternalFormRequest = (type, form, action = 'submit') => http
 
 export const updateExternalFormRequest = (id, type, form, action = 'submit') => http.put(`${BASE}/${id}`, toPayload(type, form, action)).then(res => res.data)
 
-export const approveExternalFormRequest = id => http.post(`${BASE}/${id}/approve`).then(res => res.data)
+export const approveExternalFormRequest = (id, payload = {}) => http.post(`${BASE}/${id}/approve`, payload).then(res => res.data)
+
+export const releaseExternalFormRequest = (id, payload) => {
+  const body = new FormData()
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === null || value === undefined) return
+
+    if (key === 'email' && typeof value === 'object') {
+      Object.entries(value).forEach(([subKey, subValue]) => body.append(`email[${subKey}]`, subValue))
+
+      return
+    }
+
+    body.append(key, value)
+  })
+
+  return http.post(`${BASE}/${id}/release`, body).then(res => res.data)
+}
 
 export const revisionExternalFormRequest = (id, remark) => http.post(`${BASE}/${id}/revision`, { remark }).then(res => res.data)
 

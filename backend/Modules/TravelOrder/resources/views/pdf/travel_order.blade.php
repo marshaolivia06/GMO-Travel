@@ -31,7 +31,7 @@
             ? 'Sect Head'
             : '-'));
 
-    $level = $val(User::where('id', $requesterId)->value('grade'));
+    $level = $val(\Modules\MasterManagement\Models\MasterEmployee::where('user_id', $requesterId)->value('grade'));
 
     $isGroup = $order->trip_type === 'group';
     $advance = $order->advance;

@@ -8,6 +8,17 @@
     $documentNo = $steps->isNotEmpty() && $steps->every(fn ($step) => in_array($step->status, ['approved', 'reviewed']))
         ? $form->document_number
         : null;
+    $guests = $form->travelers->pluck('name')->filter()->implode(', ');
+
+    // Hierarki organisasi requester untuk label Role di tabel approval (Sect/Dept/Div Head)
+    $section = \Modules\MasterManagement\Models\Section::with('department')->where('section_head_id', $form->employee_id)->first();
+    $department = $section?->department
+        ?? \Modules\MasterManagement\Models\Department::find($form->employee?->department_id)
+        ?? \Modules\MasterManagement\Models\Department::where('dept_head_id', $form->employee_id)->first()
+        ?? \Modules\MasterManagement\Models\Department::where('dept_admin_id', $form->employee_id)->first();
+    $division = $department?->divisionHead
+        ?? \Modules\MasterManagement\Models\MasterDivision::where('division_head_id', $form->employee_id)->first();
+    $divisionNameByUser = fn ($userId) => \Modules\MasterManagement\Models\MasterDivision::where('division_head_id', $userId)->first()?->division_name;
 @endphp
 
 <!DOCTYPE html>
@@ -21,92 +32,45 @@
         table { width: 100%; border-collapse: collapse; }
         .center { text-align: center; }
         .right { text-align: right; }
-        .doc-head { text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 22px; }
-        .doc-title { font-size: 15px; font-weight: bold; letter-spacing: 2px; }
         .section { margin-bottom: 22px; }
         .section-title { text-align: center; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
         .grid td, .grid th { border: 1px solid #000; padding: 7px 8px; vertical-align: top; }
         .grid th { text-align: center; font-size: 10px; background: #d9d9d9; }
-        .info-table td { padding: 4px 6px; vertical-align: top; font-size: 11px; }
-        .info-table td.lbl { width: 24%; white-space: nowrap; }
-        .info-table td.val { font-weight: bold; }
+        .detail td { padding: 12px 4px; vertical-align: top; font-size: 11px; }
+        .detail td.lbl { width: 20%; font-weight: bold; }
+        .detail td.sep { width: 3%; }
         .footer { position: fixed; bottom: -48px; left: 0; right: 0; border-top: 1px solid #000; padding-top: 5px; font-size: 9px; }
         .footer-note { text-align: center; font-size: 9px; font-style: italic; margin-bottom: 4px; }
     </style>
 </head>
 
 <body>
-    <div class="doc-head">
-        <div style="text-align: left; font-size: 11px; font-weight: bold; margin-bottom: 18px;">
-            {{ config('company.name') }}<br>
-            {{ config('company.plant') }}
-        </div>
-        <div class="doc-title">EXTERNAL TRAVEL PURCHASE REQUEST</div>
-    </div>
+    <table>
+        <tr>
+            <td style="text-align: left; font-size: 11px; font-weight: bold;">{{ config('company.name') }}<br>{{ config('company.plant') }}</td>
+            <td class="right" style="vertical-align: middle; width: 1%;"><img src="{{ public_path('img/logo-eco.png') }}" style="height: 80px;" alt="Logo"></td>
+        </tr>
+    </table>
+    <div class="center" style="font-size: 15px; font-weight: bold; text-decoration: underline; margin: 30px 0 26px;">EXTERNAL TRAVEL PURCHASE REQUEST</div>
 
-    <div class="section">
-        <table class="info-table">
-            <tr>
-                <td class="lbl">Document Number</td>
-                <td class="val">{{ $val($documentNo) }}</td>
-                <td class="lbl">Purpose</td>
-                <td class="val">{{ $val($form->purpose) }}</td>
-            </tr>
-            <tr>
-                <td class="lbl">Vendor / Customer</td>
-                <td class="val">{{ $val($form->vendor_customer) }}</td>
-                <td class="lbl">Check In Date</td>
-                <td class="val">{{ $date($form->check_in_date) }}</td>
-            </tr>
-            <tr>
-                <td class="lbl">Request Type</td>
-                <td class="val">{{ $val(ucwords(str_replace('_', ' ', $form->type))) }}</td>
-                <td class="lbl">Check Out Date</td>
-                <td class="val">{{ $date($form->check_out_date) }}</td>
-            </tr>
-        </table>
-    </div>
+    <table style="margin-bottom: 18px;">
+        <tr><td></td><td class="right">Date : &nbsp;<u>{{ $date($form->created_at) }}</u></td></tr>
+    </table>
 
-    <div class="section">
-        <div class="section-title">Traveller Information</div>
-        <table class="grid">
-            <thead>
-                <tr>
-                    <th style="width: 10%">No</th>
-                    <th style="width: 90%; text-align: left;">Name</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($form->travelers as $traveler)
-                    <tr>
-                        <td class="center">{{ $loop->iteration }}</td>
-                        <td style="text-align: left;">{{ $val($traveler->name) }}</td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="2" class="center">No traveller in this request.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+    <table class="detail">
+        <tr><td class="lbl">Request Type</td><td class="sep">:</td><td>{{ $val(ucwords(str_replace('_', ' ', $form->type))) }}</td></tr>
+        <tr><td class="lbl">Vendor / Customer</td><td class="sep">:</td><td>{{ $val($form->vendor_customer) }}</td></tr>
+        <tr><td class="lbl">Check In Date</td><td class="sep">:</td><td>{{ $date($form->check_in_date) }}</td></tr>
+        <tr><td class="lbl">Check Out Date</td><td class="sep">:</td><td>{{ $date($form->check_out_date) }}</td></tr>
+        @if ($form->hotel)<tr><td class="lbl">Hotel</td><td class="sep">:</td><td>{{ $form->hotel }}</td></tr>@endif
+        @if ($form->room_type)<tr><td class="lbl">Room Type</td><td class="sep">:</td><td>{{ $form->room_type }}</td></tr>@endif
+        <tr><td class="lbl">Booking Code</td><td class="sep">:</td><td>{{ $val($form->reservation_confirmation_no) }}</td></tr>
+        <tr><td class="lbl">Purpose</td><td class="sep">:</td><td>{{ $val($form->purpose) }}</td></tr>
+        <tr><td class="lbl">Name of Guest</td><td class="sep">:</td><td>{{ $val($guests) }}</td></tr>
+        <tr><td class="lbl">Remarks</td><td class="sep">:</td><td>{{ $val($form->remark) }}</td></tr>
+    </table>
 
-    <div class="section">
-        <table class="grid">
-            <thead>
-                <tr>
-                    <th style="width: 100%; text-align: left;">Remark</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td style="text-align: left;">{{ $val($form->remark) }}</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <div class="section">
+    <div class="section" style="margin-top: 30px;">
         <div class="section-title">Approval &amp; Processing</div>
         <table class="grid">
             <thead>
@@ -122,7 +86,16 @@
                 @forelse ($approvals as $step)
                     @php
                         $isPending = $step->status === 'pending';
-                        $roleLabel = $step->label ?: str_replace(' ', '.', $step->role?->name ?? '-');
+                        $role = $step->role?->name ?? '-';
+    $organization = match ($role) {
+        'Sect Head' => $section?->name,
+        'Dept Head' => $department?->name,
+        'Div Head' => $divisionNameByUser($step->user_id) ?? $division?->division_name,
+        default => null,
+    };
+    $roleLabel = $organization
+        ? "{$organization} (" . str_replace(' ', '.', $role) . ')'
+        : ($step->label ?: str_replace(' ', '.', $role));
                         $statusLabel = match ($step->status) {
                             'submitted' => 'Requested',
                             'approved' => 'Approved',

@@ -23,6 +23,8 @@ class ExternalFormRequest extends Model
 
     public const STATUS_BOOKING_PAYMENT = 'booking_payment_in_progress';
 
+    public const STATUS_RELEASED = 'released';
+
     protected $fillable = [
         'employee_id',
         'type',
@@ -41,6 +43,20 @@ class ExternalFormRequest extends Model
         'hotel',
         'room_type',
         'remark',
+        'operator',
+        'flight_vessel_no',
+        'departure_atd',
+        'departure_ata',
+        'return_operator',
+        'return_flight_vessel_no',
+        'return_atd',
+        'return_ata',
+        'hotel',
+        'room_type',
+        'remark',
+        'departure_booking_code',
+        'return_booking_code',
+        'reservation_confirmation_no',
     ];
 
     protected function casts(): array
@@ -50,7 +66,21 @@ class ExternalFormRequest extends Model
             'return_date' => 'date:Y-m-d',
             'check_in_date' => 'date:Y-m-d',
             'check_out_date' => 'date:Y-m-d',
+            'departure_atd' => 'datetime',
+            'departure_ata' => 'datetime',
+            'return_atd' => 'datetime',
+            'return_ata' => 'datetime',
         ];
+    }
+
+    // Supaya frontend langsung dapat URL lampiran hasil release di JSON (kolom Attachment)
+    protected $appends = ['attachment_url'];
+
+    public function getAttachmentUrlAttribute(): ?string
+    {
+        $path = $this->emails->firstWhere('attachment_path')?->attachment_path;
+
+        return $path ? \Illuminate\Support\Facades\Storage::disk('public')->url($path) : null;
     }
 
     public function employee(): BelongsTo
@@ -66,6 +96,11 @@ class ExternalFormRequest extends Model
     public function approvals(): HasMany
     {
         return $this->hasMany(ExternalFormApproval::class)->orderBy('step');
+    }
+
+    public function emails(): HasMany
+    {
+        return $this->hasMany(ExternalFormEmail::class)->latest();
     }
 
     // Format nomor dokumen: EF-<Ym>-<0001>, urut per bulan

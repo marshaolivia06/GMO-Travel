@@ -4,22 +4,36 @@ namespace Modules\ExternalFormRequest\Repositories;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Modules\AuthorityMatrix\Models\AuthorityMatrix;
+use Modules\ExternalFormRequest\Emails\ExternalFormReleasedMail;
 use Modules\ExternalFormRequest\Models\ExternalFormApproval;
+use Modules\ExternalFormRequest\Models\ExternalFormEmail;
 use Modules\ExternalFormRequest\Models\ExternalFormRequest;
 use Modules\MasterManagement\Models\Department;
 use Modules\MasterManagement\Models\Section;
 use Modules\UserManagement\Models\User;
 use Spatie\Activitylog\Models\Activity;
+use Throwable;
 
 class ExternalFormRequestRepository
 {
     private const LOG_NAME = 'external-form-request';
 
+    // Daftar user ber-role Div Head untuk dropdown review Admin-GMO
+    public function divHeads(): Collection
+    {
+        return User::query()
+            ->where('status', 1)
+            ->whereHas('roles', fn ($query) => $query->where('name', 'Div Head'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
     public function allFor(User $user): Collection
     {
         return ExternalFormRequest::query()
-            ->with(['employee.eligibleDestination', 'travelers', 'approvals'])
+            ->with(['employee.eligibleDestination', 'travelers', 'approvals', 'emails'])
             ->when(! $user->hasRole('Admin'), fn ($query) => $query->where(function ($query) use ($user) {
                 $query->where('employee_id', $user->id)
                     ->orWhereHas('approvals', fn ($approvals) => $approvals
@@ -32,7 +46,13 @@ class ExternalFormRequestRepository
                                 ->whereColumn('prev.external_form_request_id', 'external_form_approvals.external_form_request_id')
                                 ->where('prev.status', 'pending')
                                 ->whereColumn('prev.step', '<', 'external_form_approvals.step');
-                        }));
+                        }))
+                    // Admin-GMO melihat semua pengajuan yang sudah melewati/mencapai tahapnya:
+                    // awaiting review, menunggu div head, booking & payment, released, rejected, revision
+                    ->when($user->hasRole('Admin-GMO'), fn ($q) => $q->orWhereNotIn('status', [
+                        ExternalFormRequest::STATUS_DRAFT,
+                        ExternalFormRequest::STATUS_AWAITING_DEPT_HEAD,
+                    ]));
             }))
             ->latest()
             ->get()
@@ -43,6 +63,8 @@ class ExternalFormRequestRepository
 
                 $form->setAttribute('can_approve', (bool) $pending);
                 $form->setAttribute('pending_action', $pending?->action_type === 'check' ? 'Review' : 'Approve');
+                // Tahap booking & payment: muncul lagi ke Admin-GMO untuk di-release
+                $form->setAttribute('can_process', $user->hasRole('Admin-GMO') && $form->status === ExternalFormRequest::STATUS_BOOKING_PAYMENT);
             });
     }
 
@@ -75,6 +97,8 @@ class ExternalFormRequestRepository
                 'role' => $log->properties->get('role') ?? '-',
                 'round' => $log->properties->get('round', 1),
                 'note' => $log->properties->get('note'),
+                'remark' => $log->properties->get('remark'),
+                'documents' => $log->properties->get('documents', []),
                 'causer' => $log->causer?->name,
                 'created_at' => $log->created_at,
             ])
@@ -82,9 +106,9 @@ class ExternalFormRequestRepository
             ->all();
     }
 
-    public function approve(User $user, int $id): ExternalFormRequest
+    public function approve(User $user, int $id, array $data = []): ExternalFormRequest
     {
-        return $this->decide($user, $id, 'approve');
+        return $this->decide($user, $id, 'approve', null, $data);
     }
 
     public function revision(User $user, int $id, ?string $remark = null): ExternalFormRequest
@@ -97,9 +121,9 @@ class ExternalFormRequestRepository
         return $this->decide($user, $id, 'reject', $remark);
     }
 
-    public function decide(User $user, int $id, string $action, ?string $remark = null): ExternalFormRequest
+    public function decide(User $user, int $id, string $action, ?string $remark = null, array $extra = []): ExternalFormRequest
     {
-        return DB::transaction(function () use ($user, $id, $action, $remark) {
+        return DB::transaction(function () use ($user, $id, $action, $remark, $extra) {
             $form = ExternalFormRequest::query()
                 ->with('approvals')
                 ->whereHas('approvals', fn ($approvals) => $approvals
@@ -151,16 +175,33 @@ class ExternalFormRequestRepository
 
             $isReview = $approval->action_type === 'check';
 
+            // Step berjalan ditandai dulu sebelum refresh, supaya perhitungan step berikutnya tidak membaca status lama
             $approval->update([
                 'status' => $isReview ? 'reviewed' : 'approved',
                 'acted_at' => now(),
             ]);
+
+            // Data GMO Travel Detail (khusus review Admin-GMO) + reassign approver Div Head pilihan
+            if ($isReview && $extra !== []) {
+                $form->update(collect($extra)->only([
+                    'operator', 'flight_vessel_no', 'departure_atd', 'departure_ata',
+                    'return_operator', 'return_flight_vessel_no', 'return_atd', 'return_ata',
+                    'hotel', 'room_type',
+                ])->filter()->all());
+                $form->refresh();
+            }
 
             $next = $form->approvals->sortBy('step')->first(
                 fn (ExternalFormApproval $row) => $row->status === 'pending',
             );
 
             $normalize = fn (string $value) => strtolower(preg_replace('/[^a-z0-9]+/i', '', $value));
+
+            // Div Head yang dipilih Admin-GMO menjadi approver berikutnya
+            if ($isReview && ! empty($extra['div_head_id']) && $next
+                && $normalize($next->role?->name ?? $next->label ?? '') === 'divhead') {
+                $next->update(['user_id' => $extra['div_head_id']]);
+            }
 
             $statusByRole = [
                 'depthead' => ExternalFormRequest::STATUS_AWAITING_DEPT_HEAD,
@@ -177,10 +218,103 @@ class ExternalFormRequestRepository
             $this->logActivity($user, $form->refresh(), $isReview ? 'checked' : 'approved',
                 $isReview
                     ? 'External form request reviewed by Admin-GMO.'
-                    : 'External form request approved by ' . str_replace(' ', '.', (string) $role) . '.');
+                    : 'External form request approved by ' . str_replace(' ', '.', (string) $role) . '.',
+                ! empty($extra['remark']) ? ['note' => $extra['remark']] : []);
 
             return $form->refresh()->load(['travelers', 'approvals']);
         });
+    }
+
+    // Release = tahap terakhir: Admin-GMO memproses booking & payment, kirim email ke requester, status released
+    public function release(User $user, int $id, array $data, ?string $attachmentPath = null, ?string $attachmentName = null): ExternalFormRequest
+    {
+        return DB::transaction(function () use ($user, $id, $data, $attachmentPath, $attachmentName) {
+            $form = ExternalFormRequest::query()->findOrFail($id);
+
+            abort_if($form->status !== ExternalFormRequest::STATUS_BOOKING_PAYMENT,
+                422, 'This request is not in booking & payment stage.');
+
+            $form->update(collect($data)->only([
+                'operator', 'flight_vessel_no', 'departure_atd', 'departure_ata',
+                'return_operator', 'return_flight_vessel_no', 'return_atd', 'return_ata',
+                'hotel', 'room_type',
+                'departure_booking_code', 'return_booking_code',
+                'reservation_confirmation_no',
+            ])->filter()->all());
+
+            // Validasi nomor sesuai tipe pengajuan
+            if ($form->type === ExternalFormRequest::TYPE_HOTEL_RESERVATION) {
+                abort_if(empty($form->reservation_confirmation_no), 422, 'Reservation / confirmation number is required.');
+            } else {
+                abort_if(empty($form->departure_booking_code), 422, 'Departure booking code is required.');
+                if ($form->trip_type === 'round_trip') {
+                    abort_if(empty($form->return_booking_code), 422, 'Return booking code is required.');
+                }
+            }
+
+            // Kirim email ke requester (log dicatat walau pengiriman gagal)
+            $to = $this->normalizeEmails($data['email']['to'] ?? '');
+            $cc = $this->normalizeEmails($data['email']['cc'] ?? '');
+
+            abort_if($to->isEmpty(), 422, 'Email recipient is required.');
+
+            $emailLog = ExternalFormEmail::create([
+                'external_form_request_id' => $form->id,
+                'sent_by' => $user->id,
+                'to' => json_encode($to->values()->all()),
+                'cc' => $cc->isNotEmpty() ? json_encode($cc->values()->all()) : null,
+                'subject' => $data['email']['subject'],
+                'message' => $data['email']['message'] ?? '',
+                'attachment_path' => $attachmentPath,
+                'status' => 'pending',
+            ]);
+
+            $emailStatus = 'failed';
+
+            try {
+                $mail = new ExternalFormReleasedMail($form->refresh(), $attachmentPath);
+                $mail->subject($data['email']['subject']);
+                $mail->with(['emailMessage' => $data['email']['message']]);
+
+                $mailer = Mail::to($to->all());
+                if ($cc->isNotEmpty()) {
+                    $mailer->cc($cc->all());
+                }
+                $mailer->send($mail);
+
+                $emailLog->update(['status' => 'sent', 'sent_at' => now()]);
+                $emailStatus = 'sent';
+            } catch (Throwable $e) {
+                $emailLog->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            }
+
+            $form->update(['status' => ExternalFormRequest::STATUS_RELEASED]);
+
+            // Lampiran release dicatat di history log sebagai dokumen (nama + URL) seperti annual ticket
+            $documents = $attachmentPath
+                ? [['name' => $attachmentName ?: basename($attachmentPath), 'url' => Storage::disk('public')->url($attachmentPath)]]
+                : [];
+
+            $this->logActivity($user, $form->refresh(), $emailStatus === 'sent' ? 'email_sent' : 'email_failed',
+                $emailStatus === 'sent'
+                    ? 'Release email sent to requester.'
+                    : 'Release email failed to send.',
+                $documents ? ['documents' => $documents] : []);
+
+            $this->logActivity($user, $form->refresh(), 'released',
+                'External form request released by Admin-GMO.');
+
+            return $form->refresh()->load(['travelers', 'approvals', 'emails']);
+        });
+    }
+
+    // "a@x.com, b@y.com" -> Collection alamat email yang valid
+    private function normalizeEmails(?string $raw): \Illuminate\Support\Collection
+    {
+        return collect(explode(',', (string) $raw))
+            ->map(fn ($email) => trim($email))
+            ->filter(fn ($email) => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->unique();
     }
 
     // Round = jumlah kali submit; event submit membuka round baru
@@ -273,6 +407,17 @@ class ExternalFormRequestRepository
                 'check_in_date' => $data['check_in_date'] ?? null,
                 'check_out_date' => $data['check_out_date'] ?? null,
                 'remark' => $data['remark'] ?? null,
+                // Detail GMO milik round sebelumnya dibersihkan saat revisi - diisi ulang saat review GMO berikutnya
+                'operator' => null,
+                'flight_vessel_no' => null,
+                'departure_atd' => null,
+                'departure_ata' => null,
+                'return_operator' => null,
+                'return_flight_vessel_no' => null,
+                'return_atd' => null,
+                'return_ata' => null,
+                'hotel' => null,
+                'room_type' => null,
             ]);
 
             $request->travelers()->delete();

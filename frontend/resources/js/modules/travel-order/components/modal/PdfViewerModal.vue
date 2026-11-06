@@ -9,6 +9,7 @@ const props = defineProps({
   canDecide: Boolean,
   approving: Boolean,
   showBack: Boolean,
+  hideBack: Boolean,
   confirmText: { type: String, default: 'I confirm that I have reviewed the Travel Order document and agree that it is ready for approval.' },
 })
 
@@ -27,7 +28,7 @@ watch(() => [props.modelValue, props.pdfUrl], () => {
     <VCard rounded="lg">
       <VCardItem class="px-4 py-2">
         <div class="d-flex align-center ga-1">
-          <VBtn v-if="canDecide || showBack" icon="ri-arrow-left-line" size="small" variant="text" @click="emit('back')" />
+          <VBtn v-if="(canDecide || showBack) && !hideBack" icon="ri-arrow-left-line" size="small" variant="text" @click="emit('back')" />
           <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">{{ title }}</VCardTitle>
         </div>
         <template #append>

@@ -8,7 +8,16 @@
     $ticketCount = $form->travelers->count();
     $ticketType = $form->trip_type === 'one_way' ? 'One Way Ticket' : 'Two Way Open Ticket PP';
     $ticketRoute = $form->travel_from . '-' . $form->travel_to;
-    $bookingCodes = collect([$form->departure_booking_code ?? null, $form->return_booking_code ?? null])->filter();
+
+    // Hierarki organisasi requester untuk label Role di tabel approval (Sect/Dept/Div Head)
+    $section = \Modules\MasterManagement\Models\Section::with('department')->where('section_head_id', $form->employee_id)->first();
+    $department = $section?->department
+        ?? \Modules\MasterManagement\Models\Department::find($form->employee?->department_id)
+        ?? \Modules\MasterManagement\Models\Department::where('dept_head_id', $form->employee_id)->first()
+        ?? \Modules\MasterManagement\Models\Department::where('dept_admin_id', $form->employee_id)->first();
+    $division = $department?->divisionHead
+        ?? \Modules\MasterManagement\Models\MasterDivision::where('division_head_id', $form->employee_id)->first();
+    $divisionNameByUser = fn ($userId) => \Modules\MasterManagement\Models\MasterDivision::where('division_head_id', $userId)->first()?->division_name;
 @endphp
 
 <!DOCTYPE html>
@@ -27,14 +36,19 @@
         .grid td, .grid th { border: 1px solid #000; padding: 7px 8px; vertical-align: top; }
         .grid th { text-align: center; font-size: 10px; background: #d9d9d9; }
         .detail td { padding: 12px 4px; vertical-align: top; font-size: 11px; }
-        .detail td.lbl { width: 20%; font-weight: bold; }
+        .detail td.lbl { width: 30%; font-weight: bold; }
         .detail td.sep { width: 3%; }
         .footer { position: fixed; bottom: -48px; left: 0; right: 0; border-top: 1px solid #000; padding-top: 5px; font-size: 9px; }
     </style>
 </head>
 
 <body>
-    <div style="font-size: 14px; font-weight: bold;">{{ config('company.name') }}<br><span style="font-size: 12px;">{{ config('company.plant') }}</span></div>
+    <table>
+        <tr>
+            <td style="font-size: 14px; font-weight: bold;">{{ config('company.name') }}<br><span style="font-size: 12px;">{{ config('company.plant') }}</span></td>
+            <td class="right" style="vertical-align: middle; width: 1%;"><img src="{{ public_path('img/logo-eco.png') }}" style="height: 80px;" alt="Logo"></td>
+        </tr>
+    </table>
     <div class="center" style="font-size: 15px; font-weight: bold; text-decoration: underline; margin: 30px 0 26px;">FERRY TICKET PURCHASE REQUEST</div>
 
     <table style="margin-bottom: 18px;">
@@ -45,14 +59,23 @@
         <tr><td class="lbl">Name of Guest</td><td class="sep">:</td><td>{{ $val($guests) }}</td></tr>
         <tr><td class="lbl">Purpose</td><td class="sep">:</td><td>{{ $val($form->purpose) }}</td></tr>
         <tr><td class="lbl">No of Ticket</td><td class="sep">:</td><td>{{ $ticketCount }} pc {{ $ticketType }} {{ $ticketRoute }}</td></tr>
-        <tr>
-            <td class="lbl">Booking Code</td><td class="sep">:</td>
-            <td>@forelse ($bookingCodes as $code){{ $code }}<br>@empty - @endforelse</td>
-        </tr>
         <tr><td class="lbl">Remarks</td><td class="sep">:</td><td>{{ $val($form->remark) }}</td></tr>
     </table>
 
-    <div class="section">
+    <table class="detail" style="margin-bottom: 6px;">
+        @if ($form->operator)<tr><td class="lbl">Operator</td><td class="sep">:</td><td>{{ $form->operator }}</td></tr>@endif
+        @if ($form->flight_vessel_no)<tr><td class="lbl">Flight / Vessel No</td><td class="sep">:</td><td>{{ $form->flight_vessel_no }}</td></tr>@endif
+        <tr><td class="lbl">Booking Code</td><td class="sep">:</td><td>{{ $val($form->departure_booking_code) }}</td></tr>
+        @if ($form->departure_atd)<tr><td class="lbl">Departure Time (ATD)</td><td class="sep">:</td><td>{{ $dateTime($form->departure_atd) }}</td></tr>@endif
+        @if ($form->departure_ata)<tr><td class="lbl">Arrival Time (ATA)</td><td class="sep">:</td><td>{{ $dateTime($form->departure_ata) }}</td></tr>@endif
+        @if ($form->return_operator)<tr><td class="lbl">Return Operator</td><td class="sep">:</td><td>{{ $form->return_operator }}</td></tr>@endif
+        @if ($form->return_flight_vessel_no)<tr><td class="lbl">Return Flight / Vessel No</td><td class="sep">:</td><td>{{ $form->return_flight_vessel_no }}</td></tr>@endif
+        @if ($form->trip_type === 'round_trip')<tr><td class="lbl">Return Booking Code</td><td class="sep">:</td><td>{{ $val($form->return_booking_code) }}</td></tr>@endif
+        @if ($form->return_atd)<tr><td class="lbl">Return Departure (ATD)</td><td class="sep">:</td><td>{{ $dateTime($form->return_atd) }}</td></tr>@endif
+        @if ($form->return_ata)<tr><td class="lbl">Return Arrival (ATA)</td><td class="sep">:</td><td>{{ $dateTime($form->return_ata) }}</td></tr>@endif
+    </table>
+
+    <div class="section" style="margin-top: 30px;">
         <div class="section-title">Approval &amp; Processing</div>
         <table class="grid">
             <thead>
@@ -62,7 +85,16 @@
                 @forelse ($approvals as $step)
                     @php
                         $isPending = $step->status === 'pending';
-                        $roleLabel = $step->label ?: str_replace(' ', '.', $step->role?->name ?? '-');
+                        $role = $step->role?->name ?? '-';
+    $organization = match ($role) {
+        'Sect Head' => $section?->name,
+        'Dept Head' => $department?->name,
+        'Div Head' => $divisionNameByUser($step->user_id) ?? $division?->division_name,
+        default => null,
+    };
+    $roleLabel = $organization
+        ? "{$organization} (" . str_replace(' ', '.', $role) . ')'
+        : ($step->label ?: str_replace(' ', '.', $role));
                         $statusLabel = match ($step->status) { 'submitted' => 'Requested', 'approved' => 'Approved', 'reviewed' => 'Reviewed', default => $step->action_type === 'check' ? 'Awaiting Review' : 'Awaiting Approval' };
                         $statusStyle = match ($step->status) { 'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;', 'approved', 'reviewed' => 'background-color: #DCFCE7; color: #15803D;', default => 'background-color: #FEF3C7; color: #92400E;' };
                     @endphp
