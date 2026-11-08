@@ -1,8 +1,12 @@
 import { computed } from 'vue'
-
-// action/subject match the CASL default-allow rule ({ action: 'manage', subject: 'all' })
-// registered in plugins/casl/index.js — real authorization is enforced by the router & backend.
-const nav = (title, icon, to) => ({ title, ...(icon && { icon: { icon } }), to, action: 'manage', subject: 'all' })
+const nav = (title, icon, to, permission) => ({
+  title,
+  ...(icon && { icon: { icon } }),
+  to,
+  action: 'manage',
+  subject: 'all',
+  ...(permission && { permission }),
+})
 
 const NAV_ITEMS = [
   nav('User Management', 'ri-team-line', 'user-management'),
@@ -13,15 +17,18 @@ const NAV_ITEMS = [
     subject: 'all',
     children: [
       nav('Master Management', null, 'master-management'),
-      nav('Master Advance', null, 'master-advance'),
       nav('Master Region', null, 'master-region'),
       nav('Master Rate', null, 'master-rate'),
+      nav('Master Dependent', null, 'master-dependent'),
+      nav('Master Destination', null, 'master-destination'),
+      nav('Master Employee', null, 'master-employee'),
     ],
   },
   nav('Authority Matrix', 'ri-git-branch-line', 'authority-matrix'),
+  nav('Annual Ticket', 'ri-ticket-2-line', 'annual-ticket', 'annual-ticket.view'),
   nav('Travel Order', 'ri-flight-takeoff-line', 'travel-order'),
   nav('Travel Expense Report', 'ri-receipt-line', 'travel-expense-report'),
-  nav('Annual Leave', 'ri-calendar-check-line', 'annual-leave'),
+  nav('External Form Request', 'ri-file-chart-line', 'external-form-request', 'external-form-request.view'),
 ]
 
 export function useNavItems() {

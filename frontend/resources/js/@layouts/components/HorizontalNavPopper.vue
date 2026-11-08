@@ -38,20 +38,6 @@ const popperContentStyles = ref({
   left: '0px',
   top: '0px',
 
-  /*ℹ️ Why we are not using fixed positioning?
-
-`position: fixed` doesn't work as expected when some CSS properties like `transform` is applied on its parent element.
-Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/position#values <= See `fixed` value description
-
-Hence, when we use transitions where transition apply `transform` on its parent element, fixed positioning will not work.
-(Popper content moves away from the element when parent element transition)
-
-To avoid this, we use `position: absolute` instead of `position: fixed`.
-
-NOTE: This issue starts from third level children (Top Level > Sub item > Sub item).
-*/
-
-// strategy: 'fixed',
 })
 
 const updatePopper = async () => {
@@ -70,20 +56,6 @@ const updatePopper = async () => {
         }),
       ],
 
-      /*ℹ️ Why we are not using fixed positioning?
-
-`position: fixed` doesn't work as expected when some CSS properties like `transform` is applied on its parent element.
-Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/position#values <= See `fixed` value description
-
-Hence, when we use transitions where transition apply `transform` on its parent element, fixed positioning will not work.
-(Popper content moves away from the element when parent element transition)
-
-To avoid this, we use `position: absolute` instead of `position: fixed`.
-
-NOTE: This issue starts from third level children (Top Level > Sub item > Sub item).
-*/
-
-      // strategy: 'fixed',
     })
 
     popperContentStyles.value.left = `${ x }px`
@@ -94,20 +66,6 @@ NOTE: This issue starts from third level children (Top Level > Sub item > Sub it
 until(() => configStore.horizontalNavType).toMatch(type => type === 'static').then(() => {
   useEventListener('scroll', updatePopper)
 
-  /*ℹ️ Why we are not using fixed positioning?
-
-`position: fixed` doesn't work as expected when some CSS properties like `transform` is applied on its parent element.
-Docs: https://developer.mozilla.org/en-US/docs/Web/CSS/position#values <= See `fixed` value description
-
-Hence, when we use transitions where transition apply `transform` on its parent element, fixed positioning will not work.
-(Popper content moves away from the element when parent element transition)
-
-To avoid this, we use `position: absolute` instead of `position: fixed`.
-
-NOTE: This issue starts from third level children (Top Level > Sub item > Sub item).
-*/
-
-// strategy: 'fixed',
 })
 
 const isContentShown = ref(false)
@@ -123,13 +81,11 @@ const hideContent = () => {
 
 onMounted(updatePopper)
 
-// ℹ️ Recalculate popper position when it's triggerer changes its position
 watch([
   () => configStore.isAppRTL,
   () => configStore.appContentWidth,
 ], updatePopper)
 
-// Watch for route changes and close popper content if route is changed
 const route = useRoute()
 
 watch(() => route.fullPath, hideContent)
@@ -152,8 +108,6 @@ watch(() => route.fullPath, hideContent)
       <slot />
     </div>
 
-    <!-- SECTION Popper Content -->
-    <!-- 👉 Without transition -->
     <template v-if="!themeConfig.horizontalNav.transition">
       <div
         ref="refPopper"
@@ -168,7 +122,6 @@ watch(() => route.fullPath, hideContent)
       </div>
     </template>
 
-    <!-- 👉 CSS Transition -->
     <template v-else-if="typeof themeConfig.horizontalNav.transition === 'string'">
       <Transition :name="themeConfig.horizontalNav.transition">
         <div
@@ -186,7 +139,6 @@ watch(() => route.fullPath, hideContent)
       </Transition>
     </template>
 
-    <!-- 👉 Transition Component -->
     <template v-else>
       <Component :is="themeConfig.horizontalNav.transition">
         <div
@@ -203,7 +155,7 @@ watch(() => route.fullPath, hideContent)
         </div>
       </Component>
     </template>
-    <!-- !SECTION -->
+
   </div>
 </template>
 

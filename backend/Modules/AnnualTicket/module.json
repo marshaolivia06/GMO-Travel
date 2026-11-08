@@ -1,0 +1,11 @@
+{
+    "name": "AnnualTicket",
+    "alias": "annualticket",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\AnnualTicket\\Providers\\AnnualTicketServiceProvider"
+    ],
+    "files": []
+}

@@ -1,5 +1,3 @@
-// Laborix vendor portal — teal/navy brand, intentionally different from the
-// internal (green) AnD portal. Token shape follows the AnDWiki Materio UI standard.
 export const staticPrimaryColor = '#0f9488'
 export const staticPrimaryDarkenColor = '#0c7a70'
 export const themes = {
@@ -34,6 +32,10 @@ export const themes = {
       'on-background': '#0b2340',
       'surface': '#fff',
       'on-surface': '#0b2340',
+      'blue': '#2563eb',
+      'on-blue': '#fff',
+      'purple': '#7c3aed',
+      'on-purple': '#fff',
       'grey-50': '#FAFAFA',
       'grey-100': '#F5F5F5',
       'grey-200': '#EEEEEE',
@@ -112,6 +114,10 @@ export const themes = {
       'on-background': '#E6E6F1',
       'surface': '#212b3d',
       'on-surface': '#E6E6F1',
+      'blue': '#60a5fa',
+      'on-blue': '#0b2340',
+      'purple': '#a78bfa',
+      'on-purple': '#0b2340',
       'grey-50': '#26293A',
       'grey-100': '#2F3349',
       'grey-200': '#26293A',

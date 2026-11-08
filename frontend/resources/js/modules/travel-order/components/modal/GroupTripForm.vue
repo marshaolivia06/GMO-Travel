@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useConfirm } from '../../../../composables/useConfirm'
 
-const emit = defineEmits(['cancel', 'submit'])
+const emit = defineEmits(['cancel', 'submit', 'back'])
 const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null }, memberOptions: { type: Array, default: () => [] } })
 const { confirm } = useConfirm()
 const regionOptions = ['Domestic', 'Singapore', 'Overseas']
@@ -83,7 +83,7 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
   <VCard rounded="lg" elevation="1">
     <VCardTitle class="d-flex align-center justify-space-between pa-5">
       <div class="d-flex align-center ga-3">
-        <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="loading" @click="cancel" />
+        <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="loading" @click="emit('back')" />
         <div class="text-h6 font-weight-bold">{{ initialData ? 'Edit Group Trip' : 'Create Group Trip' }}</div>
       </div>
       <VBtn icon="ri-close-line" variant="text" :disabled="loading" @click="cancel" />
@@ -94,16 +94,16 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
         <div class="text-subtitle-2 font-weight-bold mb-4">Group Trip Information</div>
         <VAlert v-if="generalError" type="error" variant="tonal" density="compact" class="mb-4">{{ generalError }}</VAlert>
         <VRow>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">1. Trip Name</div><VTextField v-model="form.tripName" placeholder="Enter trip name" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.tripName ? [errors.tripName] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">2. Travel Region</div><VSelect v-model="form.travelRegion" :items="regionOptions" placeholder="Select travel region" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelRegion ? [errors.travelRegion] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">3. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter travel from" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">4. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter travel to" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">5. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">6. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-          <VCol cols="12"><div class="text-caption mb-1">7. Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" rows="1" auto-grow hide-details="auto" :disabled="loading" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">1. Trip Name</div><VTextField v-model="form.tripName" placeholder="Enter trip name" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.tripName ? [errors.tripName] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">2. Travel Region</div><VSelect v-model="form.travelRegion" :items="regionOptions" placeholder="Select travel region" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelRegion ? [errors.travelRegion] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">3. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter travel from" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">4. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter travel to" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">5. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" bg-color="white" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">6. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" bg-color="white" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
+          <VCol cols="12"><div class="text-caption mb-1">7. Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" bg-color="white" rows="1" auto-grow hide-details="auto" :disabled="loading" /></VCol>
           <VCol cols="12">
             <div class="text-caption mb-1">8. Group Member</div>
-            <VAutocomplete :model-value="selectedMemberIds" :items="memberItems" item-title="name" item-value="id" multiple chips closable-chips :custom-filter="filterMember" placeholder="Search by employee name or department" variant="outlined" density="comfortable" hide-details="auto" no-data-text="No employee found" :disabled="loading" :error-messages="errors.members ? [errors.members] : []" @update:model-value="updateMembers">
+            <VAutocomplete :model-value="selectedMemberIds" :items="memberItems" item-title="name" item-value="id" multiple chips closable-chips :custom-filter="filterMember" placeholder="Search by employee name or department" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" no-data-text="No employee found" :disabled="loading" :error-messages="errors.members ? [errors.members] : []" @update:model-value="updateMembers">
   <template #chip="{ item }">
     <VChip :key="item.value" size="small" :closable="!isLocked(item.value)" :disabled="loading" class="mr-1" @click:close="updateMembers(selectedMemberIds.filter(id => id !== item.value))">
       {{ item.raw.name }}
@@ -130,8 +130,18 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
       <VDivider />
       <VCardActions class="pa-4 justify-end">
         <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
-        <VBtn type="submit" :color="initialData ? 'success' : 'primary'" variant="flat" :loading="loading" :disabled="!canCreate">{{ initialData ? 'Save' : 'Create Group' }}</VBtn>
+        <VBtn type="submit" color="primary" variant="flat" :loading="loading" :disabled="!canCreate">{{ initialData ? 'Save' : 'Create Group' }}</VBtn>
       </VCardActions>
     </VForm>
   </VCard>
 </template>
+
+<style scoped>
+.text-caption {
+  color: rgb(var(--v-theme-on-surface));
+}
+:deep(.v-field__input),
+:deep(.v-label) {
+  color: rgb(var(--v-theme-on-surface));
+}
+</style>

@@ -15,6 +15,7 @@ class AuthorityMatrixStep extends Model
         'step',
         'role_id',
         'label',
+        'action_type',
         'role_level',
         'is_specific_section',
         'section_id',

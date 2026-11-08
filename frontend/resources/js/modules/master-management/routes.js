@@ -8,6 +8,7 @@ export const masterManagementRoutes = [
     meta: {
       title: 'Master Management',
       requiresAuth: true,
+      permission: 'master-management.view',
     },
   },
 ]

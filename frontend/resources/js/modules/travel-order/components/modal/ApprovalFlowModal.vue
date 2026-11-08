@@ -26,7 +26,7 @@ const emit = defineEmits(['update:modelValue', 'review'])
       <div class="text-subtitle-1 font-weight-medium flex-grow-1 text-wrap" style="min-width: 0; overflow-wrap: anywhere;">
         {{ card.title }}
       </div>
-      <VChip size="small" variant="flat" :color="card.chipColor" class="flex-shrink-0">
+      <VChip size="small" variant="tonal" :color="card.chipColor" class="flex-shrink-0">
         {{ card.chipText }}
       </VChip>
     </div>

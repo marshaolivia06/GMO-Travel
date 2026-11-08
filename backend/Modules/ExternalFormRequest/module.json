@@ -1,0 +1,11 @@
+{
+    "name": "ExternalFormRequest",
+    "alias": "externalformrequest",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\ExternalFormRequest\\Providers\\ExternalFormRequestServiceProvider"
+    ],
+    "files": []
+}

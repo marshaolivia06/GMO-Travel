@@ -6,11 +6,15 @@ namespace Modules\UserManagement\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Modules\MasterManagement\Models\Department;
+use Modules\MasterManagement\Models\MasterEmployee;
 use Spatie\Permission\Traits\HasRoles;
+use Modules\AnnualTicket\Models\MasterDestination;
 
 class User extends Authenticatable
 {
@@ -21,8 +25,7 @@ class User extends Authenticatable
         'email',
         'password',
         'status',
-        'grade',
-    ];    
+    ];
 
     protected $hidden = [
         'password',
@@ -30,14 +33,13 @@ class User extends Authenticatable
     ];
 
     protected function casts(): array
-{
-    return [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'status' => 'boolean',
-        'grade' => 'integer',
-    ];
-}
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+            'status' => 'boolean',
+        ];
+    }
 
     public function department(): BelongsTo
     {
@@ -47,5 +49,22 @@ class User extends Authenticatable
     public function getDefaultGuardName(): string
     {
         return 'web';
+    }
+
+    public function employee(): HasOne
+    {
+        return $this->hasOne(MasterEmployee::class);
+    }
+
+    public function eligibleDestination(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            MasterDestination::class,
+            MasterEmployee::class,
+            'user_id',
+            'id',
+            'id',
+            'eligible_destination_id',
+        );
     }
 }

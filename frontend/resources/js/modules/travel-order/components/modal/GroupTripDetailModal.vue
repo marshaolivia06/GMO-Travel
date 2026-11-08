@@ -118,7 +118,7 @@ function travelOrderStatus(member) {
       <VCardItem class="px-4 py-3">
         <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">Group Trip Details</VCardTitle>
         <template #append>
-          <VBtn icon="ri-close-line" variant="text" size="small" @click="close" />
+          <VBtn icon="ri-close-line" variant="text" size="small" class="close-hoverable" @click="close" />
         </template>
       </VCardItem>
 
@@ -230,8 +230,18 @@ function travelOrderStatus(member) {
 
       <VDivider />
       <VCardActions class="justify-end px-4 py-3">
-        <VBtn variant="text" @click="close">Close</VBtn>
+        <VBtn variant="text" class="close-hoverable" @click="close">Close</VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
 </template>
+
+<style scoped>
+.close-hoverable {
+  transition: all 0.15s ease;
+}
+.close-hoverable:hover {
+  color: rgb(var(--v-theme-error));
+  background-color: rgba(var(--v-theme-error), 0.1);
+}
+</style>

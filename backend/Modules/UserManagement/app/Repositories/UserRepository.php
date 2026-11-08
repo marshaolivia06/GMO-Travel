@@ -14,7 +14,7 @@ class UserRepository
 {
     public function getAll(): Collection
     {
-        return User::with('roles.permissions')
+        return User::with(['roles.permissions'])
             ->where('status', 1)
             ->latest()
             ->get();
@@ -33,12 +33,12 @@ class UserRepository
             ->where('guard_name', 'web')
             ->firstOrFail();
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'grade' => $data['grade'] ?? null,
-        ]);
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'status' => 1,
+            ]);
 
         $user->assignRole($role);
 

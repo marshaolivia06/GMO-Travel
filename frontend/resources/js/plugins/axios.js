@@ -18,7 +18,6 @@ http.interceptors.request.use(config => {
   return config
 })
 
-// De-dupe flag: prevent multiple concurrent 401 responses from firing toast+redirect multiple times
 let handlingExpiry = false
 
 http.interceptors.response.use(
@@ -60,6 +59,4 @@ http.interceptors.response.use(
   },
 )
 
-// Plugin function kept for registerPlugins compatibility.
-// Interceptors already set up at module level above.
 export default function (_app) {}

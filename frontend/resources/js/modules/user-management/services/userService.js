@@ -33,6 +33,9 @@ const request = async (url, options = {}) => {
 export const getUsers = () => {
   return request('/users')
 }
+export const getUser = (id) => {
+  return request(`/users/${id}`)
+}
 
 export const createUser = (user) => {
   return request('/users', {
@@ -76,4 +79,10 @@ export const deleteUser = (id) => {
   return request(`/users/${id}`, {
     method: 'DELETE',
   })
-} 
+}
+
+export const getOfficeLocations = async () => {
+  const response = await request('/company/office-locations')
+
+  return response.data ?? []
+}

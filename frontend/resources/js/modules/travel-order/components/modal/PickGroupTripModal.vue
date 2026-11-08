@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 
-const props = defineProps({ modelValue: Boolean, groups: { type: Array, default: () => [] }, loading: Boolean })
-const emit = defineEmits(['update:modelValue', 'select', 'back'])
+const props = defineProps({ modelValue: Boolean, groups: { type: Array, default: () => [] }, loading: Boolean, canCreate: { type: Boolean, default: false } })
+const emit = defineEmits(['update:modelValue', 'select', 'back', 'create'])
 
 const search = ref('')
 
@@ -47,8 +47,11 @@ watch(() => props.modelValue, open => { if (open) search.value = '' })
       <VDivider />
       <VProgressLinear v-if="loading" indeterminate color="primary" />
       <VCardText v-else class="bg-grey-lighten-5 pa-4">
-        <VRow dense justify="end" class="mb-2">
-  <VCol cols="12" md="4">
+        <VRow dense align="center" class="mb-2">
+  <VCol v-if="canCreate" cols="12" md="auto">
+    <VBtn color="primary" prepend-icon="ri-add-line" @click="emit('create')">Create Group</VBtn>
+  </VCol>
+  <VCol cols="12" md="4" class="ml-auto">
     <VTextField v-model="search" placeholder="Search" prepend-inner-icon="ri-search-line" variant="outlined" density="compact" bg-color="white" hide-details clearable />
   </VCol>
 </VRow>

@@ -10,15 +10,12 @@ export default {
     },
   },
   VAvatar: {
-    // ℹ️ Remove after next release
     variant: 'flat',
   },
   VBadge: {
-    // set v-badge default color to primary
     color: 'primary',
   },
   VBtn: {
-    // set v-btn default color to primary
     color: 'primary',
   },
   VChip: {
@@ -33,21 +30,20 @@ export default {
     variant: 'tonal',
   },
   VTabs: {
-    // set v-tabs default color to primary
     color: 'primary',
     VSlideGroup: {
       showArrows: true,
     },
   },
   VTooltip: {
-    // set v-tooltip default location to top
+
     location: 'top',
   },
   VCheckboxBtn: {
     color: 'primary',
   },
   VCheckbox: {
-    // set v-checkbox default color to primary
+
     color: 'primary',
     density: 'comfortable',
     hideDetails: 'auto',
@@ -68,7 +64,7 @@ export default {
     density: 'comfortable',
   },
   VRangeSlider: {
-    // set v-range-slider default color to primary
+
     color: 'primary',
     thumbLabel: true,
     hideDetails: 'auto',
@@ -77,19 +73,19 @@ export default {
     elevation: 4,
   },
   VRating: {
-    // set v-rating default color to primary
+
     activeColor: 'warning',
     color: 'disabled',
   },
   VProgressCircular: {
-    // set v-progress-circular default color to primary
+ 
     color: 'primary',
   },
   VProgressLinear: {
     color: 'primary',
   },
   VSlider: {
-    // set v-slider default color to primary
+
     color: 'primary',
     trackSize: 6,
     hideDetails: 'auto',
@@ -132,7 +128,7 @@ export default {
     density: 'comfortable',
   },
   VSwitch: {
-    // set v-switch default color to primary
+
     inset: true,
     color: 'primary',
     hideDetails: 'auto',

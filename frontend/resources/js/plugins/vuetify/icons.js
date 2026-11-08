@@ -48,10 +48,9 @@ const aliases = {
   sortDesc: 'ri-arrow-down-line',
 }
 
-/* eslint-enable */
 export const iconify = {
   component: props => {
-    // Load custom SVG directly instead of going through icon component
+
     if (typeof props.icon === 'string') {
       const iconComponent = customIcons[props.icon]
       if (iconComponent)
@@ -61,10 +60,8 @@ export const iconify = {
     return h(props.tag, {
       ...props,
 
-      // As we are using class based icons
       class: [props.icon],
 
-      // Remove used props from DOM rendering
       tag: undefined,
       icon: undefined,
     })

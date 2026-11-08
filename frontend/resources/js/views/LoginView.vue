@@ -53,8 +53,8 @@ async function handleSubmit() {
         :max-width="460"
         class="pa-8 auth-card"
       >
-        <VCardText class="text-center">
-          <div class="auth-brand mb-5">
+        <VCardText class="text-center pb-2">
+          <div class="auth-brand mb-4">
             <img
               src="/img/logo-eco.png"
               alt="Ecogreen"
@@ -63,9 +63,13 @@ async function handleSubmit() {
             <span class="auth-brand-divider" />
             <span class="auth-brand-title">GMO - Travel</span>
           </div>
-          <h4 class="text-h4 mb-1">
-            Welcome to GMO Travel
+
+          <h4 class="text-h4 font-weight-bold mb-1">
+            Welcome back
           </h4>
+          <p class="text-body-2 text-medium-emphasis mb-0">
+            Sign in to continue to GMO Travel.
+          </p>
         </VCardText>
 
         <VCardText class="px-8">
@@ -82,45 +86,43 @@ async function handleSubmit() {
           </VAlert>
 
           <VForm @submit.prevent="handleSubmit">
-            <VRow>
-              <VCol cols="12">
-                <VTextField
-                  v-model="email"
-                  type="email"
-                  label="Email"
-                  placeholder="Enter your email"
-                  autocomplete="username"
-                  density="comfortable"
-                  autofocus
-                  required
-                />
-              </VCol>
+            <div class="mb-4">
+              <label class="text-body-2 font-weight-medium d-block mb-1">Email</label>
+              <VTextField
+                v-model="email"
+                type="email"
+                placeholder="Enter your email"
+                autocomplete="username"
+                density="comfortable"
+                autofocus
+                required
+              />
+            </div>
 
-              <VCol cols="12">
-                <VTextField
-                  v-model="password"
-                  label="Password"
-                  placeholder="············"
-                  autocomplete="current-password"
-                  density="comfortable"
-                  :type="isPasswordVisible ? 'text' : 'password'"
-                  :append-inner-icon="isPasswordVisible ? 'ri-eye-off-line' : 'ri-eye-line'"
-                  required
-                  @click:append-inner="isPasswordVisible = !isPasswordVisible"
-                />
+            <div>
+              <label class="text-body-2 font-weight-medium d-block mb-1">Password</label>
+              <VTextField
+                v-model="password"
+                placeholder="············"
+                autocomplete="current-password"
+                density="comfortable"
+                :type="isPasswordVisible ? 'text' : 'password'"
+                :append-inner-icon="isPasswordVisible ? 'ri-eye-off-line' : 'ri-eye-line'"
+                required
+                @click:append-inner="isPasswordVisible = !isPasswordVisible"
+              />
+            </div>
 
-                <VBtn
-                  block
-                  size="large"
-                  type="submit"
-                  class="mt-6"
-                  :loading="loading"
-                  :disabled="loading"
-                >
-                  Sign In
-                </VBtn>
-              </VCol>
-            </VRow>
+            <VBtn
+              block
+              size="large"
+              type="submit"
+              class="mt-6"
+              :loading="loading"
+              :disabled="loading"
+            >
+              Sign In
+            </VBtn>
           </VForm>
         </VCardText>
       </VCard>

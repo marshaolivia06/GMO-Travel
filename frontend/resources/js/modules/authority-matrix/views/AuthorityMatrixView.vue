@@ -4,11 +4,16 @@ import { useAuthorityMatrixStore } from '../stores/authorityMatrixStore'
 import AddAuthorityMatrix from '../components/modal/add-authority-matrix.vue'
 import EditAuthorityMatrix from '../components/modal/edit-authority-matrix.vue'
 import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
 import { useConfirm } from '../../../composables/useConfirm'
 
 const authorityMatrixStore = useAuthorityMatrixStore()
 const toast = useToastStore()
+const auth = useAuthStore()
 const { confirm } = useConfirm()
+const canCreate = computed(() => auth.can('authority-matrix.create'))
+const canUpdate = computed(() => auth.can('authority-matrix.update'))
+const canDelete = computed(() => auth.can('authority-matrix.delete'))
 const search = ref('')
 const showAddModal = ref(false)
 const showEditModal = ref(false)
@@ -65,6 +70,7 @@ onMounted(() => authorityMatrixStore.fetchAuthorityMatrices())
         variant="flat"
         color="primary"
         prepend-icon="ri-add-line"
+        :disabled="!canCreate"
         @click="showAddModal = true"
       >
         Add Authority Matrix
@@ -93,8 +99,8 @@ onMounted(() => authorityMatrixStore.fetchAuthorityMatrices())
 
         <template #item.actions="{ item }">
           <div class="d-flex align-center ga-1 flex-nowrap">
-           <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" @click="openEditModal(item)" />
-           <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" @click="removeAuthorityMatrix(item)" />
+    <VBtn icon="ri-edit-line" size="small" variant="text" color="primary" :disabled="!canUpdate" @click="openEditModal(item)" />
+    <VBtn icon="ri-delete-bin-line" size="small" variant="text" color="error" :disabled="!canDelete" @click="removeAuthorityMatrix(item)" />
           </div>
         </template>
       </VDataTable>

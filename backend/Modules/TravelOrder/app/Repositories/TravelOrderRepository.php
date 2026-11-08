@@ -34,6 +34,14 @@ class TravelOrderRepository
                         ->whereHas('approvals', function ($approvalQuery) {
                             $approvalQuery
                                 ->where('status', 'pending')
+                                // Hanya tahap yang sedang berjalan - step pending lebih awal tidak dihitung
+                                ->whereNotExists(function ($sub) {
+                                    $sub->select(DB::raw(1))
+                                        ->from('travel_order_approvals as prev2')
+                                        ->whereColumn('prev2.travel_order_id', 'travel_order_approvals.travel_order_id')
+                                        ->where('prev2.status', 'pending')
+                                        ->whereColumn('prev2.sequence', '<', 'travel_order_approvals.sequence');
+                                })
                                 ->whereHas('role', function ($roleQuery) {
                                     $roleQuery->where('name', 'Dept Head');
                                 });

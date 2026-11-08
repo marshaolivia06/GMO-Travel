@@ -23,13 +23,11 @@ const errors = reactive({
   password: '',
   confirmPassword: '',
   role: '',
-  grade: '',
 })
 
 const form = reactive({
   name: props.user?.name || '',
   email: props.user?.email || '',
-  grade: props.user?.grade ?? null,
   password: '',
   confirmPassword: '',
   role: props.user?.roles?.[0]?.name || '',
@@ -41,7 +39,6 @@ function clearErrors() {
   errors.password = ''
   errors.confirmPassword = ''
   errors.role = ''
-  errors.grade = ''
   generalError.value = ''
 }
 
@@ -51,7 +48,6 @@ function handleValidationError(err) {
 
   errors.name = validationErrors.name?.[0] || ''
   errors.email = validationErrors.email?.[0] || ''
-  errors.grade = validationErrors.grade?.[0] || ''
   errors.password = validationErrors.password?.[0] || ''
   errors.confirmPassword = validationErrors.confirmPassword?.[0] || ''
   errors.role = validationErrors.role?.[0] || ''
@@ -115,7 +111,6 @@ if (!confirmed) return
     const data = {
       name: form.name.trim(),
       email: form.email.trim(),
-      grade: form.grade,
     }
 
     if (form.role) data.role = form.role
@@ -145,7 +140,9 @@ function close() {
   if (!loading.value) emit('close')
 }
 
-onMounted(fetchRoles)
+onMounted(() => {
+  fetchRoles()
+})
 </script>
 
 <template>
@@ -168,10 +165,6 @@ onMounted(fetchRoles)
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Email</label>
               <VTextField v-model="form.email" type="email" :disabled="loading" :error-messages="errors.email ? [errors.email] : []"  placeholder="Enter email" hide-details="auto"/>
-            </VCol>
-            <VCol cols="12">
-              <label class="text-body-medium font-weight-600 d-block mb-1">Grade</label>
-              <VTextField v-model.number="form.grade" type="number" :disabled="loading" :error-messages="errors.grade ? [errors.grade] : []"  placeholder="Enter grade" hide-details="auto"/>
             </VCol>
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">New Password</label>

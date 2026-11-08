@@ -6,7 +6,9 @@ export const travelOrderRoutes = [
     name: 'travel-order',
     component: TravelOrderView,
     meta: {
-      title: 'Travel Order'
+      title: 'Travel Order',
+      requiresAuth: true,
+      permission: 'travel-order.view'
     }
   }
 ]

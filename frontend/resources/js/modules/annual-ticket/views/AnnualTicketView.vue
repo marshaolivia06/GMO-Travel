@@ -1,0 +1,447 @@
+<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
+import { getMyDependents, getAnnualTickets, getAnnualTicketQuota, getAnnualTicketHistory, getAnnualTicketPdf, checkAnnualTicket, approveAnnualTicket, revisionAnnualTicket, processAnnualTicketByGmoWithFare, updateAnnualTicketSchedule, addAnnualTicketBookingDocuments, cancelAnnualTicketLeg, updateAnnualTicketLegRefund, resendAnnualTicketEmail, finalizeAnnualTicketCancellation, rejectAnnualTicketCancellation, requestAnnualTicketCancellation } from '../services/annualTicketService'
+import { useToastStore } from '../../../stores/toast'
+import { useAuthStore } from '../../../stores/auth'
+import { useConfirm } from '../../../composables/useConfirm'
+import CreateAnnualTicketModal from '../components/modal/CreateAnnualTicketModal.vue'
+import HistoryLogModal from '../components/modal/HistoryLogModal.vue'
+import AttachmentsModal from '../components/modal/AttachmentsModal.vue'
+import FareReferenceModal from '../components/modal/FareReferenceModal.vue'
+import AnnualTicketSummaryModal from '../components/modal/AnnualTicketSummaryModal.vue'
+import PdfViewerModal from '../../travel-order/components/modal/PdfViewerModal.vue'
+import NoteModal from '../../travel-order/components/modal/NoteModal.vue'
+
+const toast = useToastStore()
+const auth = useAuthStore()
+const { confirm } = useConfirm()
+const requests = ref([])
+const loading = ref(false)
+const quota = ref(null)
+const search = ref('')
+const statusTab = ref('all')
+const showCreateModal = ref(false)
+const resubmitTicket = ref(null)
+const travelers = ref(null)
+const selectedTravelers = ref([])
+const step = ref(1)
+const legs = ref(null)
+
+async function openCreate() { travelers.value = await getMyDependents(); step.value = 1; resubmitTicket.value = null; showCreateModal.value = true }
+async function openResubmit(item) { travelers.value = await getMyDependents(); step.value = 1; resubmitTicket.value = item.raw; showCreateModal.value = true }
+
+const formatDate = date => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date))
+
+function formatPeriod(rowLegs = []) {
+  const dates = [...new Set(rowLegs.map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean).map(formatDate))].sort()
+  if (!dates.length) return '-'
+  return dates.length > 1 ? `${dates[0]} → ${dates[dates.length - 1]}` : dates[0]
+}
+
+async function fetchRequests() {
+  loading.value = true
+  try { const data = await getAnnualTickets(); const rows = Array.isArray(data) ? data : data?.data ?? []; requests.value = rows.map(item => ({ id: item.id, raw: item, status: item.status === 'awaiting_fare_reference_gmo' ? 'awaiting_ticket_processing' : item.status, travel_period: formatPeriod(item.legs ?? []), route_condition: item.route_condition, ticket_arrangement: item.ticket_arrangement, can_process: item.can_process === true, can_gmo_process: item.can_gmo_process === true, can_gmo_summary: item.can_gmo_summary === true, stage_action: item.stage_action, stage_role: item.stage_role })) } catch (err) { toast.error(err.response?.data?.message || 'Failed to load annual tickets.') } finally { loading.value = false }
+}
+
+async function fetchQuota() {
+  try { quota.value = await getAnnualTicketQuota() } catch { quota.value = null }
+}
+
+onMounted(() => { fetchRequests(); fetchQuota() })
+
+// Setelah create/resubmit sukses - reset filter tab supaya pengajuan baru langsung terlihat
+async function handleSubmitted() {
+  statusTab.value = 'all'
+  cancelSubTab.value = 'all'
+  await fetchRequests()
+}
+
+const statusMeta = {
+  draft: { title: 'Draft', color: 'secondary', icon: 'ri-draft-line' },
+  awaiting_check_hr_admin: { title: 'Awaiting Review - HR Admin', color: 'warning', icon: 'ri-time-line' },
+  awaiting_approval_hr_supervisor: { title: 'Awaiting Approval - HR Supervisor', color: 'warning', icon: 'ri-user-star-line' },
+  awaiting_cancellation_check_hr_admin: { title: 'Awaiting Cancellation Review - HR Admin', color: 'warning', icon: 'ri-time-line' },
+  awaiting_cancellation_approval_hr_supervisor: { title: 'Awaiting Cancellation Approval - HR Supervisor', color: 'warning', icon: 'ri-user-star-line' },
+  awaiting_cancellation_finalization_gmo: { title: 'Awaiting Cancellation Finalization - GMO', color: 'info', icon: 'ri-close-circle-line' },
+  awaiting_ticket_processing: { title: 'Awaiting Processing - GMO', color: 'info', icon: 'ri-ticket-2-line' },
+  revision_required: { title: 'Revision Required', color: 'info', icon: 'ri-edit-2-line' },
+  partially_cancelled: { title: 'Partially Cancelled', color: 'warning', icon: 'ri-close-circle-line' },
+  cancelled: { title: 'Cancelled', color: 'error', icon: 'ri-forbid-line' },
+  processed_by_gmo: { title: 'Processed by GMO', color: 'success', icon: 'ri-checkbox-circle-line' },
+}
+
+const routeColor = { 'Same Route': 'success', 'Different Route': 'warning' }
+const headerClass = 'px-3 py-3 text-caption font-weight-bold text-medium-emphasis bg-grey-lighten-4 text-no-wrap'
+const cellClass = 'px-3 py-3'
+const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
+
+const headers = [
+  col('ATTACHMENT', 'attachment', { align: 'center', width: 130 }),
+  col('ACTION', 'action', { align: 'center', width: 260 }),
+  col('STATUS', 'status', { align: 'center' }),
+  col('TRAVEL PERIOD', 'travel_period', { align: 'center' }),
+  col('ROUTE CONDITION', 'route_condition', { align: 'center' }),
+  col('TICKET ARRANGEMENT', 'ticket_arrangement', { align: 'center' }),
+]
+
+// Status alur cancellation digabung ke satu tab induk "Cancelled" (anakan masing-masing)
+const cancellationStatuses = [
+  'awaiting_cancellation_check_hr_admin',
+  'awaiting_cancellation_approval_hr_supervisor',
+  'awaiting_cancellation_finalization_gmo',
+  'partially_cancelled',
+  'cancelled',
+]
+
+const statusTabs = computed(() => {
+  const countOf = status => requests.value.filter(row => row.status === status).length
+  const tabs = [{ value: 'all', title: 'Total', icon: 'ri-stack-line', color: 'primary', count: requests.value.length }]
+
+  for (const [value, meta] of Object.entries(statusMeta)) {
+    if (cancellationStatuses.includes(value)) continue
+
+    if (value === 'processed_by_gmo') {
+      tabs.push({ value: 'cancelled-group', title: 'Cancelled', color: 'error', icon: 'ri-forbid-line', count: cancellationStatuses.reduce((sum, status) => sum + countOf(status), 0) })
+    }
+
+    tabs.push({ value, ...meta, count: countOf(value) })
+  }
+
+  return tabs
+})
+
+const cancelSubTab = ref('awaiting_cancellation_check_hr_admin')
+
+watch(statusTab, () => { cancelSubTab.value = 'awaiting_cancellation_check_hr_admin' })
+
+const cancelSubTabs = computed(() => [
+  ...cancellationStatuses.map(status => ({ value: status, title: statusMeta[status].title, count: requests.value.filter(row => row.status === status).length })),
+])
+
+const filteredRows = computed(() => {
+  const query = search.value.trim().toLowerCase()
+
+  return requests.value.filter(row => {
+    const matchesTab = statusTab.value === 'all'
+      || (statusTab.value === 'cancelled-group' && row.status === cancelSubTab.value)
+      || row.status === statusTab.value
+
+    return matchesTab && (!query || `${row.id} ${row.travel_period}`.toLowerCase().includes(query))
+  })
+})
+
+const historyChip = {
+  submitted: { text: 'Requested', color: 'primary' },
+  checked: { text: 'Reviewed', color: 'success' },
+  approved: { text: 'Approved', color: 'success' },
+  revision: { text: 'Revision', color: 'warning' },
+  processed: { text: 'Processed by GMO', color: 'success' },
+  schedule_updated: { text: 'Schedule Updated', color: 'info' },
+  booking_documents_updated: { text: 'Document Issued', color: 'info' },
+  booking_confirmation_email_sent: { text: 'Email Sent', color: 'primary' },
+  booking_confirmation_email_resent: { text: 'Email Resent', color: 'primary' },
+  booking_confirmation_email_failed: { text: 'Email Failed', color: 'error' },
+  ticket_cancelled: { text: 'Ticket Cancelled', color: 'error' },
+  leg_refund_updated: { text: 'Refund Updated', color: 'warning' },
+  cancel_requested: { text: 'Cancellation Requested', color: 'error' },
+  finalized: { text: 'Cancellation Finalized', color: 'error' },
+  cancellation_rejected: { text: 'Cancellation Rejected', color: 'warning' },
+}
+
+const processing = ref(false)
+const noteDialog = ref(false)
+const noteTarget = ref(null)
+const revisionMeta = { action: 'revision', title: 'Return for Revision', label: 'Remark', button: 'Revision', color: 'warning', requireEvidence: false }
+const cancellationMeta = { action: 'cancel-request', title: 'Cancellation Request', label: 'Remark', button: 'Submit', color: 'error', requireEvidence: false, info: 'This cancellation will be checked by HR Admin, approved by HR Supervisor, and noted by GMO before the request becomes Cancelled.' }
+const cancelRejectMeta = { action: 'cancel-reject', title: 'Reject Cancellation', label: 'Remark', button: 'Rejected', color: 'error', requireEvidence: false, info: 'Rejecting this request will cancel the cancellation flow and restore the ticket to its previous status.' }
+const noteMeta = ref(revisionMeta)
+
+const isCancellationReview = computed(() => String(reviewItem.value?.raw?.status || '').startsWith('awaiting_cancellation_'))
+
+const reviewConfirmText = computed(() => {
+  if (!isCancellationReview.value) return 'I confirm that I have reviewed the Annual Ticket document and agree that it is ready to proceed.'
+  if (reviewItem.value?.stage_action === 'finalization') return 'I confirm that I have reviewed this cancellation request and agree to finalize it. The Annual Ticket will be permanently cancelled.'
+  if (reviewItem.value?.stage_action === 'approve') return 'I confirm that I have reviewed this cancellation request.'
+  return 'I confirm that I have reviewed this cancellation request.'
+})
+
+const reviewActionLabel = computed(() => {
+  if (isCancellationReview.value) { if (reviewItem.value?.stage_action === 'check') return 'Reviewed Cancellation'; if (reviewItem.value?.stage_action === 'finalization') return 'Cancellation'; return 'Approved Cancellation' }
+  return reviewItem.value?.stage_action === 'check' ? 'Reviewed' : 'Approved'
+})
+
+function handleReviewRevision() { if (!reviewItem.value) return; noteTarget.value = reviewItem.value; noteMeta.value = revisionMeta; noteDialog.value = true }
+function openCancelRequest(ticketId) { if (!ticketId) return; noteTarget.value = { id: ticketId }; noteMeta.value = cancellationMeta; noteDialog.value = true }
+function handleCancelReject(item) { if (!item) return; noteTarget.value = item; noteMeta.value = cancelRejectMeta; noteDialog.value = true }
+
+async function handleNoteSubmit({ text }) {
+  const target = noteTarget.value
+  if (!target || processing.value) return
+  const action = noteMeta.value.action
+  const isCancellationRequest = action === 'cancel-request'
+  const isCancellationReject = action === 'cancel-reject'
+  const confirmed = await confirm(isCancellationRequest ? { title: 'Cancellation Request', text: 'Are you sure you want to request the cancellation of this Annual Ticket?', color: 'error' } : isCancellationReject ? { title: 'Reject Cancellation', text: 'Are you sure you want to reject this cancellation request? The ticket will be restored to its previous status.', confirmText: 'Yes, Reject', color: 'error' } : { title: 'Return for Revision', text: 'Are you sure you want to return this Annual Ticket for revision?', color: 'warning' })
+  if (!confirmed) return
+  processing.value = true
+  try {
+    if (isCancellationRequest) { await requestAnnualTicketCancellation(target.id, text); toast.success('Cancellation request has been submitted successfully.'); noteDialog.value = false; summaryDialog.value = false; await fetchRequests() }
+    else if (isCancellationReject) { await rejectAnnualTicketCancellation(target.id, text); toast.success('Cancellation request has been rejected. The ticket has been restored.'); noteDialog.value = false; pdfDialog.value = false; await fetchRequests() }
+    else { await revisionAnnualTicket(target.id, text); toast.success('Annual Ticket has been returned for revision.'); noteDialog.value = false; pdfDialog.value = false; await fetchRequests() }
+  } catch (err) { toast.error(err.response?.data?.message || (isCancellationRequest ? 'Failed to submit the cancellation request.' : isCancellationReject ? 'Failed to reject the cancellation request.' : 'Failed to return the Annual Ticket for revision.')) } finally { processing.value = false }
+}
+
+async function handleCheck(item) {
+  const confirmed = await confirm({ title: 'Check Annual Ticket', text: `Are you sure you want to mark this Annual Ticket as reviewed?`, color: 'primary' })
+  if (!confirmed || processing.value) return
+  processing.value = true
+  try { await checkAnnualTicket(item.id); toast.success('Annual Ticket has been checked successfully.'); pdfDialog.value = false; await fetchRequests() } catch (err) { toast.error(err.response?.data?.message || 'Failed to check the Annual Ticket.') } finally { processing.value = false }
+}
+
+async function handleApprove(item) {
+  const confirmed = await confirm({ title: 'Approve Annual Ticket', text: `Are you sure you want to mark this Annual Ticket as approved?`, color: 'primary' })
+  if (!confirmed || processing.value) return
+  processing.value = true
+  try { await approveAnnualTicket(item.id); toast.success('Annual Ticket has been approved successfully.'); pdfDialog.value = false; await fetchRequests() } catch (err) { toast.error(err.response?.data?.message || 'Failed to approve the Annual Ticket.') } finally { processing.value = false }
+}
+
+async function handleCancellationProceed(item) {
+  const isCheck = item.stage_action === 'check'
+  const confirmed = await confirm({ title: 'Proceed Cancellation', text: 'Are you sure you want to proceed with this cancellation request?', confirmText: 'Yes, Proceed', color: 'primary' })
+  if (!confirmed || processing.value) return
+  processing.value = true
+  try {
+    if (isCheck) { await checkAnnualTicket(item.id); toast.success('Cancellation request has been reviewed successfully.') }
+    else { await approveAnnualTicket(item.id); toast.success('Cancellation request has been approved successfully.') }
+    pdfDialog.value = false
+    await fetchRequests()
+  } catch (err) { toast.error(err.response?.data?.message || 'Failed to proceed the cancellation request.') } finally { processing.value = false }
+}
+
+const historyDialog = ref(false)
+const historyLoading = ref(false)
+const historyLogs = ref([])
+
+function formatDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return isNaN(date.getTime()) ? '' : date.toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function buildHistoryRounds(logs) {
+  const groups = new Map()
+  for (const log of logs) {
+    const round = log.round ?? 1
+    if (!groups.has(round)) groups.set(round, { round, items: [] })
+    const meta = historyChip[log.event] || { text: log.description || log.event, color: 'grey' }
+    let chipText = meta.text
+    if (log.flow === 'cancellation') { if (log.event === 'checked') chipText = 'Reviewed Cancellation'; else if (log.event === 'approved') chipText = 'Approved Cancellation' }
+    groups.get(round).items.push({ key: log.id, chipText, chipColor: meta.color, time: formatDateTime(log.created_at), role: log.role || '-', name: log.causer || '', note: log.note || '', remark: log.remark || '', evidence: log.evidence || '', documents: Array.isArray(log.documents) ? log.documents : [] })
+  }
+  return [...groups.values()].sort((a, b) => a.round - b.round)
+}
+
+const historyRounds = computed(() => buildHistoryRounds(historyLogs.value))
+const summaryDialog = ref(false)
+const summaryTicket = ref(null)
+
+function openSummary(item) { summaryTicket.value = item.raw; summaryDialog.value = true }
+function openSummaryPdf(ticketId) { if (!ticketId) return; summaryDialog.value = false; pdfReviewMode.value = 'view'; pdfBackToSummary.value = true; reviewItem.value = null; loadPdf({ id: ticketId }) }
+
+async function handleScheduleUpdate({ ticketId, reschedules }) {
+  if (processing.value) return
+  const confirmed = await confirm({ title: 'Update Travel Schedule', text: 'Are you sure you want to update the travel schedule for this Annual Ticket?', color: 'primary' })
+  if (!confirmed) return
+  processing.value = true
+  try { await updateAnnualTicketSchedule(ticketId, { reschedules }); toast.success('Travel schedule has been updated successfully.'); await fetchRequests(); const fresh = requests.value.find(row => row.id === ticketId); if (fresh) summaryTicket.value = fresh.raw } catch (err) { toast.error(err.response?.data?.message || 'Failed to update the travel schedule.') } finally { processing.value = false }
+}
+
+async function handleAddDocuments({ ticketId, documents }) {
+  if (processing.value) return
+  const confirmed = await confirm({ title: 'Add Issued Travel Document', text: 'Are you sure you want to add the new document(s)? Existing documents will be kept.', color: 'primary' })
+  if (!confirmed) return
+  processing.value = true
+  try { await addAnnualTicketBookingDocuments(ticketId, documents); toast.success('Issued travel document has been updated successfully.'); await fetchRequests(); const fresh = requests.value.find(row => row.id === ticketId); if (fresh) summaryTicket.value = fresh.raw } catch (err) { toast.error(err.response?.data?.message || 'Failed to add the new document.') } finally { processing.value = false }
+}
+
+async function handleCancelTicket({ ticketId, legId, reason, refundStatus, originalAmount, refundAmount, nonRefundableAmount, confirmation }) {
+  if (processing.value) return
+  const confirmed = await confirm({ title: 'Cancel Ticket', text: 'Are you sure you want to cancel this ticket and record its refund?', color: 'error' })
+  if (!confirmed) return
+  processing.value = true
+  try { await cancelAnnualTicketLeg(ticketId, legId, { reason, refundStatus, originalAmount, refundAmount, nonRefundableAmount, confirmation }); toast.success('Ticket cancellation has been recorded successfully.'); await fetchRequests(); const fresh = requests.value.find(row => row.id === ticketId); if (fresh) summaryTicket.value = fresh.raw } catch (err) { const errors = err.response?.data?.errors; const firstError = errors ? Object.values(errors).flat()[0] : null; toast.error(firstError || err.response?.data?.message || 'Failed to record the ticket cancellation.') } finally { processing.value = false }
+}
+
+async function handleUpdateRefund({ ticketId, legId, reason, refundStatus, refundAmount, nonRefundableAmount, confirmation }) {
+  if (processing.value) return
+  const confirmed = await confirm({ title: 'Update Refund', text: 'Are you sure you want to update the refund for this ticket?', color: 'primary' })
+  if (!confirmed) return
+  processing.value = true
+  try { await updateAnnualTicketLegRefund(ticketId, legId, { reason, refundStatus, refundAmount, nonRefundableAmount, confirmation }); toast.success('Ticket refund has been updated successfully.'); await fetchRequests(); const fresh = requests.value.find(row => row.id === ticketId); if (fresh) summaryTicket.value = fresh.raw } catch (err) { const errors = err.response?.data?.errors; const firstError = errors ? Object.values(errors).flat()[0] : null; toast.error(firstError || err.response?.data?.message || 'Failed to update the ticket refund.') } finally { processing.value = false }
+}
+
+async function handleResendEmail({ ticketId, to, cc, subject, message }) {
+  if (processing.value) return
+  const confirmed = await confirm({ title: 'Resend Booking Email', text: 'Are you sure you want to resend the booking confirmation email?', color: 'primary' })
+  if (!confirmed) return
+  processing.value = true
+  try { await resendAnnualTicketEmail(ticketId, { to, cc, subject, message }); toast.success('Booking confirmation email has been resent successfully.'); await fetchRequests(); const fresh = requests.value.find(row => row.id === ticketId); if (fresh) summaryTicket.value = fresh.raw } catch (err) { toast.error(err.response?.data?.message || 'Failed to resend the booking confirmation email.') } finally { processing.value = false }
+}
+
+async function openHistory(item) {
+  historyDialog.value = true
+  historyLoading.value = true
+  historyLogs.value = []
+  try { const response = await getAnnualTicketHistory(item.id); historyLogs.value = response?.data ?? [] } catch (err) { toast.error(err.response?.data?.message || 'Failed to load history log.') } finally { historyLoading.value = false }
+}
+
+const pdfDialog = ref(false)
+const pdfLoading = ref(false)
+const pdfUrl = ref(null)
+const pdfReviewMode = ref('view')
+const pdfBackToSummary = ref(false)
+const reviewItem = ref(null)
+const pdfCanDecide = computed(() => ['decide', 'gmo'].includes(pdfReviewMode.value))
+const fareDialog = ref(false)
+const fareItem = ref(null)
+
+const fareShowFareReference = computed(() => { const raw = fareItem.value?.raw; return raw?.ticket_arrangement === 'Direct Payment' || raw?.route_condition === 'Different Route' })
+const fareDepartureLegs = computed(() => mapFareLegs('departure'))
+const fareReturnLegs = computed(() => mapFareLegs('return'))
+
+const farePaymentLabel = computed(() => {
+  const raw = fareItem.value?.raw
+  if (!raw) return ''
+  return raw.ticket_arrangement === 'Direct Payment' ? 'Direct Payment · Reimbursable' : `Booked by Company · ${raw.route_condition === 'Different Route' ? 'Excess Potential' : 'Not Reimbursable'}`
+})
+
+function legRouteStatus(raw, leg) {
+  const norm = value => (value || '').trim().toLowerCase()
+  const destination = raw?.employee?.eligible_destination?.city_name ?? ''
+  const origin = raw?.employee?.office_location ?? ''
+  const expectedFrom = leg.direction === 'departure' ? origin : destination
+  const expectedTo = leg.direction === 'departure' ? destination : origin
+  return norm(leg.travel_from) === norm(expectedFrom) && norm(leg.travel_to) === norm(expectedTo) ? 'Same Route' : 'Different Route'
+}
+
+function mapFareLegs(direction) { return (fareItem.value?.raw?.legs ?? []).filter(leg => leg.direction === direction).map((leg, index) => ({ id: leg.id ?? index + 1, name: leg.name, role: leg.relationship || 'Employee', date: formatDate(leg.travel_date), route: `${leg.travel_from} - ${leg.travel_to}`, routeStatus: legRouteStatus(fareItem.value?.raw, leg) })) }
+function openFareReference(item) { fareItem.value = item; pdfDialog.value = false; fareDialog.value = true }
+function handleFareBack() { fareDialog.value = false; fareItem.value = null; pdfDialog.value = true }
+
+const attachmentsDialog = ref(false)
+const attachmentsTicket = ref(null)
+
+function openAttachments(item) { attachmentsTicket.value = item.raw; attachmentsDialog.value = true }
+
+async function loadPdf(item) {
+  pdfDialog.value = true
+  pdfLoading.value = true
+  pdfUrl.value = null
+  try { const blob = await getAnnualTicketPdf(item.id); pdfUrl.value = URL.createObjectURL(blob) } catch (err) { pdfDialog.value = false; toast.error(err.response?.data?.message || 'Failed to load the Annual Ticket document.') } finally { pdfLoading.value = false }
+}
+
+function handlePdfBack() { pdfDialog.value = false; if (pdfBackToSummary.value) { pdfBackToSummary.value = false; summaryDialog.value = true } }
+function openPdf(item) { pdfReviewMode.value = 'view'; pdfBackToSummary.value = false; reviewItem.value = null; loadPdf(item) }
+function openReview(item) { pdfReviewMode.value = 'decide'; pdfBackToSummary.value = false; reviewItem.value = item; loadPdf(item) }
+function openProcess(item) { pdfReviewMode.value = 'gmo'; pdfBackToSummary.value = false; reviewItem.value = item; loadPdf(item) }
+
+function handleReviewProcess() {
+  if (!reviewItem.value) return
+  if (reviewItem.value.can_gmo_process) openFareReference(reviewItem.value)
+  else if (reviewItem.value.stage_action === 'finalization') handleCancelFinalize(reviewItem.value)
+  else if (reviewItem.value.stage_action === 'check') handleCheck(reviewItem.value)
+  else handleApprove(reviewItem.value)
+}
+
+async function handleCancelFinalize(item) {
+  const confirmed = await confirm({ title: 'Finalize Cancellation', text: `Are you sure you want to finalize the cancellation of this Annual Ticket? The ticket will be cancelled.`, color: 'error' })
+  if (!confirmed || processing.value) return
+  processing.value = true
+  try { await finalizeAnnualTicketCancellation(item.id); toast.success('Cancellation has been finalized successfully.'); pdfDialog.value = false; await fetchRequests() } catch (err) { toast.error(err.response?.data?.message || 'Failed to finalize the cancellation.') } finally { processing.value = false }
+}
+
+async function handleFareProcess(payload) {
+  if (!fareItem.value || processing.value) return
+  const confirmed = await confirm({ title: 'Process Annual Ticket', text: `Are you sure you want to mark this Annual Ticket as processed?`, color: 'primary' })
+  if (!confirmed) return
+  processing.value = true
+  try {
+    const fareReferences = []
+    if (payload.departureFare) fareReferences.push({ direction: 'departure', fare_amount: payload.departureFare, operator_name: payload.departureOperator, currency: 'IDR' })
+    if (payload.returnFare) fareReferences.push({ direction: 'return', fare_amount: payload.returnFare, operator_name: payload.returnOperator, currency: 'IDR' })
+    await processAnnualTicketByGmoWithFare(fareItem.value.id, { fareReferences, attachments: payload.attachments ?? [], booking: payload.bookingAmount ? { amount: payload.bookingAmount, currency: payload.bookingCurrency } : null, eTicket: payload.eTicket ?? null, email: payload.email ?? null })
+    toast.success('Annual Ticket has been processed successfully.'); pdfDialog.value = false; fareDialog.value = false; fareItem.value = null; await fetchRequests()
+  } catch (err) { const errors = err.response?.data?.errors; const firstError = errors ? Object.values(errors).flat()[0] : null; toast.error(firstError || err.response?.data?.message || 'Failed to process the Annual Ticket.') } finally { processing.value = false }
+}
+</script>
+
+<template>
+  <div>
+    <BrandCard>
+      <template #stats>
+        <VRow dense>
+          <VCol v-for="tab in statusTabs" :key="tab.value" cols="6" sm="4" lg="3">
+            <VCard :variant="statusTab === tab.value ? 'tonal' : 'outlined'" :color="statusTab === tab.value ? tab.color : undefined" class="pa-3 d-flex align-center cursor-pointer stat-tile h-100" style="gap: 12px" @click="statusTab = tab.value"><VAvatar :color="tab.color" variant="tonal" rounded="lg" size="40"><VIcon :icon="tab.icon" size="20" /></VAvatar><div><div class="text-h6 font-weight-bold">{{ tab.count }}</div><div class="text-caption text-medium-emphasis">{{ tab.title }}</div></div></VCard>
+          </VCol>
+        </VRow>
+        <div v-if="statusTab === 'cancelled-group'" class="d-flex flex-wrap align-center ga-2 mt-3 px-4 py-3 rounded-lg bg-grey-lighten-4">
+          <span class="text-caption font-weight-bold text-medium-emphasis text-uppercase mr-2">Cancellation Detail</span>
+          <VBtn v-for="sub in cancelSubTabs" :key="sub.value" size="small" variant="tonal" :color="cancelSubTab === sub.value ? 'error' : 'grey'" rounded="pill" class="text-none font-weight-regular" @click="cancelSubTab = sub.value">{{ sub.title }} ({{ sub.count }})</VBtn>
+        </div>
+      </template>
+      <template #action>
+        <VTooltip :disabled="quota?.has_quota" location="top">
+          <template #activator="{ props: activatorProps }">
+            <span v-bind="activatorProps" class="d-inline-block">
+              <VBtn variant="flat" color="primary" prepend-icon="ri-add-line" :disabled="!!quota && !quota.has_quota || !auth.can('annual-ticket.create')" @click="openCreate">Create Annual Ticket</VBtn>
+            </span>
+          </template>
+          <span v-if="!quota?.date_of_join">Your date of join has not been set. Please contact HR Admin.</span>
+          <span v-else-if="!quota?.has_quota">The annual ticket quota for {{ quota?.quota_year }} has already been used or a request is still in progress.</span>
+        </VTooltip>
+      </template>
+      <template #search><VTextField v-model="search" prepend-inner-icon="ri-search-line" placeholder="Search annual ticket..." variant="outlined" density="comfortable" hide-details clearable style="min-width: 260px; max-width: 320px" /></template>
+      <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No annual tickets found.">
+        <template #item.attachment="{ item }"><VBtn v-if="item.raw?.evidence_url" color="grey-darken-1" variant="tonal" @click="openAttachments(item)"><VIcon icon="ri-attachment-2" /><VTooltip activator="parent" location="top">View Attachments</VTooltip></VBtn><span v-else>-</span></template>
+        <template #item.action="{ item }">
+          <VBtnGroup density="compact" variant="tonal">
+            <template v-if="item.can_process"><VBtn color="grey-darken-1" :disabled="processing" @click="openReview(item)"><VIcon :icon="item.stage_action === 'check' ? 'ri-eye-line' : 'ri-check-line'" /><VTooltip activator="parent" location="top">{{ item.stage_action === 'check' ? 'Review' : 'Approval' }}</VTooltip></VBtn></template>
+            <VBtn v-else-if="item.can_gmo_process" color="grey-darken-1" :disabled="processing" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn>
+            <VBtn v-else-if="item.status === 'revision_required' && item.raw?.is_owner" color="grey-darken-1" @click="openResubmit(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
+            <VBtn v-else-if="['processed_by_gmo', 'partially_cancelled'].includes(item.status) && (item.can_gmo_summary || item.raw?.is_owner)" color="grey-darken-1" :disabled="processing" @click="openSummary(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
+            <VBtn v-else color="grey-darken-1" @click="openPdf(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View PDF</VTooltip></VBtn>
+            <VBtn color="grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
+          </VBtnGroup>
+        </template>
+        <template #item.travel_period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.travel_period }}</span></template>
+        <template #item.route_condition="{ item }"><VChip size="small" variant="tonal" :color="routeColor[item.route_condition] || 'secondary'" class="text-no-wrap">{{ item.route_condition }}</VChip></template>
+        <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="statusMeta[item.status]?.color || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start /> {{ statusMeta[item.status]?.title || item.status }}</VChip></template>
+      </VDataTable>
+    </BrandCard>
+    <CreateAnnualTicketModal v-if="showCreateModal" :travelers="travelers" :ticket="resubmitTicket" :quota-year="quota?.quota_year ?? new Date().getFullYear()" @close="showCreateModal = false" @submitted="handleSubmitted" />
+    <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
+    <AttachmentsModal v-model="attachmentsDialog" :ticket="attachmentsTicket" />
+    <NoteModal v-model="noteDialog" :meta="noteMeta" @submit="handleNoteSubmit" />
+    <PdfViewerModal v-model="pdfDialog" :title="!pdfCanDecide ? 'Annual Ticket Detail' : reviewItem?.can_gmo_process ? 'Process Annual Ticket' : 'Review Annual Ticket'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="pdfCanDecide" :show-back="pdfBackToSummary" :approving="processing" :confirm-text="reviewConfirmText" @back="handlePdfBack" @update:model-value="value => !value && (pdfReviewMode = 'view')">
+      <template #decide="{ agreed }">
+        <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
+          <template v-if="reviewItem?.can_gmo_process"><VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">Continue</VBtn></template>
+          <template v-else>
+            <template v-if="isCancellationReview">
+              <template v-if="['check', 'approve'].includes(reviewItem?.stage_action)">
+                <VBtn variant="flat" color="primary" :disabled="processing" @click="handleCancellationProceed(reviewItem)">Cancellation</VBtn>
+                <VBtn variant="flat" color="error" :disabled="processing" @click="handleCancelReject(reviewItem)">Rejected</VBtn>
+              </template>
+              <VBtn v-else variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">{{ reviewActionLabel }}</VBtn>
+            </template>
+            <template v-else>
+              <VBtn variant="flat" color="warning" :disabled="processing" @click="handleReviewRevision">Revision</VBtn>
+              <VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">{{ reviewActionLabel }}</VBtn>
+            </template>
+          </template>
+        </VCardActions>
+      </template>
+    </PdfViewerModal>
+    <FareReferenceModal v-model="fareDialog" :departure-legs="fareDepartureLegs" :return-legs="fareReturnLegs" :payment-label="farePaymentLabel" :booked-by-company="fareItem?.raw?.ticket_arrangement === 'Booked by Company'" :show-fare-reference="fareShowFareReference" :processing="processing" @back="handleFareBack" @process="handleFareProcess" />
+    <AnnualTicketSummaryModal v-model="summaryDialog" :ticket="summaryTicket" :processing="processing" :can-edit-schedule="summaryTicket?.can_gmo_summary === true" @update-schedule="handleScheduleUpdate" @add-documents="handleAddDocuments" @cancel-ticket="handleCancelTicket" @update-refund="handleUpdateRefund" @resend-email="handleResendEmail" @view-pdf="openSummaryPdf" @cancel-request="openCancelRequest" />
+  </div>
+</template>

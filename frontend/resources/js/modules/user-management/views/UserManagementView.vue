@@ -14,7 +14,7 @@ import EditRole from '../components/modal/role/edit-role.vue'
 import AddPermission from '../components/modal/permission/add-permission.vue'
 import EditPermission from '../components/modal/permission/edit-permission.vue'
 
-import { deleteUser } from '../services/userService'
+import { deleteUser, getUser } from '../services/userService'
 import { getRoles, deleteRole } from '../services/roleService'
 import { getPermissions, deletePermission } from '../services/permissionService'
 
@@ -36,6 +36,22 @@ const formatDate = date => {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(date))
+}
+
+// Format dd-mm-yyyy khusus Date of Join
+const formatDateDMY = date => {
+  if (!date) return '-'
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(date))
+
+  const get = type => parts.find(part => part.type === type)?.value
+
+  return `${get('day')}-${get('month')}-${get('year')}`
 }
 
 const hasPermission = permission =>
@@ -205,8 +221,14 @@ const addUser = () => {
   showAddUser.value = true
 }
 
-const openEditUser = user => {
+const openEditUser = async user => {
   selectedUser.value = user
+  try {
+    selectedUser.value = await getUser(user.id)
+  } catch {
+    // tetap pakai data baris index kalau fetch gagal
+  }
+  showEditUser.value = true
   showEditUser.value = true
 }
 
@@ -396,7 +418,6 @@ onMounted(() => {
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Email', key: 'email' },
-  { title: 'Grade', key: 'grade', width: 100 },
   { title: 'Role', key: 'role' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
