@@ -41,6 +41,11 @@ class ExternalFormRequestService
         return $this->repository->release($user, $id, $data, $attachmentPath, $attachmentName);
     }
 
+    public function resendEmail(User $user, int $id): ExternalFormRequest
+    {
+        return $this->repository->resendEmail($user, $id);
+    }
+
     public function revision(User $user, int $id, ?string $remark = null): ExternalFormRequest
     {
         return $this->repository->revision($user, $id, $remark);

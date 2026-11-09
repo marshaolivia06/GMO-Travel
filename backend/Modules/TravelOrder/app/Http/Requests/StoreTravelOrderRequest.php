@@ -25,7 +25,7 @@ class StoreTravelOrderRequest extends FormRequest
 
         return [
             'status' => ['required', Rule::in(['draft', 'submitted'])],
-            'request_type' => ['required', Rule::in(['business_trip', 'annual_leave'])],
+            'request_type' => ['required', Rule::in(['business_trip'])],
             'trip_type' => ['required', Rule::in(['individual', 'group'])],
             'travel_order_group_id' => [Rule::requiredIf($isGroupTrip), 'nullable', 'integer', Rule::exists('travel_order_groups', 'id')->where('status', 'open')],
             'members' => ['nullable', 'array'],

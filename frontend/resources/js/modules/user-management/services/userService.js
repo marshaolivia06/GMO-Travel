@@ -1,51 +1,19 @@
-const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1`
-
-const getToken = () => {
-  return localStorage.getItem('token')
-}
-
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getToken()}`,
-      ...(options.headers || {}),
-    },
-  })
-
-  const data = await response.json()
-
-  if (!response.ok) {
-    const error = new Error(
-      data.message || 'Something went wrong.'
-    )
-
-    error.status = response.status
-
-    throw error
-  }
-
-  return data
-}
+import { http } from '../../../plugins/axios'
 
 export const getUsers = () => {
-  return request('/users')
+  return http.get('/v1/users').then(res => res.data)
 }
+
 export const getUser = (id) => {
-  return request(`/users/${id}`)
+  return http.get(`/v1/users/${id}`).then(res => res.data)
 }
 
 export const createUser = (user) => {
-  return request('/users', {
-    method: 'POST',
-    body: JSON.stringify(user),
-  })
+  return http.post('/v1/users', user).then(res => res.data)
 }
 
 export const getRoles = async () => {
-  const roles = await request('/roles')
+  const roles = await http.get('/v1/roles').then(res => res.data)
 
   const uniqueRoles = []
   const seen = new Set()
@@ -69,20 +37,15 @@ export const getRoles = async () => {
 }
 
 export const updateUser = (id, user) => {
-  return request(`/users/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(user),
-  })
+  return http.put(`/v1/users/${id}`, user).then(res => res.data)
 }
 
 export const deleteUser = (id) => {
-  return request(`/users/${id}`, {
-    method: 'DELETE',
-  })
+  return http.delete(`/v1/users/${id}`).then(res => res.data)
 }
 
 export const getOfficeLocations = async () => {
-  const response = await request('/company/office-locations')
+  const response = await http.get('/v1/company/office-locations').then(res => res.data)
 
   return response.data ?? []
 }

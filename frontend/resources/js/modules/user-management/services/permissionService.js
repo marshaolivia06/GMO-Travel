@@ -1,81 +1,25 @@
-const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1`
-
-const getToken = () => {
-  return localStorage.getItem('token')
-}
-
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-      ...(options.headers || {}),
-    },
-  })
-
-  const text = await response.text()
-
-  console.log('API:', `${API_URL}${url}`)
-  console.log('STATUS:', response.status)
-  console.log('RAW RESPONSE:', text)
-
-  let data
-
-  try {
-    data = JSON.parse(text)
-  } catch (error) {
-    console.error('Response bukan JSON valid:', error)
-
-    throw new Error(
-      `Server returned a non-JSON response. Status: ${response.status}`
-    )
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data.message ||
-      data.error ||
-      'Something went wrong.'
-    )
-  }
-
-  return data
-}
+import { http } from '../../../plugins/axios'
 
 export const getPermissions = () => {
-  return request('/permissions')
+  return http.get('/v1/permissions').then(res => res.data)
 }
 
-export const getPermission = id => {
-  return request(`/permissions/${id}`)
+export const getPermission = (id) => {
+  return http.get(`/v1/permissions/${id}`).then(res => res.data)
 }
 
-export const createPermission = permission => {
-  return request('/permissions', {
-    method: 'POST',
-    body: JSON.stringify(permission),
-  })
+export const createPermission = (permission) => {
+  return http.post('/v1/permissions', permission).then(res => res.data)
 }
 
-export const updatePermissionsByModule = (
-  oldModule,
-  newModule,
-  actions
-) => {
-  return request('/permissions/sync', {
-    method: 'PUT',
-    body: JSON.stringify({
-      old_module: oldModule,
-      module: newModule,
-      actions,
-    }),
-  })
+export const updatePermissionsByModule = (oldModule, newModule, actions) => {
+  return http.put('/v1/permissions/sync', {
+    old_module: oldModule,
+    module: newModule,
+    actions,
+  }).then(res => res.data)
 }
 
-export const deletePermission = id => {
-  return request(`/permissions/${id}`, {
-    method: 'DELETE',
-  })
+export const deletePermission = (id) => {
+  return http.delete(`/v1/permissions/${id}`).then(res => res.data)
 }

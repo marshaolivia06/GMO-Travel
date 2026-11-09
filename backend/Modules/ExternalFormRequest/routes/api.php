@@ -26,6 +26,8 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 
     Route::post('externalformrequests/{id}/release', [ExternalFormRequestController::class, 'release'])
         ->middleware('permission:external-form-request.approve');
+    Route::post('externalformrequests/{id}/resend', [ExternalFormRequestController::class, 'resend'])
+        ->middleware('permission:external-form-request.approve');
 
     Route::post('externalformrequests/{id}/revision', [ExternalFormRequestController::class, 'revision'])
         ->middleware('permission:external-form-request.approve');

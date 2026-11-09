@@ -281,7 +281,7 @@ const deleteSelectedUser = async user => {
 
     toast.success(`"${user.name}" has been deleted successfully.`)
   } catch (err) {
-    if (err.status === 403) {
+    if (err.response?.status === 403) {
       router.push('/error/403')
       return
     }
@@ -306,7 +306,7 @@ const deleteSelectedRole = async role => {
 
     toast.success(`"${role.name}" has been deleted successfully.`)
   } catch (err) {
-    if (err.status === 403) {
+    if (err.response?.status === 403) {
       router.push('/error/403')
       return
     }
@@ -336,7 +336,7 @@ const deleteSelectedPermission = async permission => {
       `"${permission.module}" has been deleted successfully.`
     )
   } catch (err) {
-    if (err.status === 403) {
+    if (err.response?.status === 403) {
       router.push('/error/403')
       return
     }

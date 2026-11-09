@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { http as axios } from '../plugins/axios'
+import { http as axios, refreshCsrfCookie } from '../plugins/axios'
 import { router } from '../plugins/router'
 import { useToastStore } from './toast'
 
@@ -17,6 +17,9 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     async login(email, password) {
+      // Ambil CSRF cookie dulu agar POST /login lolos validasi CSRF
+      await refreshCsrfCookie()
+
       const { data } = await axios.post('/login', { email, password }, { silent: true })
 
       this.token = data.token

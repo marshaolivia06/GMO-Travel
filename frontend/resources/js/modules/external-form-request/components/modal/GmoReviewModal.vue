@@ -387,7 +387,6 @@ function onSubmit() {
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="e => { attachment = e.target.files?.[0] ?? null; emailError = '' }">
               </div>
               <div v-if="emailError" class="text-caption text-error mt-1">{{ emailError }}</div>
-              <div v-else-if="attachment" class="text-caption text-medium-emphasis mt-1">{{ attachment.name }}</div>
             </VCol>
           </VRow>
         </template>

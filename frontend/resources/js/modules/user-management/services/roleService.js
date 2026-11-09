@@ -1,67 +1,26 @@
-const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1`
-
-const getToken = () => {
-  return localStorage.getItem('token')
-}
-
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-      ...(options.headers || {}),
-    },
-  })
-
-  const data = await response.json()
-
-  if (!response.ok) {
-    const error = new Error(
-      data.message || 'Something went wrong.'
-    )
-  
-    error.response = {
-      status: response.status,
-      data,
-    }
-  
-    throw error
-  }  
-
-  return data
-}
+import { http } from '../../../plugins/axios'
 
 // GET ALL ROLES
 export const getRoles = () => {
-  return request('/roles')
+  return http.get('/v1/roles').then(res => res.data)
 }
 
 // CREATE ROLE
 export const createRole = (role) => {
-  return request('/roles', {
-    method: 'POST',
-    body: JSON.stringify(role),
-  })
+  return http.post('/v1/roles', role).then(res => res.data)
 }
 
 // GET ROLE BY ID
 export const getRole = (id) => {
-  return request(`/roles/${id}`)
+  return http.get(`/v1/roles/${id}`).then(res => res.data)
 }
 
 // UPDATE ROLE
 export const updateRole = (id, role) => {
-  return request(`/roles/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(role),
-  })
+  return http.put(`/v1/roles/${id}`, role).then(res => res.data)
 }
 
 // DELETE ROLE
 export const deleteRole = (id) => {
-  return request(`/roles/${id}`, {
-    method: 'DELETE',
-  })
+  return http.delete(`/v1/roles/${id}`).then(res => res.data)
 }

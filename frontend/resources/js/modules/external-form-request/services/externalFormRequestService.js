@@ -55,6 +55,9 @@ export const releaseExternalFormRequest = (id, payload) => {
   return http.post(`${BASE}/${id}/release`, body).then(res => res.data)
 }
 
+// Kirim ulang email release terakhir (penerima, subject, isi, lampiran)
+export const resendExternalFormRequestEmail = id => http.post(`${BASE}/${id}/resend`).then(res => res.data)
+
 export const revisionExternalFormRequest = (id, remark) => http.post(`${BASE}/${id}/revision`, { remark }).then(res => res.data)
 
 export const rejectExternalFormRequest = (id, remark) => http.post(`${BASE}/${id}/reject`, { remark }).then(res => res.data)

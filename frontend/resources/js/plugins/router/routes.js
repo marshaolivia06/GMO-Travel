@@ -15,6 +15,8 @@ import { externalFormRequestRoutes } from '../../modules/external-form-request/r
 import { masterDependentRoutes } from '../../modules/master-dependent/routes'
 import { masterDestinationRoutes } from '../../modules/master-destination/routes'
 import { masterEmployeeRoutes } from '../../modules/master-employee/routes'
+import { useAuthStore } from '../../stores/auth'
+import { firstAccessibleNavPath } from '../../utils/navItems'
 
 const routes = [
   // ─── Blank layout (login) ───────────────────────────────
@@ -32,7 +34,28 @@ const routes = [
     component: DefaultLayoutWithVerticalNav,
     meta: { requiresAuth: true },
     children: [
-      { path: '', redirect: { name: 'user-management' } },
+      {
+        // Halaman default: arahkan ke menu pertama yang bisa diakses user (bukan 403)
+        path: '',
+        redirect: { name: 'home' },
+      },
+      {
+        path: 'home',
+        name: 'home',
+        // Komponen tidak pernah dirender - beforeEnter selalu mengalihkan ke menu yang diizinkan
+        component: { render: () => null },
+        meta: { requiresAuth: true },
+        beforeEnter: async () => {
+          const auth = useAuthStore()
+
+          if (!auth.user && auth.token)
+            await auth.fetchUser()
+
+          const path = firstAccessibleNavPath(auth)
+
+          return path ? { path } : { name: 'Forbidden' }
+        },
+      },
       ...dashboardRoutes,
       ...travelOrderRoutes,
       ...travelExpenseReportRoutes,

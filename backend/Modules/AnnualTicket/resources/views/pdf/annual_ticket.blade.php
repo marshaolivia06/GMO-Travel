@@ -22,7 +22,8 @@
 
     $eligibleDestination = $employee?->eligibleDestination?->city_name;
 
-    $officeLocation = $employee?->office_location;
+    // office_location tersimpan di master_employees (relasi employee dari User)
+    $officeLocation = $employee?->employee?->office_location;
 
     // Letterhead mengikuti office location employee - format "{location} Plant" (Batam/Jakarta/Singapore)
     $officeLabel = $officeLocation ? "{$officeLocation} Plant" : config('company.plant');

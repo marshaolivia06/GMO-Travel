@@ -60,6 +60,20 @@ watch(() => props.modelValue, value => {
   }
 })
 
+// Error validasi menghilang langsung saat field terkoreksi (tidak menunggu submit ulang)
+watch(() => form.transport_mode, value => { if (value) delete errors.transport_mode })
+watch(() => form.vendor_customer, value => { if (value.trim()) delete errors.vendor_customer })
+watch(() => form.purpose, value => { if (value.trim()) delete errors.purpose })
+watch(() => form.travel_from, value => { if (value.trim()) delete errors.travel_from })
+watch(() => form.departure_date, value => { if (value) delete errors.departure_date })
+watch(() => form.travel_to, value => { if (value.trim()) delete errors.travel_to })
+watch(() => [form.trip_type, form.return_date], ([tripType, returnDate]) => {
+  if (tripType === 'one_way' || returnDate) delete errors.return_date
+})
+watch(() => form.travelers, travelers => {
+  if (travelers.every(traveler => !!traveler.name.trim())) delete errors.travelers
+}, { deep: true })
+
 const isValid = computed(() =>
   !!form.transport_mode
   && !!form.vendor_customer.trim()

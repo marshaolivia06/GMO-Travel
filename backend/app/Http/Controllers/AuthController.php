@@ -52,7 +52,11 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        // Request stateful (SPA) memakai session/TransientToken tanpa baris DB;
+        // hanya token API (Bearer) yang perlu dihapus dari tabel
+        if ($request->user()->currentAccessToken() instanceof \Laravel\Sanctum\PersonalAccessToken) {
+            $request->user()->currentAccessToken()->delete();
+        }
 
         return response()->json([
             'message' => 'Logout successful.',

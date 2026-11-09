@@ -48,7 +48,6 @@
     $tripTypes = [
         'individual' => 'Business Trip - Individual',
         'group' => 'Business Trip - Group Trip',
-        'annual' => 'Annual Trip',
     ];
 
     $summary = [

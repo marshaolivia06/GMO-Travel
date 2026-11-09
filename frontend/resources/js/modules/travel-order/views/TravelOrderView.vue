@@ -31,7 +31,6 @@ const orders = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
 const detailDialog = ref(false)
-const requestDialog = ref(false)
 const businessDialog = ref(false)
 const dialog = ref(false)
 const selected = ref(null)
@@ -128,8 +127,8 @@ const statusMeta = {
   cancelled: { color: 'error', icon: 'ri-forbid-line' },
 }
 const statusKey = status => (status === 'revision' ? 'revision_required' : status)
-const typeColor = { 'Business Trip - Individual': 'primary', 'Business Trip - Group Trip': 'info', 'Annual Trip': 'success' }
-const typeLabel = { individual: 'Business Trip - Individual', group: 'Business Trip - Group Trip', annual: 'Annual Trip' }
+const typeColor = { 'Business Trip - Individual': 'primary', 'Business Trip - Group Trip': 'info' }
+const typeLabel = { individual: 'Business Trip - Individual', group: 'Business Trip - Group Trip' }
 const headerClass = 'px-3 py-3 text-caption font-weight-bold text-medium-emphasis bg-grey-lighten-4 text-no-wrap'
 const cellClass = 'px-3 py-3'
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
@@ -144,11 +143,6 @@ const headers = computed(() => [
   col('PERIOD', 'period', { align: 'center' }),
   col('ARRANGEMENT', 'arrangement', { align: 'center' }),
 ])
-
-const requestTypes = [
-  { key: 'annual', badge: 'AL', title: 'Annual Leave', desc: 'Submit your annual leave request.', points: ['Leave period selection', 'Leave balance check'] },
-  { key: 'business', badge: 'BT', title: 'Business Trip', desc: 'Create an individual trip or a group trip request.', points: ['Individual Trip', 'Group Trip', 'Travel region and travel advance'] },
-]
 
 const businessTypes = [
   { key: 'individual', badge: 'IT', title: 'Individual Trip', desc: 'Business trip for one person.', points: ['Route and travel dates', 'Ticket and accommodation', 'Travel advance'] },
@@ -309,8 +303,7 @@ const historyRounds = computed(() => {
   return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([round, items]) => ({ round, items }))
 })
 
-function openNewRequest() { requestDialog.value = true }
-function backToRequest() { businessDialog.value = false; requestDialog.value = true }
+function openNewRequest() { businessDialog.value = true }
 function backToBusiness() {
   dialog.value = false
   if (dialogType.value === 'group') {
@@ -331,12 +324,6 @@ function openNote(action, source = 'approval') { noteAction.value = action; note
 const handleReject = () => openNote('reject')
 const handleRevision = () => openNote('revision')
 function backToBusinessType() { pickGroupDialog.value = false; businessDialog.value = true }
-
-function selectRequest(type) {
-  requestDialog.value = false
-  if (type === 'annual') { showMessage('Annual Leave form is not available yet.', 'info'); return }
-  businessDialog.value = true
-}
 
 function selectBusinessType(type) {
   businessDialog.value = false
@@ -950,8 +937,7 @@ onMounted(() => {
       </VDataTable>
     </BrandCard>
 
-    <PickTypeModal v-model="requestDialog" title="New Travel Request" subtitle="Select the type of request you want to submit." :items="requestTypes" @select="selectRequest" />
-    <PickTypeModal v-model="businessDialog" title="Business Trip" subtitle="How many people are traveling?" :items="businessTypes" show-back @back="backToRequest" @select="selectBusinessType" />
+<PickTypeModal v-model="businessDialog" title="New Travel Request" subtitle="How many people are traveling?" :items="businessTypes" @select="selectBusinessType" />
     <TripFormModal v-model="dialog" :type="dialogType" :loading="submitting" :initial-data="editingDraft ? selected : null" :group="orderGroup" @back="backToBusiness" @close="closeDialog" @submit="submitOrder" />
     <VDialog v-model="groupTripDialog" max-width="1000" scrollable><GroupTripForm v-if="groupTripDialog" :loading="groupTripSubmitting" :member-options="memberOptions" :initial-data="editingGroup" @cancel="groupTripDialog = false" @back="handleGroupFormBack" @submit="submitGroupTrip" /></VDialog>
     <GroupTripDetailModal v-model="groupTripViewDialog" :group="selectedGroupTrip" :loading="groupTripViewLoading" :member-options="memberOptions" />

@@ -54,6 +54,17 @@ watch(() => props.modelValue, value => {
   }
 })
 
+// Error validasi menghilang langsung saat field terkoreksi (tidak menunggu submit ulang)
+watch(() => form.purpose, value => { if (value.trim()) delete errors.purpose })
+watch(() => form.vendor_customer, value => { if (value.trim()) delete errors.vendor_customer })
+watch(() => [form.check_in_date, form.check_out_date], ([checkIn, checkOut]) => {
+  if (checkIn) delete errors.check_in_date
+  if (checkOut && (!checkIn || checkOut >= checkIn)) delete errors.check_out_date
+})
+watch(() => form.guests, guests => {
+  if (guests.every(guest => !!guest.name.trim())) delete errors.guests
+}, { deep: true })
+
 const isValid = computed(() =>
   !!form.purpose.trim()
   && !!form.vendor_customer.trim()

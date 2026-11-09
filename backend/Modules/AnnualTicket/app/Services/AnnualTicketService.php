@@ -536,7 +536,8 @@ class AnnualTicketService
     // masih sebelum tanggal join karyawan - periode entitlement dihitung dari anniversary join.
     public function quotaFor(User $user): array
     {
-        $join = $user->date_of_join;
+        // date_of_join tersimpan di master_employees (relasi employee), bukan lagi di tabel users
+        $join = $user->employee?->date_of_join;
 
         if (! $join) {
             return ['quota_year' => null, 'has_quota' => false, 'date_of_join' => null];

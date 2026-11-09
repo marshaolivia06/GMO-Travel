@@ -112,6 +112,17 @@ class ExternalFormRequestController extends Controller
         return $this->respondDecision($this->service->revision($request->user(), $id, $request->input('remark')));
     }
 
+    // Kirim ulang email release terakhir pada pengajuan ber-status released
+    public function resend(Request $request, int $id): JsonResponse
+    {
+        $form = $this->service->resendEmail($request->user(), $id);
+
+        return response()->json([
+            'message' => 'Release email resent successfully.',
+            'data' => $form->load('travelers', 'emails'),
+        ]);
+    }
+
     public function reject(Request $request, int $id): JsonResponse
     {
         return $this->respondDecision($this->service->reject($request->user(), $id, $request->input('remark')));

@@ -25,7 +25,7 @@ class MasterDependentService
         return ['id' => $dependent->id, 'name' => $dependent->name, 'relationship' => $dependent->relationship, 'dob' => $dependent->date_of_birth->format('Y-m-d'), 'age' => $age, 'eligible' => $dependent->relationship === 'Spouse' || $age < self::MAX_ELIGIBLE_AGE];
     });
 
-    return ['employee' => ['id' => $user->id, 'name' => $user->name], 'eligible_destination' => $user->eligibleDestination?->city_name, 'office_location' => $user->office_location, 'dependents' => $dependents->values()];
+    return ['employee' => ['id' => $user->id, 'name' => $user->name], 'eligible_destination' => $user->eligibleDestination?->city_name, 'office_location' => $user->employee?->office_location, 'dependents' => $dependents->values()];
 }
 
     public function createForEmployee(array $data): void

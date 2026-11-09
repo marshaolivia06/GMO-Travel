@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getExternalFormRequests, getExternalFormRequestHistory, getExternalFormRequestPdf, getDivHeads, approveExternalFormRequest, releaseExternalFormRequest, revisionExternalFormRequest, rejectExternalFormRequest } from '../services/externalFormRequestService'
+import { getExternalFormRequests, getExternalFormRequestHistory, getExternalFormRequestPdf, getDivHeads, approveExternalFormRequest, releaseExternalFormRequest, resendExternalFormRequestEmail, revisionExternalFormRequest, rejectExternalFormRequest } from '../services/externalFormRequestService'
 import { useToastStore } from '../../../stores/toast'
 import { useAuthStore } from '../../../stores/auth'
 import { useConfirm } from '../../../composables/useConfirm'
@@ -46,6 +46,7 @@ const historyChip = {
   booking_payment_updated: { text: 'Booking & Payment Updated', color: 'info' },
   email_sent: { text: 'Email Sent', color: 'primary' },
   email_failed: { text: 'Email Failed', color: 'error' },
+  email_resent: { text: 'Email Resent', color: 'primary' },
   released: { text: 'Released', color: 'success' },
 }
 
@@ -125,7 +126,42 @@ const pdfCanDecide = computed(() => pdfReviewMode.value === 'decide')
 const isReviewStep = computed(() => pdfRow.value?.raw?.pending_action === 'Review')
 const isContinueFlow = computed(() => isReviewStep.value && ['airplane_ferry', 'hotel_reservation'].includes(pdfRow.value?.raw?.type))
 const isReleaseFlow = computed(() => pdfRow.value?.raw?.can_process === true)
+const canResend = computed(() => pdfRow.value?.raw?.can_resend === true)
+const resending = ref(false)
 const deciding = ref(false)
+
+async function handleResendEmail() {
+  if (resending.value || !pdfRow.value) return
+
+  const raw = pdfRow.value.raw
+
+  const documentLabel = raw.type === 'hotel_reservation'
+    ? 'reservation confirmation document'
+    : 'booking document'
+
+  const ok = await confirm({
+    title: 'Resend Email',
+    text: `The released ${documentLabel} will be sent to ${raw.resend_to || 'the requester'}.`,
+    confirmText: 'Resend Email',
+    color: 'primary',
+  })
+
+  if (!ok) return
+
+  resending.value = true
+
+  try {
+    const response = await resendExternalFormRequestEmail(pdfRow.value.id)
+
+    toast.success(response?.message || 'Release email resent successfully.')
+    pdfDialog.value = false
+    await fetchRequests()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to resend the release email.')
+  } finally {
+    resending.value = false
+  }
+}
 
 const showGmoRelease = ref(false)
 const releasing = ref(false)
@@ -642,6 +678,12 @@ const filteredRows = computed(() => {
         <VBtn v-if="!isReleaseFlow" variant="flat" color="warning" @click="openNote('revision')">Revision Required</VBtn>
         <VBtn v-if="!isReleaseFlow" variant="flat" color="error" @click="openNote('reject')">Rejected</VBtn>
         <VBtn variant="flat" color="primary" :loading="deciding" @click="handleApproveConfirm">{{ isContinueFlow || isReleaseFlow ? 'Continue' : (isReviewStep ? 'Reviewed' : 'Approve') }}</VBtn>
+      </VCardActions>
+    </template>
+    <template #actions>
+      <VDivider />
+      <VCardActions v-if="canResend" class="px-8 py-5 justify-end ga-3">
+        <VBtn variant="flat" color="primary" :loading="resending" @click="handleResendEmail">Resend Email</VBtn>
       </VCardActions>
     </template>
   </PdfViewerModal>

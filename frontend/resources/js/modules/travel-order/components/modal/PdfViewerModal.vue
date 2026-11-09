@@ -61,6 +61,10 @@ watch(() => [props.modelValue, props.pdfUrl], () => {
   </slot>
 </template>
 
+<template v-else-if="pdfUrl && pdfReady && !loading && $slots.actions">
+  <slot name="actions" />
+</template>
+
     </VCard>
   </VDialog>
 </template>
