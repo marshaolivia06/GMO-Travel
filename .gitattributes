@@ -1,0 +1,19 @@
+# Normalisasi line ending: apa pun OS developer, yang masuk repo selalu LF.
+# Mencegah diff "seluruh file berubah" saat ada teammate dengan core.autocrlf=true.
+* text=auto eol=lf
+
+# Lockfile: tetap tracked, tapi tidak perlu ditampilkan di diff
+package-lock.json -diff
+composer.lock -diff
+
+# Binary - jangan pernah di-normalisasi
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
