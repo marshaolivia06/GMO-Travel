@@ -11,6 +11,8 @@ const props = defineProps({
   loading: Boolean,
   initialData: Object,
   group: { type: Object, default: null },
+  viewOnly: Boolean,
+  canDecideAdvance: Boolean,
 })
 
 const isSummary = ref(false)
@@ -19,7 +21,7 @@ watch(() => props.modelValue, value => {
   if (value) isSummary.value = false
 })
 
-const emit = defineEmits(['update:modelValue', 'back', 'summary-back', 'close', 'submit'])
+const emit = defineEmits(['update:modelValue', 'back', 'summary-back', 'close', 'submit', 'approve', 'reject'])
 </script>
 
 <template>
@@ -27,7 +29,7 @@ const emit = defineEmits(['update:modelValue', 'back', 'summary-back', 'close', 
     <VCard rounded="lg">
       <VCardTitle class="d-flex align-center justify-space-between pa-5">
         <div class="d-flex align-center ga-3">
-          <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="loading" @click="isSummary ? activeForm?.handleSummaryBack() : emit('back')" />
+          <VBtn v-if="!viewOnly" icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="loading" @click="isSummary ? activeForm?.handleSummaryBack() : emit('back')" />
           <div class="text-h6 font-weight-bold">{{ isSummary ? 'Summary Travel Order' : 'Create Travel Order' }}</div>
         </div>
         <VBtn icon="ri-close-line" variant="text" @click="emit('close')" />
@@ -35,7 +37,7 @@ const emit = defineEmits(['update:modelValue', 'back', 'summary-back', 'close', 
       <VDivider />
 
       <VCardText class="pa-6">
-        <IndividualTripForm v-if="type === 'individual'" ref="activeForm" :loading="loading" :initial-data="initialData" @cancel="emit('close')" @submit="emit('submit', $event)" @summary-change="isSummary = $event" />
+        <IndividualTripForm v-if="type === 'individual'" ref="activeForm" :loading="loading" :initial-data="initialData" :view-only="viewOnly" :can-decide-advance="canDecideAdvance" @cancel="emit('close')" @submit="emit('submit', $event)" @summary-change="isSummary = $event" @approve="emit('approve')" @reject="emit('reject')" />
         <GroupTripOrderForm v-else-if="type === 'group'" ref="activeForm" :loading="loading" :initial-data="initialData" :group="group" @cancel="emit('close')" @submit="emit('submit', $event)" @summary-change="isSummary = $event" />
       </VCardText>
     </VCard>

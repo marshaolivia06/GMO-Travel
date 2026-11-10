@@ -264,7 +264,7 @@ class TravelOrderBookingService
         return $order;
     }
 
-    public function cancelBookingItem(TravelOrder $travelOrder, User $user, string $itemType, array $data, ?UploadedFile $confirmationFile = null): TravelOrderBookingCancellation
+    public function cancelBookingItem(TravelOrder $travelOrder, User $user, string $itemType, array $data, array $confirmationFiles = []): TravelOrderBookingCancellation
     {
         abort_unless(in_array($travelOrder->status, ['processed_by_gmo', 'cancelled'], true), 422, 'Booking items can only be cancelled after GMO processing.');
         abort_unless(in_array($itemType, ['ticket', 'accommodation'], true), 422, 'Invalid booking item type.');
@@ -286,6 +286,8 @@ class TravelOrderBookingService
         $attachmentPath = $isTicket ? $booking->e_ticket_path : $booking->hotel_reservation_path;
 
         abort_if(!$attachmentPath, 422, 'The selected booking item has no booking attachment.');
+
+        abort_if(empty($confirmationFiles), 422, 'Refund confirmation is required.');
 
         $validated = Validator::make($data, [
             'reason' => ['required', 'string', 'max:2000'],
@@ -310,23 +312,27 @@ class TravelOrderBookingService
 
         abort_if($refundAmount + $nonRefundableAmount > $originalAmount, 422, 'Refund and non-refundable amounts cannot exceed the original amount.');
 
-        $confirmationPath = null;
+        $confirmationPaths = [];
 
         try {
-            if ($confirmationFile) {
+            foreach ($confirmationFiles as $confirmationFile) {
+                if (!$confirmationFile instanceof UploadedFile) continue;
+
                 $confirmationPath = $confirmationFile->store('travel-order-bookings/cancellations', 'public');
 
                 if (!$confirmationPath) {
                     throw new \RuntimeException('Failed to store the cancellation confirmation.');
                 }
+
+                $confirmationPaths[] = $confirmationPath;
             }
 
-            $cancellation = DB::transaction(function () use ($travelOrder, $booking, $user, $itemType, $isTicket, $validated, $currency, $originalAmount, $refundAmount, $nonRefundableAmount, $confirmationPath) {
+            $cancellation = DB::transaction(function () use ($travelOrder, $booking, $user, $itemType, $isTicket, $validated, $currency, $originalAmount, $refundAmount, $nonRefundableAmount, $confirmationPaths) {
                 $cancellation = TravelOrderBookingCancellation::create([
                     'travel_order_id' => $travelOrder->id, 'booking_id' => $booking->id, 'item_type' => $itemType,
                     'reason' => $validated['reason'], 'refund_status' => $validated['refund_status'], 'currency' => $validated['currency'] ?? $currency,
                     'original_amount' => $originalAmount, 'refund_amount' => $refundAmount, 'non_refundable_amount' => $nonRefundableAmount,
-                    'confirmation_file' => $confirmationPath, 'processed_by' => $user->id,
+                    'confirmation_file' => $confirmationPaths[0] ?? null, 'confirmation_files' => $confirmationPaths ?: null, 'processed_by' => $user->id,
                 ]);
 
                 if ($isTicket) {
@@ -344,7 +350,7 @@ class TravelOrderBookingService
                 return $cancellation;
             });
         } catch (\Throwable $exception) {
-            if ($confirmationPath) {
+            foreach ($confirmationPaths as $confirmationPath) {
                 Storage::disk('public')->delete($confirmationPath);
             }
 

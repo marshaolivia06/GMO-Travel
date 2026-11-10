@@ -14,7 +14,7 @@ class TravelOrderRepository
         int $perPage = 10
     ): LengthAwarePaginator {
         return TravelOrder::with([
-            'user:id,name',
+            'user:id,name,email',
             'department:id,name',
             'advance',
         ])
@@ -167,7 +167,7 @@ class TravelOrderRepository
     public function findById(int $id): TravelOrder
     {
         return TravelOrder::with([
-            'user:id,name',
+            'user:id,name,email',
             'department:id,name,division_head_id',
             'department.divisionHead',
             'creator:id,name',

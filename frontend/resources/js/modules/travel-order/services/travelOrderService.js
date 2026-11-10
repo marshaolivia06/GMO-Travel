@@ -4,7 +4,7 @@ const BASE = '/v1/travel-orders'
 const GROUP_BASE = '/v1/travel-order-groups'
 
 const toPayload = form => {
-  const hasAdvance = !!form.regionId
+  const hasAdvance = !!form.regionId && form.advanceEditable !== false
 
   const payload = {
     request_type: form.request_type, trip_type: form.trip_type, status: form.status, department_id: form.departmentId || undefined,
@@ -16,8 +16,6 @@ const toPayload = form => {
     ticket_type: form.ferryTicketType, ticket_arrangement: form.ferryArrangement, accommodation_arrangement: form.accommodationArrangement,
     meal_allowance: hasAdvance ? form.mealAllowance : null, pocket_money: hasAdvance ? form.pocketMoney : null, currency: hasAdvance ? form.currency : null,
   }
-
-  console.log('TRAVEL ORDER PAYLOAD:', payload)
 
   return payload
 }
@@ -57,6 +55,8 @@ export const completeGmoProcessing = (id, form = {}) => {
 
 export const approveTravelOrder = (id, note = '') => http.post(`${BASE}/${id}/approve`, { note }).then(res => res.data)
 export const rejectTravelOrder = (id, remark) => http.post(`${BASE}/${id}/reject`, { remark }).then(res => res.data)
+export const approveAdvanceOpen = id => http.post(`${BASE}/${id}/advance-open/approve`).then(res => res.data)
+export const declineAdvanceOpen = (id, remark = '') => http.post(`${BASE}/${id}/advance-open/decline`, { remark }).then(res => res.data)
 
 export const cancelTravelOrder = (id, remark, evidence) => {
   const formData = new FormData()

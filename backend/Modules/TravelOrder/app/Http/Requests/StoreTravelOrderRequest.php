@@ -19,12 +19,12 @@ class StoreTravelOrderRequest extends FormRequest
         $tripType = $this->input('trip_type', 'individual');
         $isSubmitted = $status === 'submitted';
         $isGroupTrip = $tripType === 'group';
+        $isAdvanceOpenRequest = $status === 'awaiting_gmo_open_travel_advance';
         $region = $this->filled('region_id') ? MasterRegion::find($this->input('region_id')) : null;
-        $isAdvanceRequired = $region !== null && $region->code !== 'DN';
         $allowedCurrencies = $region ? [$region->currency] : [];
 
         return [
-            'status' => ['required', Rule::in(['draft', 'submitted'])],
+            'status' => ['required', Rule::in(['draft', 'submitted', 'awaiting_gmo_open_travel_advance', 'awaiting_input_travel_advance', 'awaiting_submit_without_travel_advance'])],
             'request_type' => ['required', Rule::in(['business_trip'])],
             'trip_type' => ['required', Rule::in(['individual', 'group'])],
             'travel_order_group_id' => [Rule::requiredIf($isGroupTrip), 'nullable', 'integer', Rule::exists('travel_order_groups', 'id')->where('status', 'open')],
@@ -38,15 +38,15 @@ class StoreTravelOrderRequest extends FormRequest
             'return_time' => ['required_if:status,submitted', 'nullable', 'date_format:H:i'],
             'purpose' => ['required_if:status,submitted', 'nullable', 'string'],
             'remarks' => ['nullable', 'string'],
-            'region_id' => [Rule::requiredIf($isSubmitted), 'nullable', 'integer', 'exists:master_regions,id'],
+            'region_id' => [Rule::requiredIf($isSubmitted || $isAdvanceOpenRequest), 'nullable', 'integer', 'exists:master_regions,id'],
             'travel_region' => ['nullable', Rule::in(['Domestic', 'Singapore', 'Overseas'])],
             'country' => ['required_if:status,submitted', 'nullable', 'string', 'max:255'],
             'ticket_type' => ['required_if:status,submitted', 'nullable', Rule::in(['Ferry', 'Airplane'])],
             'ticket_arrangement' => ['required_if:status,submitted', 'nullable', Rule::in(['Direct Payment', 'Booked by Company'])],
             'accommodation_arrangement' => ['required_if:status,submitted', 'nullable', Rule::in(['Direct Payment', 'Booked by Company', 'Not Required'])],
-            'meal_allowance' => [Rule::requiredIf($isSubmitted && $isAdvanceRequired), 'nullable', 'numeric', 'min:0'],
-            'pocket_money' => [Rule::requiredIf($isSubmitted && $isAdvanceRequired), 'nullable', 'numeric', 'min:0'],
-            'currency' => [Rule::requiredIf($isSubmitted && $isAdvanceRequired), 'nullable', Rule::in($allowedCurrencies)],
+            'meal_allowance' => ['nullable', 'numeric', 'min:0'],
+            'pocket_money' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', Rule::in($allowedCurrencies)],
         ];
     }
 }

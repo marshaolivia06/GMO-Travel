@@ -6,10 +6,11 @@ import { getDepartmentOptions } from '../../../master-management/services/depart
 import { useConfirm } from '../../../../composables/useConfirm'
 import { getMySection } from '../../../master-management/services/sectionService'
 
-const emit = defineEmits(['cancel', 'submit', 'summary-change'])
-const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null } })
+const emit = defineEmits(['cancel', 'submit', 'summary-change', 'approve', 'reject'])
+const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null }, viewOnly: { type: Boolean, default: false }, canDecideAdvance: { type: Boolean, default: false } })
 const authStore = useAuthStore()
 const { confirm } = useConfirm()
+const isDisabled = computed(() => props.loading || props.viewOnly)
 const sectionName = ref('')
 const generalError = ref('')
 const reviewDialog = ref(false)
@@ -27,22 +28,22 @@ const ferryTicketTypes = ['Ferry', 'Airplane']
 const ferryArrangements = ['Direct Payment', 'Booked by Company']
 const accommodationArrangements = ['Direct Payment', 'Booked by Company', 'Not Required']
 
-const errors = reactive({
-  employee: '', department: '', travelFrom: '', travelTo: '', departureDate: '', departureTime: '', returnDate: '', returnTime: '',
-  purpose: '', remarks: '', regionId: '', country: '', pocketMoney: '', mealAllowance: '',
-  ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '',
-})
+const errors = reactive({ employee: '', department: '', travelFrom: '', travelTo: '', departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '', regionId: '', country: '', pocketMoney: '', mealAllowance: '', ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '' })
 
-const form = reactive({
-  employee: authStore.user?.name || '', department: '', departmentId: null, travelFrom: '', travelTo: '',
-  departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '',
-  regionId: null, country: '', pocketMoney: '', mealAllowance: '',
-  ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '',
-})
+const form = reactive({ employee: authStore.user?.name || '', department: '', departmentId: null, travelFrom: '', travelTo: '', departureDate: '', departureTime: '', returnDate: '', returnTime: '', purpose: '', remarks: '', regionId: null, country: '', pocketMoney: '', mealAllowance: '', ferryTicketType: '', ferryArrangement: '', accommodationArrangement: '' })
 
 const selectedRegion = computed(() => regionOptions.value.find(item => item.id === form.regionId) || null)
 const regionGroup = computed(() => !selectedRegion.value ? '' : selectedRegion.value.code === 'DN' ? 'Domestic' : selectedRegion.value.code === 'LN-SG' ? 'Singapore' : 'Overseas')
-const showAdvance = computed(() => ['Singapore', 'Overseas'].includes(regionGroup.value))
+const initialStatus = computed(() => props.initialData?.status || '')
+const isAwaitingAdvanceInput = computed(() => initialStatus.value === 'awaiting_input_travel_advance')
+const isAdvanceDeclined = computed(() => initialStatus.value === 'awaiting_submit_without_travel_advance')
+const isRevisionEdit = computed(() => initialStatus.value === 'revision_required')
+const regionChanged = computed(() => form.regionId != null && props.initialData?.region_id != null && form.regionId !== props.initialData.region_id)
+const isAdvanceOpen = computed(() => props.initialData?.advance_status === 'open' && !regionChanged.value)
+const isAdvanceFlowEdit = computed(() => isAwaitingAdvanceInput.value || isAdvanceDeclined.value)
+const advanceEditable = computed(() => regionGroup.value !== 'Domestic' || isAwaitingAdvanceInput.value || isAdvanceOpen.value)
+const showAdvance = computed(() => !!form.regionId)
+const showAdvanceRequest = computed(() => regionGroup.value === 'Domestic' && !isAdvanceFlowEdit.value && !isAdvanceOpen.value && !props.viewOnly)
 const showCountry = computed(() => !!form.regionId)
 const lockCountry = computed(() => ['Domestic', 'Singapore'].includes(regionGroup.value))
 const advanceCurrency = computed(() => selectedRegion.value?.currency || '')
@@ -75,21 +76,7 @@ function normalizeTime(value) {
 function fillInitialData(order) {
   if (!order) return
   const ticket = order.ticket || {}, accommodation = order.accommodation || {}, advance = order.advance || {}
-
-  Object.assign(form, {
-    employee: order.user?.name || authStore.user?.name || '',
-    department: order.department?.name || order.department_name || '',
-    departmentId: order.department_id || order.department?.id || null,
-    travelFrom: order.travel_from || '', travelTo: order.travel_to || '',
-    departureDate: normalizeDate(order.departure_date), departureTime: normalizeTime(order.departure_time),
-    returnDate: normalizeDate(order.return_date), returnTime: normalizeTime(order.return_time),
-    purpose: order.purpose || '', remarks: order.remarks || '', regionId: order.region_id || null,
-    country: order.country || '', pocketMoney: advance.pocket_money ?? order.pocket_money ?? '',
-    mealAllowance: advance.meal_allowance ?? order.meal_allowance ?? '',
-    ferryTicketType: ticket.ticket_type || order.ticket_type || '',
-    ferryArrangement: ticket.arrangement || order.ticket_arrangement || '',
-    accommodationArrangement: accommodation.arrangement || order.accommodation_arrangement || '',
-  })
+  Object.assign(form, { employee: order.user?.name || authStore.user?.name || '', department: order.department?.name || order.department_name || '', departmentId: order.department_id || order.department?.id || null, travelFrom: order.travel_from || '', travelTo: order.travel_to || '', departureDate: normalizeDate(order.departure_date), departureTime: normalizeTime(order.departure_time), returnDate: normalizeDate(order.return_date), returnTime: normalizeTime(order.return_time), purpose: order.purpose || '', remarks: order.remarks || '', regionId: order.region_id || null, country: order.country || '', pocketMoney: advance.pocket_money ?? order.pocket_money ?? '', mealAllowance: advance.meal_allowance ?? order.meal_allowance ?? '', ferryTicketType: ticket.ticket_type || order.ticket_type || '', ferryArrangement: ticket.arrangement || order.ticket_arrangement || '', accommodationArrangement: accommodation.arrangement || order.accommodation_arrangement || '' })
 }
 
 const isFerryReimbursable = computed(() => form.ferryArrangement === 'Direct Payment')
@@ -109,15 +96,8 @@ const mealHint = computed(() => rateLimits.value?.meal_basis === 'at_cost' ? 'At
 const pocketHint = computed(() => pocketMax.value === 0 ? 'No daily allowance for this destination.' : pocketMax.value !== null && travelDays.value ? `Maximum ${formatNumberByCurrency(pocketMax.value, advanceCurrency.value)} ${advanceCurrency.value} for ${travelDays.value} day(s)` : 'Maximum travel advance based on travel duration.')
 const canSubmit = computed(() => confirmInfo.value && acknowledgeTer.value && !props.loading)
 
-const mealAllowanceDisplay = computed({
-  get: () => formatNumberByCurrency(form.mealAllowance, advanceCurrency.value),
-  set: value => { form.mealAllowance = parseNumberInput(value, advanceCurrency.value) },
-})
-
-const pocketMoneyDisplay = computed({
-  get: () => formatNumberByCurrency(form.pocketMoney, advanceCurrency.value),
-  set: value => { form.pocketMoney = parseNumberInput(value, advanceCurrency.value) },
-})
+const mealAllowanceDisplay = computed({ get: () => formatNumberByCurrency(form.mealAllowance, advanceCurrency.value), set: value => { form.mealAllowance = parseNumberInput(value, advanceCurrency.value) } })
+const pocketMoneyDisplay = computed({ get: () => formatNumberByCurrency(form.pocketMoney, advanceCurrency.value), set: value => { form.pocketMoney = parseNumberInput(value, advanceCurrency.value) } })
 
 function formatNumberByCurrency(value, currency) {
   if (value === '' || value == null) return ''
@@ -225,46 +205,29 @@ function validate(isSubmit = true) {
   clearErrors()
   let valid = true
   if (!isSubmit) return true
-
   const isDivHead = authStore.user?.roles?.includes('Div Head')
   const required = ['employee', 'travelFrom', 'travelTo', 'departureDate', 'departureTime', 'returnDate', 'returnTime', 'purpose', 'regionId', 'ferryTicketType', 'ferryArrangement', 'accommodationArrangement']
-
   if (!isDivHead) required.push('department')
-
   required.forEach(key => {
     if (!String(form[key] ?? '').trim()) {
       errors[key] = 'This field is required.'
       valid = false
     }
   })
-
   if (regionGroup.value === 'Overseas' && !String(form.country || '').trim()) {
     errors.country = 'This field is required.'
     valid = false
   }
-
-  if (showAdvance.value) {
-    if (!String(form.pocketMoney || '').trim()) {
-      errors.pocketMoney = 'This field is required.'
-      valid = false
-    }
-
-    if (!String(form.mealAllowance || '').trim()) {
-      errors.mealAllowance = 'This field is required.'
-      valid = false
-    }
-
+  if (showAdvance.value && advanceEditable.value) {
     if (mealExceeded.value) {
       errors.mealAllowance = `Maximum allowed is ${mealMax.value} ${advanceCurrency.value}.`
       valid = false
     }
-
     if (pocketExceeded.value) {
       errors.pocketMoney = `Maximum allowed is ${pocketMax.value} ${advanceCurrency.value}.`
       valid = false
     }
   }
-
   return valid
 }
 
@@ -272,9 +235,20 @@ function getCurrency() {
   return advanceCurrency.value || null
 }
 
+function buildPayload(status) {
+  return { ...form, advanceEditable: advanceEditable.value, request_type: 'business_trip', trip_type: 'individual', status, currency: getCurrency() }
+}
+
 function saveDraft() {
   if (props.loading) return
-  emit('submit', { ...form, request_type: 'business_trip', trip_type: 'individual', status: 'draft', currency: getCurrency() })
+  emit('submit', buildPayload('draft'))
+}
+
+async function requestOpenAdvance() {
+  if (props.loading) return
+  const confirmed = await confirm({ title: 'Request Open Travel Advance?', text: 'This Travel Order will be sent to GMO to review your Travel Advance request and cannot be edited until it is reviewed.', color: 'primary' })
+  if (!confirmed) return
+  emit('submit', buildPayload('awaiting_gmo_open_travel_advance'))
 }
 
 function submitForm() {
@@ -299,7 +273,7 @@ async function confirmSubmit() {
   if (!canSubmit.value) return
   const confirmed = await confirm({ title: 'Submit Travel Order?', text: 'Are you sure you want to submit this Travel Order?', color: 'primary' })
   if (!confirmed) return
-  emit('submit', { ...form, request_type: 'business_trip', trip_type: 'individual', status: 'submitted', currency: getCurrency() })
+  emit('submit', buildPayload('submitted'))
 }
 
 function cancel() {
@@ -307,20 +281,24 @@ function cancel() {
 }
 
 watch(() => props.initialData, data => {
-  if (data) fillInitialData(data)
+  if (data) {
+    fillInitialData(data)
+    clearTimeout(limitTimer)
+    limitTimer = setTimeout(loadRateLimits, 400)
+  }
 }, { immediate: true })
+
+watch(form, () => { Object.keys(errors).forEach(key => { if (errors[key] === 'This field is required.' && String(form[key] ?? '').trim()) errors[key] = '' }) })
 
 watch([() => form.regionId, () => form.travelTo, () => form.departureDate, () => form.returnDate, showAdvance], () => {
   clearTimeout(limitTimer)
   limitTimer = setTimeout(loadRateLimits, 400)
 })
 
-watch(mealMax, max => {
-  if (max !== null && form.mealAllowance !== '' && Number(form.mealAllowance) > max) form.mealAllowance = String(max)
-})
+watch(mealMax, max => { if (max !== null && form.mealAllowance !== '' && Number(form.mealAllowance) > max) form.mealAllowance = String(max) })
 
 watch(pocketMax, max => {
-  if (max === 0) form.pocketMoney = '0'
+  if (max === 0) form.pocketMoney = ''
   else if (max !== null && form.pocketMoney !== '' && Number(form.pocketMoney) > max) form.pocketMoney = String(max)
 })
 
@@ -338,169 +316,186 @@ onMounted(() => {
     <VCard v-if="!reviewDialog" rounded="lg" elevation="1">
       <VForm @submit.prevent="submitForm">
         <VCardText class="pa-6">
-  <VAlert v-if="generalError" type="error" variant="tonal" class="mb-6">{{ generalError }}</VAlert>
+          <VAlert v-if="generalError" type="error" variant="tonal" class="mb-6">{{ generalError }}</VAlert>
 
-  <div class="text-subtitle-2 font-weight-bold mb-4">Trip Information</div>
-  <VRow>
-  <VCol cols="12" md="4"><div class="text-caption mb-1">1. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter Travel From" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
-  <VCol cols="12" md="4"><div class="text-caption mb-1">2. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter Travel To" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
-  <VCol cols="12" md="4"><div class="text-caption mb-1">3. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
-  <VCol cols="12" md="4"><div class="text-caption mb-1">4. Departure Time</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
-  <VCol cols="12" md="4"><div class="text-caption mb-1">5. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-  <VCol cols="12" md="4"><div class="text-caption mb-1">6. Return Time</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
-  <VCol cols="12" md="6"><div class="text-caption mb-1">7. Travelling Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter Travelling Purpose" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
-  <VCol cols="12" md="6"><div class="text-caption mb-1">8. Remarks </div><VTextarea v-model="form.remarks" placeholder="Enter Remarks (Optional)" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" /></VCol>
-</VRow>
+          <div class="text-subtitle-2 font-weight-bold mb-4">Trip Information</div>
+          <VRow>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">1. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter Travel From" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">2. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter Travel To" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">3. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="isDisabled" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">4. Departure Time</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="isDisabled" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">5. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="isDisabled" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">6. Return Time</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="isDisabled" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
+            <VCol cols="12" md="6"><div class="text-caption mb-1">7. Travelling Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter Travelling Purpose" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="isDisabled" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
+            <VCol cols="12" md="6"><div class="text-caption mb-1">8. Remarks </div><VTextarea v-model="form.remarks" placeholder="Enter Remarks (Optional)" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="isDisabled" /></VCol>
+          </VRow>
 
-  <VRow>
-    <VCol cols="12" md="3">
-      <div class="text-caption mb-1">9. Travel Region</div>
-      <VSelect :model-value="form.regionId" :items="regionOptions" item-title="label" item-value="id" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.regionId ? [errors.regionId] : []" @update:model-value="selectRegion">
-        <template #selection="{ item }"><span v-if="form.regionId">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
-      </VSelect>
-    </VCol>
+          <VRow>
+            <VCol cols="12" md="3">
+              <div class="text-caption mb-1">9. Travel Region</div>
+              <VSelect :model-value="form.regionId" :items="regionOptions" item-title="label" item-value="id" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled || isAdvanceFlowEdit" :error-messages="errors.regionId ? [errors.regionId] : []" @update:model-value="selectRegion">
+                <template #selection="{ item }"><span v-if="form.regionId">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
+              </VSelect>
+            </VCol>
+            <VCol v-if="showCountry" cols="12" md="3">
+              <div class="text-caption mb-1">Country</div>
+              <VTextField v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled || lockCountry" :error-messages="errors.country ? [errors.country] : []" />
+            </VCol>
+          </VRow>
 
-    <VCol v-if="showCountry" cols="12" md="3">
-      <div class="text-caption mb-1">Country</div>
-      <VTextField v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || lockCountry" :error-messages="errors.country ? [errors.country] : []" />
-    </VCol>
-  </VRow>
+          <VRow class="mt-2">
+            <VCol cols="12"><div class="text-caption mb-1">10. Ticket, Accommodation & Travel Advance</div></VCol>
+          </VRow>
+          <VRow>
+            <VCol cols="12" md="4">
+              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
+                <VCardItem>
+                  <template #append><VChip variant="tonal" :color="isFerryReimbursable ? 'success' : 'error'" size="small">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
+                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Ferry Ticket <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
+                  <div class="text-caption text-medium-emphasis mt-1">Select transport type, arranger, and payer.</div>
+                </VCardItem>
+                <VCardText>
+                  <VRow>
+                    <VCol cols="6"><div class="text-caption mb-1">Ticket Type</div><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
+                    <VCol cols="6"><div class="text-caption mb-1">Arrangement</div><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
+                  </VRow>
+                </VCardText>
+              </VCard>
+            </VCol>
 
-  <VRow class="mt-2">
-  <VCol cols="12">
-    <div class="text-caption mb-1">10. Ticket, Accommodation & Travel Advance</div>
-  </VCol>
-</VRow>
-<VRow>
-  <VCol cols="12" md="4">
-    <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-      <VCardItem>
-        <template #append><VChip variant="tonal" :color="isFerryReimbursable ? 'success' : 'error'" size="small">{{ isFerryReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
-        <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Ferry Ticket <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-        <div class="text-caption text-medium-emphasis mt-1">Select transport type, arranger, and payer.</div>
-      </VCardItem>
-      <VCardText>
-        <VRow>
-          <VCol cols="6"><div class="text-caption mb-1">Ticket Type</div><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
-          <VCol cols="6"><div class="text-caption mb-1">Arrangement</div><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
-        </VRow>
-      </VCardText>
-    </VCard>
-  </VCol>
+            <VCol cols="12" md="4">
+              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
+                <VCardItem>
+                  <template #append><VChip variant="tonal" :color="isAccommodationReimbursable ? 'success' : 'error'" size="small">{{ isAccommodationReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
+                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Accommodation <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
+                  <div class="text-caption text-medium-emphasis mt-1">Select accommodation arrangement.</div>
+                </VCardItem>
+                <VCardText>
+                  <div class="text-caption mb-1">Arrangement</div>
+                  <VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect>
+                </VCardText>
+              </VCard>
+            </VCol>
 
-  <VCol cols="12" md="4">
-    <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-      <VCardItem>
-        <template #append><VChip variant="tonal" :color="isAccommodationReimbursable ? 'success' : 'error'" size="small">{{ isAccommodationReimbursable ? 'Reimbursable' : 'Not Reimbursable' }}</VChip></template>
-        <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Accommodation <VTooltip text="Employee pays first and claims eligible expense through TER."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-        <div class="text-caption text-medium-emphasis mt-1">Select accommodation arrangement.</div>
-      </VCardItem>
-      <VCardText>
-        <div class="text-caption mb-1">Arrangement</div>
-        <VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect>
-      </VCardText>
-    </VCard>
-  </VCol>
+            <VCol v-if="showAdvance" cols="12" md="4">
+              <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
+                <VCardItem>
+                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">
+                    Travel Advance
+                    <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip>
+                    <VChip v-if="showAdvanceRequest" variant="tonal" color="warning" size="x-small" class="ms-2" prepend-icon="ri-lock-line">Locked</VChip>
+                    <VChip v-else-if="isAwaitingAdvanceInput || isAdvanceOpen" variant="tonal" color="success" size="x-small" class="ms-2" prepend-icon="ri-lock-unlock-line">Open</VChip>
+                  </VCardTitle>
+                  <div class="text-caption text-medium-emphasis mt-1">{{ regionGroup === 'Domestic' ? 'Travel Advance for Domestic requires GMO approval.' : 'Optional advance based on travel region.' }}</div>
+                </VCardItem>
+                <VCardText>
+                  <VBtn v-if="showAdvanceRequest" size="small" variant="tonal" color="primary" class="mb-3" :disabled="isDisabled" @click="requestOpenAdvance">Request for Open Travel Advance</VBtn>
 
-  <VCol v-if="showAdvance" cols="12" md="4">
-    <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
-      <VCardItem>
-        <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-        <div class="text-caption text-medium-emphasis mt-1">Optional advance based on travel region.</div>
-      </VCardItem>
-      <VCardText>
-        <VAlert type="info" variant="tonal" density="compact" class="mb-4"><strong>{{ selectedRegionLabel }} policy:</strong> Travel Advance is requested in {{ advanceCurrency }} and follows your grade.</VAlert>
+                  <VAlert v-if="isAdvanceDeclined" type="warning" variant="tonal" density="compact" class="mb-4">Your Travel Advance request was <strong>declined by GMO</strong>. Please continue without a Travel Advance.</VAlert>
+                  <VAlert v-else-if="isAwaitingAdvanceInput || isAdvanceOpen" type="success" variant="tonal" density="compact" class="mb-4">GMO <strong>approved</strong> your Travel Advance request. Please {{ isAwaitingAdvanceInput ? 'fill in' : 'review or edit' }} the amounts below.</VAlert>
+                  <VAlert v-else-if="showAdvanceRequest" type="info" variant="tonal" density="compact" class="mb-4">Travel Advance is <strong>locked</strong> for Domestic trips. Use <strong>Request for Open Travel Advance</strong> above to ask GMO for access.</VAlert>
+                  <VAlert v-else type="info" variant="tonal" density="compact" class="mb-4"><strong>{{ selectedRegionLabel }} policy:</strong> Optional Travel Advance, requested in {{ advanceCurrency }} and follows your grade.</VAlert>
 
-        <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
+                  <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
 
-        <div class="d-flex align-center text-caption mb-1">
-          <span>Meal Allowance</span>
-          <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ mealHint }}</span></VTooltip>
-        </div>
-        <VRow class="align-center">
-          <VCol cols="4" class="pa-1"><VSelect :model-value="advanceCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-          <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, advanceCurrency)" /></VCol>
-        </VRow>
+                  <div class="d-flex align-center text-caption mb-2">
+                    <span>Meal Allowance</span>
+                    <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ mealHint }}</span></VTooltip>
+                  </div>
+                  <VRow class="align-center">
+                    <VCol cols="4" class="pa-1"><VSelect :model-value="advanceCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                    <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled || !travelDays || !advanceEditable" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, advanceCurrency)" /></VCol>
+                  </VRow>
 
-        <div class="d-flex align-center text-caption mb-1 mt-4">
-          <span>Pocket Money</span>
-          <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ pocketHint }}</span></VTooltip>
-        </div>
-        <VRow class="align-center">
-          <VCol cols="4" class="pa-1"><VSelect :model-value="advanceCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-          <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays || pocketMax === 0" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, advanceCurrency)" /></VCol>
-        </VRow>
-      </VCardText>
-    </VCard>
-  </VCol>
-</VRow>
-</VCardText>
+                  <div class="d-flex align-center text-caption mb-2 mt-5">
+                    <span>Pocket Money</span>
+                    <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ pocketHint }}</span></VTooltip>
+                  </div>
+                  <VRow class="align-center">
+                    <VCol cols="4" class="pa-1"><VSelect :model-value="advanceCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                    <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="pocketMax === 0 ? '-' : travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="isDisabled || !travelDays || !advanceEditable || pocketMax === 0" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, advanceCurrency)" /></VCol>
+                  </VRow>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+        </VCardText>
 
         <VDivider />
-        <VCardActions class="pa-4 justify-end">
-          <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
-          <VBtn type="button" variant="flat" color="primary" :loading="props.loading" :disabled="props.loading" @click="saveDraft">Draft</VBtn>
+        <VCardActions v-if="!viewOnly" class="pa-4 justify-end">
+          <VBtn variant="text" :disabled="isDisabled" @click="cancel">Cancel</VBtn>
+          <VBtn v-if="!isAdvanceFlowEdit && !isRevisionEdit" type="button" variant="flat" color="primary" :loading="props.loading" :disabled="props.loading" @click="saveDraft">Draft</VBtn>
           <VBtn type="submit" color="primary" variant="flat" :disabled="props.loading || mealExceeded || pocketExceeded">Continue</VBtn>
+        </VCardActions>
+        <VCardActions v-else-if="canDecideAdvance" class="pa-4 justify-end">
+          <VBtn color="error" variant="flat" :disabled="props.loading" @click="emit('reject')">Reject</VBtn>
+          <VBtn color="primary" variant="flat" :disabled="props.loading" @click="emit('approve')">Approve</VBtn>
         </VCardActions>
       </VForm>
     </VCard>
 
-<div v-if="reviewDialog">
-  <VCard rounded="lg" elevation="1" class="mb-4">
-    <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Trip Information</VCardTitle></VCardItem>
-    <VDivider />
-  <VCardText class="pa-4">
-    <VRow dense>
-      <VCol v-for="i in [
-  { l: 'Request Type', chip: 'Business Trip - Individual' }, { l: 'Section', v: sectionName }, { l: 'Department', v: form.department }, { l: 'Travel Region', v: selectedRegionLabel },
-  { l: 'Travel From', v: form.travelFrom }, { l: 'Travel To', v: form.travelTo }, { l: 'Country', v: summaryCountry }, { l: 'Departure Date', v: formatReviewDate(form.departureDate) },
-  { l: 'Departure Time', v: form.departureTime }, { l: 'Return Date', v: formatReviewDate(form.returnDate) }, { l: 'Return Time', v: form.returnTime }, { l: 'Travelling Purpose', v: form.purpose },
-  { l: 'Remarks', v: form.remarks, cols: 12 }
-]" :key="i.l" cols="12" sm="6" :md="i.cols || 3">
-        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
-          <VCardText class="pa-3 text-high-emphasis">
-            <div class="text-caption text-medium-emphasis">{{ i.l }}</div>
-            <VChip v-if="i.chip" variant="outlined" color="primary" size="small" class="mt-1">{{ i.chip }}</VChip>
-            <div v-else class="text-body-2 font-weight-bold mt-1">{{ i.v || '-' }}</div>
-          </VCardText>
-        </VCard>
-      </VCol>
-    </VRow>
-  </VCardText>
-</VCard>
+    <div v-if="reviewDialog">
+      <VCard rounded="lg" elevation="1" class="mb-4">
+        <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Trip Information</VCardTitle></VCardItem>
+        <VDivider />
+        <VCardText class="pa-4">
+          <VRow dense>
+            <VCol v-for="i in [
+              { l: 'Request Type', chip: 'Business Trip - Individual' }, { l: 'Section', v: sectionName }, { l: 'Department', v: form.department }, { l: 'Travel Region', v: selectedRegionLabel },
+              { l: 'Travel From', v: form.travelFrom }, { l: 'Travel To', v: form.travelTo }, { l: 'Country', v: summaryCountry }, { l: 'Departure Date', v: formatReviewDate(form.departureDate) },
+              { l: 'Departure Time', v: form.departureTime }, { l: 'Return Date', v: formatReviewDate(form.returnDate) }, { l: 'Return Time', v: form.returnTime }, { l: 'Travelling Purpose', v: form.purpose },
+              { l: 'Remarks', v: form.remarks, cols: 12 }
+            ]" :key="i.l" cols="12" sm="6" :md="i.cols || 3">
+              <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+                <VCardText class="pa-3 text-high-emphasis">
+                  <div class="text-caption text-medium-emphasis">{{ i.l }}</div>
+                  <VChip v-if="i.chip" variant="outlined" color="primary" size="small" class="mt-1">{{ i.chip }}</VChip>
+                  <div v-else class="text-body-2 font-weight-bold mt-1">{{ i.v || '-' }}</div>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+        </VCardText>
+      </VCard>
 
-<VCard rounded="lg" elevation="1" class="mb-4">
-  <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Ticket, Accommodation & Travel Advance</VCardTitle></VCardItem>
-  <VDivider />
-  <VCardText class="pa-4">
-    <VRow dense>
-      <VCol v-for="i in [
-        { t: form.ferryTicketType === 'Airplane' ? 'Airplane Ticket' : 'Ferry Ticket', a: form.ferryArrangement, ok: isFerryReimbursable },
-        { t: 'Accommodation', a: form.accommodationArrangement, ok: isAccommodationReimbursable }
-      ]" :key="i.t" cols="12" md="4">
-        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
-          <VCardText class="pa-3 text-high-emphasis">
-            <div class="d-flex align-center justify-space-between">
-              <div class="text-caption text-medium-emphasis">{{ i.t }}</div>
-              <VChip variant="tonal" size="small" :color="i.ok ? 'success' : 'error'">{{ i.ok ? 'Reimbursable' : 'Not Reimbursable' }}</VChip>
-            </div>
-            <div class="text-subtitle-1 font-weight-bold mt-1">{{ i.a || '-' }}</div>
-            <div class="text-caption text-medium-emphasis">{{ i.ok ? 'Reimbursable subject to policy.' : 'Not reimbursable.' }}</div>
-          </VCardText>
-        </VCard>
-      </VCol>
-      <VCol v-if="showAdvance" cols="12" md="4">
-        <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
-          <VCardText class="pa-3 text-high-emphasis">
-            <div class="text-caption text-medium-emphasis">Travel Advance</div>
-            <div class="text-body-2 font-weight-bold mt-1">Meal: {{ mealAllowanceDisplay || '-' }} {{ advanceCurrency }}</div>
-            <div class="text-body-2 font-weight-bold">Pocket: {{ pocketMoneyDisplay || '-' }} {{ advanceCurrency }}</div>
-          </VCardText>
-        </VCard>
-      </VCol>
-    </VRow>
-  </VCardText>
-</VCard>
+      <VCard rounded="lg" elevation="1" class="mb-4">
+        <VCardItem class="bg-grey-lighten-4 py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Ticket, Accommodation & Travel Advance</VCardTitle></VCardItem>
+        <VDivider />
+        <VCardText class="pa-4">
+          <VRow dense>
+            <VCol v-for="i in [
+              { t: form.ferryTicketType === 'Airplane' ? 'Airplane Ticket' : 'Ferry Ticket', a: form.ferryArrangement, ok: isFerryReimbursable },
+              { t: 'Accommodation', a: form.accommodationArrangement, ok: isAccommodationReimbursable }
+            ]" :key="i.t" cols="12" md="4">
+              <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+                <VCardText class="pa-3 text-high-emphasis">
+                  <div class="d-flex align-center justify-space-between">
+                    <div class="text-caption text-medium-emphasis">{{ i.t }}</div>
+                    <VChip variant="tonal" size="small" :color="i.ok ? 'success' : 'error'">{{ i.ok ? 'Reimbursable' : 'Not Reimbursable' }}</VChip>
+                  </div>
+                  <div class="text-subtitle-1 font-weight-bold mt-1">{{ i.a || '-' }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ i.ok ? 'Reimbursable subject to policy.' : 'Not reimbursable.' }}</div>
+                </VCardText>
+              </VCard>
+            </VCol>
+            <VCol v-if="showAdvance" cols="12" md="4">
+              <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
+                <VCardText class="pa-3 text-high-emphasis">
+                  <div class="text-caption text-medium-emphasis">Travel Advance</div>
+                  <template v-if="advanceEditable">
+                    <div class="text-body-2 font-weight-bold mt-1">Meal: {{ mealAllowanceDisplay || '-' }} {{ advanceCurrency }}</div>
+                    <div class="text-body-2 font-weight-bold">Pocket: {{ pocketMoneyDisplay || '-' }} {{ advanceCurrency }}</div>
+                  </template>
+                  <template v-else>
+                    <VChip variant="tonal" color="warning" size="small" class="mt-2" prepend-icon="ri-lock-line">{{ isAdvanceDeclined ? 'Declined by GMO' : 'Locked - GMO approval required' }}</VChip>
+                  </template>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+        </VCardText>
+      </VCard>
+
       <VCard rounded="lg" elevation="1">
         <VCardItem class="py-3"><VCardTitle class="text-subtitle-1 font-weight-bold">Submission Declaration</VCardTitle></VCardItem>
         <VDivider />
@@ -510,10 +505,10 @@ onMounted(() => {
         </VCardText>
         <VDivider />
         <VCardActions class="pa-3 justify-end">
-  <VBtn variant="text" :disabled="props.loading" @click="backToEdit">Back</VBtn>
-  <VBtn color="primary" variant="flat" :loading="props.loading" @click="saveDraft">Draft</VBtn>
-  <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit</VBtn>
-</VCardActions>
+          <VBtn variant="text" :disabled="props.loading" @click="backToEdit">Back</VBtn>
+          <VBtn v-if="!isAdvanceFlowEdit && !isRevisionEdit" color="primary" variant="flat" :loading="props.loading" @click="saveDraft">Draft</VBtn>
+          <VBtn color="primary" variant="flat" :loading="props.loading" :disabled="!canSubmit" @click="confirmSubmit">Submit</VBtn>
+        </VCardActions>
       </VCard>
     </div>
   </div>
@@ -521,25 +516,12 @@ onMounted(() => {
 
 <style scoped>
 .text-right-input :deep(input) { text-align: right; }
-.text-caption {
-  color: rgb(var(--v-theme-on-surface));
-}
-:deep(.v-field:not(.v-field--disabled)) {
-  background-color: rgb(var(--v-theme-surface));
-}
+.text-caption { color: rgb(var(--v-theme-on-surface)); }
+:deep(.v-field:not(.v-field--disabled)) { background-color: rgb(var(--v-theme-surface)); }
 :deep(.v-field:not(.v-field--disabled) .v-field__input),
-:deep(.v-field:not(.v-field--disabled) .v-label) {
-  color: rgb(var(--v-theme-on-surface));
-}
-:deep(.v-field--disabled) {
-  background-color: rgba(var(--v-theme-on-surface), 0.05);
-  opacity: 1;
-}
+:deep(.v-field:not(.v-field--disabled) .v-label) { color: rgb(var(--v-theme-on-surface)); }
+:deep(.v-field--disabled) { background-color: rgba(var(--v-theme-on-surface), 0.05); opacity: 1; }
 :deep(.v-field--disabled .v-field__input),
-:deep(.v-field--disabled .v-field__append-inner) {
-  color: rgba(var(--v-theme-on-surface), 0.45);
-}
-:deep(.v-field--disabled .v-field__outline) {
-  --v-field-border-opacity: 0.18;
-}
+:deep(.v-field--disabled .v-field__append-inner) { color: rgba(var(--v-theme-on-surface), 0.45); }
+:deep(.v-field--disabled .v-field__outline) { --v-field-border-opacity: 0.18; }
 </style>

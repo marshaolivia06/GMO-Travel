@@ -214,7 +214,7 @@ if (!$matrix || $matrix->steps->isEmpty()) {
             $this->logActivity($order, $user, $status, "Travel Order {$status}", ['sequence' => $stage->sequence, 'role' => $stage->role->name, 'remark' => $remark]);
 
             $order->approvals()->where('status', 'pending')->update(['status' => 'cancelled']);
-            $order->update(['status' => 'draft', 'approval_remark' => $remark]);
+            $order->update(['status' => $status === 'revision' ? 'revision_required' : ($status === 'rejected' ? 'cancelled' : $status), 'approval_remark' => $remark]);
 
             DB::afterCommit(fn() => $this->notifyRequesterDeclined($order, $user, $stage, $status, $remark));
         });

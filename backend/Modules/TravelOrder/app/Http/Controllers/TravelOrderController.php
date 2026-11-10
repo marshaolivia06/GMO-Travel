@@ -50,7 +50,7 @@ class TravelOrderController extends Controller
     public function revision(Request $request, int $id): JsonResponse
     {
         $v = $request->validate(['remark' => ['required', 'string', 'max:1000'], 'evidence' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120']]);
-        $this->service->revisionGmo($id, $request->user(), $v['remark'], $request->file('evidence'));
+        $this->service->revision($id, $request->user(), $v['remark'], $request->file('evidence'));
 
         return response()->json(['message' => 'Travel Order has been sent for revision.']);
     }
@@ -84,6 +84,20 @@ class TravelOrderController extends Controller
         return response()->json(['message' => 'Travel Order has been cancelled successfully.', 'data' => $order]);
     }
 
+    public function approveAdvanceOpen(Request $request, int $id): JsonResponse
+    {
+        $order = $this->service->decideAdvanceOpen($id, $request->user(), true);
+
+        return response()->json(['message' => 'Travel Advance open request has been approved.', 'data' => $order]);
+    }
+
+    public function declineAdvanceOpen(Request $request, int $id): JsonResponse
+    {
+        $order = $this->service->decideAdvanceOpen($id, $request->user(), false);
+
+        return response()->json(['message' => 'Travel Advance open request has been declined.', 'data' => $order]);
+    }
+
     public function completeGmoProcessing(Request $request, int $id): JsonResponse
     {
         $order = TravelOrder::with(['user', 'department', 'booking'])->findOrFail($id);
@@ -109,7 +123,15 @@ class TravelOrderController extends Controller
     public function cancelGmoBookingItem(Request $request, int $id, string $itemType): JsonResponse
     {
         abort_unless(in_array($itemType, ['ticket', 'accommodation'], true), 404);
-        $cancellation = $this->bookingService->cancelBookingItem(TravelOrder::findOrFail($id), $request->user(), $itemType, $request->all(), $request->file('confirmation_file'));
+
+        $files = $request->file('confirmation_files') ?? [];
+        $files = is_array($files) ? $files : [$files];
+
+        if (!$files && $request->file('confirmation_file')) {
+            $files = [$request->file('confirmation_file')];
+        }
+
+        $cancellation = $this->bookingService->cancelBookingItem(TravelOrder::findOrFail($id), $request->user(), $itemType, $request->all(), $files);
 
         return response()->json(['message' => ucfirst($itemType) . ' cancellation has been recorded successfully.', 'data' => $cancellation]);
     }

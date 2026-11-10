@@ -36,6 +36,7 @@ class TravelOrder extends Model
         'purpose',
         'remarks',
         'travel_region',
+        'advance_status',
         'country',
         'ticket_type',
         'ticket_arrangement',

@@ -21,6 +21,7 @@ class TravelOrderBookingCancellation extends Model
         'refund_amount',
         'non_refundable_amount',
         'confirmation_file',
+        'confirmation_files',
         'processed_by',
     ];
 
@@ -30,6 +31,7 @@ class TravelOrderBookingCancellation extends Model
             'original_amount' => 'decimal:2',
             'refund_amount' => 'decimal:2',
             'non_refundable_amount' => 'decimal:2',
+            'confirmation_files' => 'array',
         ];
     }
 

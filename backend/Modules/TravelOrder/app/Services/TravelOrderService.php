@@ -34,7 +34,7 @@ class TravelOrderService
         if ($isAdmin) {
             $filters['exclude_draft'] = true;
         } elseif ($isAdminGmo) {
-            $filters['gmo_status'] = ['awaiting_approval_gmo', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance', 'processed_by_gmo', 'cancelled'];
+            $filters['gmo_status'] = ['awaiting_approval_gmo', 'awaiting_gmo_open_travel_advance', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance', 'processed_by_gmo', 'cancelled'];
         } elseif ($isDeptHead) {
             $department = Department::where('dept_head_id', $user->id)->first();
 
@@ -121,9 +121,15 @@ class TravelOrderService
         return $this->find($id, $user);
     }
 
-    public function revision(int $id, User $user, string $remark): TravelOrder
+    public function revision(int $id, User $user, string $remark, ?UploadedFile $evidence = null): TravelOrder
     {
-        $this->approvalService->revision($this->repository->findById($id), $user, $remark);
+        $travelOrder = $this->repository->findById($id);
+
+        if (in_array($travelOrder->status, ['awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance'], true)) {
+            return $this->revisionGmo($id, $user, $remark, $evidence);
+        }
+
+        $this->approvalService->revision($travelOrder, $user, $remark);
 
         return $this->find($id, $user);
     }
@@ -270,7 +276,15 @@ public function create(array $data, User $user): TravelOrder
 
     $data = $this->applyRegion($data);
 
-    if (($data['status'] ?? 'draft') === 'submitted') {
+    $status = $data['status'] ?? 'draft';
+    $isDomestic = ($data['travel_region'] ?? '') === 'Domestic';
+    $isAdvanceOpenRequest = $status === 'awaiting_gmo_open_travel_advance';
+
+    abort_if($isAdvanceOpenRequest && !$isDomestic, 422, 'Travel Advance open request is only available for Domestic trips.');
+
+    $data['advance_status'] = $isDomestic ? 'locked' : 'open';
+
+    if ($status === 'submitted') {
         $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
 
         $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) ($user->employee?->grade ?? 0), $days, $data['departure_date']);
@@ -278,7 +292,7 @@ public function create(array $data, User $user): TravelOrder
         abort_if(!$validation['valid'], 422, $validation['message']);
     }
 
-    return DB::transaction(function () use ($data, $user, $departmentId, $tripType) {
+    return DB::transaction(function () use ($data, $user, $departmentId, $tripType, $isAdvanceOpenRequest) {
         $data['order_number'] = $this->generateOrderNumber();
         $data['trip_type'] = $tripType;
         $data['user_id'] = $user->id;
@@ -298,6 +312,10 @@ public function create(array $data, User $user): TravelOrder
         $advanceData['travel_order_id'] = $travelOrder->id;
         $this->advanceRepository->create($advanceData);
 
+        if ($isAdvanceOpenRequest) {
+            $this->approvalService->logGmoActivity($travelOrder, $user, 'advance_open_requested', 'Travel Advance open request sent to Admin-GMO', ['role' => $user->getRoleNames()->first()]);
+        }
+
         if (($data['status'] ?? 'draft') === 'submitted') {
             $this->approvalService->initFlow($travelOrder);
         }
@@ -311,7 +329,17 @@ public function create(array $data, User $user): TravelOrder
         $travelOrder = $this->repository->findById($id);
 
         abort_if($travelOrder->user_id !== $user->id, 403, 'You do not have access to modify this Travel Order.');
-        abort_if($travelOrder->status !== 'draft', 422, 'Only Travel Orders with draft status can be modified.');
+
+        $from = $travelOrder->status;
+        $isAdvanceFlow = in_array($from, ['awaiting_input_travel_advance', 'awaiting_submit_without_travel_advance'], true);
+        $isEditablePlain = in_array($from, ['draft', 'revision_required'], true);
+        $allowedTargets = $isAdvanceFlow ? ['submitted', $from] : ['submitted', $from, 'awaiting_gmo_open_travel_advance'];
+
+        abort_if(!$isAdvanceFlow && !$isEditablePlain, 422, 'Only Travel Orders with draft, revision required, or awaiting travel advance input status can be modified.');
+
+        $status = $data['status'] ?? $from;
+
+        abort_if(!in_array($status, $allowedTargets, true), 422, 'The Travel Order status transition is not allowed.');
 
         $tripType = $data['trip_type'] ?? $travelOrder->trip_type ?? 'individual';
 $isGroupTrip = $tripType === 'group';
@@ -325,7 +353,31 @@ $departmentId = $lockInfo['locked'] ? $lockInfo['department']['id'] : ($isDivHea
 
 $data = $this->applyRegion($data);
 
-        if (($data['status'] ?? 'draft') === 'submitted') {
+$isDomestic = ($data['travel_region'] ?? $travelOrder->travel_region) === 'Domestic';
+
+if ($isAdvanceFlow) {
+    abort_if(!$isDomestic, 422, 'Travel region cannot be changed during the travel advance process.');
+    abort_if(isset($data['region_id']) && (int) $data['region_id'] !== (int) $travelOrder->region_id, 422, 'Travel region cannot be changed during the travel advance process.');
+
+    unset($data['advance_status']);
+
+    if ($from === 'awaiting_submit_without_travel_advance') $data['meal_allowance'] = $data['pocket_money'] = $data['currency'] = null;
+} elseif ($from === 'draft') {
+    if ($status === 'awaiting_gmo_open_travel_advance') abort_if(!$isDomestic, 422, 'Travel Advance open request is only available for Domestic trips.');
+
+    $data['advance_status'] = $isDomestic ? 'locked' : 'open';
+} elseif ($from === 'revision_required') {
+    if ($status === 'awaiting_gmo_open_travel_advance') abort_if(!$isDomestic, 422, 'Travel Advance open request is only available for Domestic trips.');
+
+    $regionChanged = isset($data['region_id']) && (int) $data['region_id'] !== (int) $travelOrder->region_id;
+
+    if ($regionChanged) $data['advance_status'] = $isDomestic ? 'locked' : 'open';
+    else unset($data['advance_status']);
+} else {
+    unset($data['advance_status']);
+}
+
+        if ($status === 'submitted') {
             $days = max(1, (int) Carbon::parse($data['departure_date'])->startOfDay()->diffInDays(Carbon::parse($data['return_date'])->startOfDay(), true) + 1);
 
             $validation = $this->rateLimitService->validateAdvance((int) ($data['region_id'] ?? 0), $data['travel_to'] ?? null, (float) ($data['pocket_money'] ?? 0), (float) ($data['meal_allowance'] ?? 0), (int) ($user->employee?->grade ?? 0), $days, $data['departure_date']);
@@ -333,7 +385,7 @@ $data = $this->applyRegion($data);
             abort_if(!$validation['valid'], 422, $validation['message']);
         }
 
-        return DB::transaction(function () use ($travelOrder, $data, $departmentId, $tripType) {
+        return DB::transaction(function () use ($travelOrder, $data, $departmentId, $tripType, $status) {
             $advanceData = ['meal_allowance' => $data['meal_allowance'] ?? null, 'pocket_money' => $data['pocket_money'] ?? null, 'currency' => $data['currency'] ?? null];
 
             unset($data['meal_allowance'], $data['pocket_money'], $data['currency'], $data['members'], $data['user_id'], $data['created_by'], $data['order_number']);
@@ -352,12 +404,38 @@ $data = $this->applyRegion($data);
                 $this->advanceRepository->create($advanceData);
             }
 
-            if (($data['status'] ?? 'draft') === 'submitted') {
+            if ($status === 'awaiting_gmo_open_travel_advance') {
+                $this->approvalService->logGmoActivity($travelOrder, $user, 'advance_open_requested', 'Travel Advance open request sent to Admin-GMO', ['role' => $user->getRoleNames()->first()]);
+            }
+
+            if ($status === 'submitted') {
                 $this->approvalService->initFlow($travelOrder);
             }
 
             return $travelOrder->fresh()->load('group.members.user');
         });
+    }
+
+    public function decideAdvanceOpen(int $id, User $user, bool $approved): TravelOrder
+    {
+        $travelOrder = $this->repository->findById($id);
+
+        abort_unless($user->hasRole('Admin-GMO'), 403, 'You are not authorized to process this request.');
+        abort_if($travelOrder->status !== 'awaiting_gmo_open_travel_advance', 422, 'This Travel Advance open request cannot be processed.');
+
+        $travelOrder->update($approved
+            ? ['advance_status' => 'open', 'status' => 'awaiting_input_travel_advance']
+            : ['advance_status' => 'declined', 'status' => 'awaiting_submit_without_travel_advance']);
+
+        $this->approvalService->logGmoActivity(
+            $travelOrder,
+            $user,
+            $approved ? 'advance_opened' : 'advance_declined',
+            $approved ? 'Travel Advance open request approved by Admin-GMO' : 'Travel Advance open request declined by Admin-GMO',
+            ['role' => 'Admin-GMO']
+        );
+
+        return $this->find($id, $user);
     }
 
     private function applyRegion(array $data): array
@@ -385,12 +463,12 @@ $data = $this->applyRegion($data);
         return $this->handleGmoReturnToDraft($id, $user, $remark, $evidence, 'cancelled');
     }
 
-    public function revisionGmo(int $id, User $user, string $remark, UploadedFile $evidence): TravelOrder
+    public function revisionGmo(int $id, User $user, string $remark, ?UploadedFile $evidence = null): TravelOrder
     {
         return $this->handleGmoReturnToDraft($id, $user, $remark, $evidence, 'revision');
     }
 
-    private function handleGmoReturnToDraft(int $id, User $user, string $remark, UploadedFile $evidence, string $action): TravelOrder
+    private function handleGmoReturnToDraft(int $id, User $user, string $remark, ?UploadedFile $evidence, string $action): TravelOrder
     {
         $travelOrder = $this->repository->findById($id);
         $remark = trim($remark);
@@ -399,11 +477,11 @@ $data = $this->applyRegion($data);
         abort_if(!in_array($travelOrder->status, ['awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance'], true), 422, 'The Travel Order cannot be processed in its current status.');
         abort_if($remark === '', 422, 'Remark is required.');
 
-        $evidencePath = $evidence->store('travel-order/gmo-evidence', 'public');
+        $evidencePath = $evidence?->store('travel-order/gmo-evidence', 'public');
 
         try {
             DB::transaction(function () use ($travelOrder, $user, $remark, $evidencePath, $action) {
-                $travelOrder->update(['status' => 'draft', 'gmo_remark' => $remark, 'gmo_evidence' => $evidencePath]);
+                $travelOrder->update(['status' => $action === 'revision' ? 'revision_required' : 'cancelled', 'gmo_remark' => $remark, 'gmo_evidence' => $evidencePath]);
 
                 $description = $action === 'cancelled' ? 'Travel Order cancelled by Admin-GMO' : 'Travel Order returned for revision by Admin-GMO';
 
@@ -426,7 +504,7 @@ $data = $this->applyRegion($data);
                 });
             });
         } catch (\Throwable $e) {
-            Storage::disk('public')->delete($evidencePath);
+            if ($evidencePath) Storage::disk('public')->delete($evidencePath);
             throw $e;
         }
 

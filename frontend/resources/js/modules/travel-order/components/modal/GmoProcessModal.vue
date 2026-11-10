@@ -1,15 +1,7 @@
-
 <script setup>
 import { computed, ref, reactive, watch } from 'vue'
 
-const props = defineProps({
-  modelValue: Boolean, title: String, status: String,
-  mode: { type: String, default: 'processing' },
-  order: { type: Object, default: null },
-  pdfUrl: { type: String, default: '' },
-  savedBooking: { type: Object, default: null },
-  loading: Boolean, processing: Boolean,
-})
+const props = defineProps({ modelValue: Boolean, title: String, status: String, mode: { type: String, default: 'processing' }, order: { type: Object, default: null }, pdfUrl: { type: String, default: '' }, savedBooking: { type: Object, default: null }, loading: Boolean, processing: Boolean })
 
 const emit = defineEmits(['update:modelValue', 'cancel', 'continue', 'complete', 'revision', 'reject', 'submit-booking', 'submit-eticket', 'send-email'])
 
@@ -21,7 +13,7 @@ const hotelReservation = ref(null)
 const emailSent = ref(false)
 const emailForm = reactive({ to: '', cc: '', subject: '', message: '' })
 const adjustTime = reactive({ departure_date: '', departure_time: '', return_date: '', return_time: '' })
-const bookingItems = reactive({ ticket_currency: 'IDR', ticket_amount: 0, accommodation_currency: 'IDR',accommodation_amount: 0,})
+const bookingItems = reactive({ ticket_currency: 'IDR', ticket_amount: 0, accommodation_currency: 'IDR', accommodation_amount: 0 })
 
 const isCompleted = computed(() => props.status === 'processed_by_gmo')
 const isDirectPayment = computed(() => props.mode === 'direct-payment')
@@ -37,11 +29,11 @@ const savedAirplaneAttachment = computed(() => savedBooking.value?.airplane_atta
 const savedAccommodationAttachment = computed(() => savedBooking.value?.accommodation_attachment_name || '')
 const emailButtonLabel = computed(() => emailSent.value ? 'Resend Email' : 'Send Email')
 const canContinue = computed(() => agreed.value && pdfReady.value && !props.loading && !props.processing)
+
 const canComplete = computed(() => {
   const emailValid = emailForm.to.trim() && emailForm.subject.trim() && emailForm.message.trim()
   const ticketValid = !isTicketBookedByCompany.value || (Number(bookingItems.ticket_amount) > 0 && (eTicket.value || savedETicket.value))
   const accommodationValid = !isAccommodationBookedByCompany.value || (Number(bookingItems.accommodation_amount) > 0 && (hotelReservation.value || savedHotelReservation.value))
-
   return emailValid && ticketValid && accommodationValid && !props.loading && !props.processing
 })
 
@@ -54,20 +46,9 @@ function loadBookingData() {
   const order = props.order
   if (!order) return
   const saved = savedBooking.value
-
-  Object.assign(adjustTime, {
-    departure_date: formatDate(saved?.departure_date || order.departure_date),
-    departure_time: normalizeTime(saved?.departure_time || order.departure_time),
-    return_date: formatDate(saved?.return_date || order.return_date),
-    return_time: normalizeTime(saved?.return_time || order.return_time),
-  })
-
-  Object.assign(bookingItems, {
-  ticket_currency: saved?.ticket_currency || bookingCurrencyItems.value[0] || 'IDR',
-  ticket_amount: saved?.ticket_amount ?? 0,
-  accommodation_currency: saved?.accommodation_currency || bookingCurrencyItems.value[0] || 'IDR',
-  accommodation_amount: saved?.accommodation_amount ?? 0,
-})
+  emailForm.to = order.user?.email || ''
+  Object.assign(adjustTime, { departure_date: formatDate(saved?.departure_date || order.departure_date), departure_time: normalizeTime(saved?.departure_time || order.departure_time), return_date: formatDate(saved?.return_date || order.return_date), return_time: normalizeTime(saved?.return_time || order.return_time) })
+  Object.assign(bookingItems, { ticket_currency: saved?.ticket_currency || bookingCurrencyItems.value[0] || 'IDR', ticket_amount: saved?.ticket_amount ?? 0, accommodation_currency: saved?.accommodation_currency || bookingCurrencyItems.value[0] || 'IDR', accommodation_amount: saved?.accommodation_amount ?? 0 })
 }
 
 function resetModal() {
@@ -112,29 +93,13 @@ function sendEmail() {
 
 function completeProcessing() {
   if (props.processing || !canComplete.value) return
-
-  emit('complete', {
-    adjustTime: { ...adjustTime },
-    bookingItems: { ...bookingItems },
-    eTicket: eTicket.value,
-    hotelReservation: hotelReservation.value,
-    emailForm: { ...emailForm },
-  })
+  emit('complete', { adjustTime: { ...adjustTime }, bookingItems: { ...bookingItems }, eTicket: eTicket.value, hotelReservation: hotelReservation.value, emailForm: { ...emailForm } })
 }
 
 watch(() => [props.order, props.savedBooking], loadBookingData, { immediate: true, deep: true })
 watch(() => props.modelValue, open => { if (open) resetModal() })
-watch(() => [props.pdfUrl, props.mode, props.status], () => {
-  pdfReady.value = false
-  agreed.value = false
-  step.value = 1
-})
-watch(bookingCurrencyItems, items => {
-  if (!savedBooking.value) {
-    bookingItems.ticket_currency = items[0] || 'IDR'
-    bookingItems.accommodation_currency = items[0] || 'IDR'
-  }
-}, { immediate: true })
+watch(() => [props.pdfUrl, props.mode, props.status], () => { pdfReady.value = false; agreed.value = false; step.value = 1 })
+watch(bookingCurrencyItems, items => { if (!savedBooking.value) { bookingItems.ticket_currency = items[0] || 'IDR'; bookingItems.accommodation_currency = items[0] || 'IDR' } }, { immediate: true })
 </script>
 
 <template>
@@ -159,31 +124,19 @@ watch(bookingCurrencyItems, items => {
         </VCardText>
 
         <template v-if="pdfUrl && pdfReady && !loading && !isCompleted && mode !== 'view-only'">
-  <VDivider />
-  <VCardText class="px-6 py-4">
-    <div class="d-flex align-start ga-3">
-      <input
-        v-model="agreed"
-        type="checkbox"
-        class="mt-1 flex-shrink-0"
-        :disabled="processing"
-      />
-      <div class="text-body-2">
-        {{ isDirectPayment
-          ? 'I confirm that all required GMO processing is complete.'
-          : 'I confirm that I have reviewed the Travel Order document.'
-        }}
-      </div>
-    </div>
-  </VCardText>
-  <VCardActions v-if="agreed" class="px-6 pb-5 pt-0 justify-end ga-2">
-    <VBtn color="error" variant="flat" :disabled="processing" @click="emit('reject')">Cancel</VBtn>
-    <VBtn color="warning" variant="flat" :disabled="processing" @click="emit('revision')">Revision</VBtn>
-    <VBtn color="primary" variant="flat" :loading="processing" :disabled="!canContinue" @click="continueToBooking">
-      {{ isDirectPayment ? 'Complete GMO Processing' : 'Continue' }}
-    </VBtn>
-  </VCardActions>
-</template>
+          <VDivider />
+          <VCardText class="px-6 py-4">
+            <div class="d-flex align-start ga-3">
+              <input v-model="agreed" type="checkbox" class="mt-1 flex-shrink-0" :disabled="processing" />
+              <div class="text-body-2">{{ isDirectPayment ? 'I confirm that all required GMO processing is complete.' : 'I confirm that I have reviewed the Travel Order document.' }}</div>
+            </div>
+          </VCardText>
+          <VCardActions v-if="agreed" class="px-6 pb-5 pt-0 justify-end ga-2">
+            <VBtn color="error" variant="flat" :disabled="processing" @click="emit('reject')">Reject</VBtn>
+            <VBtn color="warning" variant="flat" :disabled="processing" @click="emit('revision')">Revision</VBtn>
+            <VBtn color="primary" variant="flat" :loading="processing" :disabled="!canContinue" @click="continueToBooking">{{ isDirectPayment ? 'Reviewed' : 'Continue' }}</VBtn>
+          </VCardActions>
+        </template>
       </template>
 
       <template v-else-if="step === 2 && isBookedByCompany">
@@ -245,39 +198,24 @@ watch(bookingCurrencyItems, items => {
             </VCardText>
           </VCard>
 
-          
-<VCard rounded="lg" elevation="1">
-  <div class="bg-grey-lighten-4 px-4 py-3 text-subtitle-2 font-weight-bold">Employee Email</div>
-  <VDivider />
-  <VCardText class="pa-4">
-    <VRow dense>
-      <VCol cols="12" md="6">
-        <div class="text-body-2 font-weight-medium mb-2">To </div>
-        <VTextField v-model="emailForm.to" type="email" placeholder="Enter recipient email" density="comfortable" hide-details :disabled="processing" />
-      </VCol>
-      <VCol cols="12" md="6">
-        <div class="text-body-2 font-weight-medium mb-2">CC</div>
-        <VTextField v-model="emailForm.cc" placeholder="Enter CC email" density="comfortable" hide-details :disabled="processing" />
-      </VCol>
-      <VCol cols="12">
-        <div class="text-body-2 font-weight-medium mb-2">Subject </div>
-        <VTextField v-model="emailForm.subject" placeholder="Enter email subject" density="comfortable" hide-details :disabled="processing" />
-      </VCol>
-      <VCol cols="12">
-        <div class="text-body-2 font-weight-medium mb-2">Message </div>
-        <VTextarea v-model="emailForm.message" placeholder="Enter email message" rows="4" density="comfortable" hide-details :disabled="processing" />
-      </VCol>
-    </VRow>
-  </VCardText>
-</VCard>
+          <VCard rounded="lg" elevation="1">
+            <div class="bg-grey-lighten-4 px-4 py-3 text-subtitle-2 font-weight-bold">Employee Email</div>
+            <VDivider />
+            <VCardText class="pa-4">
+              <VRow dense>
+                <VCol cols="12" md="6"><div class="text-body-2 font-weight-medium mb-2">To </div><VTextField v-model="emailForm.to" type="email" placeholder="Enter recipient email" density="comfortable" hide-details :disabled="processing" /></VCol>
+                <VCol cols="12" md="6"><div class="text-body-2 font-weight-medium mb-2">CC</div><VTextField v-model="emailForm.cc" placeholder="Enter CC email" density="comfortable" hide-details :disabled="processing" /></VCol>
+                <VCol cols="12"><div class="text-body-2 font-weight-medium mb-2">Subject </div><VTextField v-model="emailForm.subject" placeholder="Enter email subject" density="comfortable" hide-details :disabled="processing" /></VCol>
+                <VCol cols="12"><div class="text-body-2 font-weight-medium mb-2">Message </div><VTextarea v-model="emailForm.message" placeholder="Enter email message" rows="4" density="comfortable" hide-details :disabled="processing" /></VCol>
+              </VRow>
+            </VCardText>
+          </VCard>
         </VCardText>
 
         <VDivider />
         <VCardActions class="px-5 pb-5 justify-end">
-  <VBtn color="primary" variant="flat" :loading="processing" :disabled="!canComplete" @click="completeProcessing">
-    Complete GMO Processing
-  </VBtn>
-</VCardActions>
+          <VBtn color="primary" variant="flat" :loading="processing" :disabled="!canComplete" @click="completeProcessing">Complete GMO Processing</VBtn>
+        </VCardActions>
       </template>
     </VCard>
   </VDialog>

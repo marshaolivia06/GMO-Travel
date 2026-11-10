@@ -27,6 +27,10 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::post('/{id}/cancel', [TravelOrderController::class, 'cancel'])->middleware('permission:travel-order.create');
         Route::post('/{id}/revision', [TravelOrderController::class, 'revision'])->middleware('permission:travel-order.approve');
         Route::post('/{id}/complete-gmo-processing', [TravelOrderController::class, 'completeGmoProcessing'])->middleware('permission:travel-order.approve');
+
+        // Travel Advance open request (domestic): pemohon request -> GMO review
+        Route::post('/{id}/advance-open/approve', [TravelOrderController::class, 'approveAdvanceOpen'])->middleware('permission:travel-order.approve');
+        Route::post('/{id}/advance-open/decline', [TravelOrderController::class, 'declineAdvanceOpen'])->middleware('permission:travel-order.approve');
         Route::get('group-trip/users', [TravelOrderGroupController::class, 'users'])->middleware('permission:travel-order.update');
     });
 

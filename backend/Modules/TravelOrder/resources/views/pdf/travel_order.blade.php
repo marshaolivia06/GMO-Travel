@@ -226,7 +226,7 @@
         </div>
 
         <div class="section">
-            <div class="section-title">Ticket, Accommodation &amp; Travel Advance</div>
+            <div class="section-title">Ticket Accommodation &amp; Travel Advance</div>
             <div class="info">
                 @foreach ($ticket as $row)
                     <div class="row">
