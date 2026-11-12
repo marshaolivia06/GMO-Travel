@@ -266,7 +266,15 @@ async function loadDepartmentInfo() {
 async function loadRegions() {
   try {
     const response = await getMasterRegions()
-    regionOptions.value = (response.data || response || []).map(item => ({ ...item, label: item.travel_area_label || item.name }))
+    const regions = Array.isArray(response?.data?.data) ? response.data.data
+      : Array.isArray(response?.data) ? response.data
+        : Array.isArray(response) ? response : []
+    const duplicatedIds = regions.filter(item => regions.some(other => other.id !== item.id && other.name === item.name)).map(item => item.id)
+    regionOptions.value = regions.map(item => ({
+      ...item,
+      label: duplicatedIds.includes(item.id) ? `${item.name} — ${item.coverage}` : item.name,
+      subtitle: `${item.coverage} · ${item.currency}`,
+    }))
   } catch (error) {
     generalError.value = error?.response?.data?.message || 'Failed to load travel regions.'
   }
@@ -512,6 +520,9 @@ onMounted(() => {
               <div class="text-caption mb-1">9. Travel Region</div>
               <VSelect :model-value="form.regionId" :items="regionOptions" item-title="label" item-value="id" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || regionLocked" :error-messages="errors.regionId ? [errors.regionId] : []" @update:model-value="selectRegion">
                 <template #selection="{ item }"><span v-if="form.regionId">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
+                <template #item="{ props: itemProps, item }">
+                  <VListItem v-bind="itemProps" :title="item.title" :subtitle="item.raw.subtitle" />
+                </template>
               </VSelect>
             </VCol>
 

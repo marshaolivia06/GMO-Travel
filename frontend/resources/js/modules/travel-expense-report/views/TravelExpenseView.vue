@@ -2,7 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../../../stores/auth.js'
 import { getTravelOrders } from '../../travel-order/services/travelOrderService.js'
+import { getAnnualTickets } from '../../annual-ticket/services/annualTicketService.js'
 import TravelExpenseReportModal from '../components/modal/TravelExpenseReportModal.vue'
+import AnnualTicketClaimModal from '../components/modal/AnnualTicketClaimModal.vue'
 
 const authStore = useAuthStore()
 const search = ref('')
@@ -10,9 +12,11 @@ const items = ref([])
 const loading = ref(false)
 const showDetail = ref(false)
 const selectedItem = ref(null)
+const showTicketClaim = ref(false)
+const ticketClaimRaw = ref(null)
 
 const headers = [
-  { title: 'ACTION', key: 'action', sortable: false, width: '120px', align: 'center' },
+  { title: 'ACTION', key: 'action', sortable: false, width: '80px', align: 'center' },
   { title: 'STATUS', key: 'status', sortable: false, width: '100px', align: 'center' },
   { title: 'TRIP TYPE', key: 'trip_type', sortable: false, width: '130px', align: 'center' },
   { title: 'PURPOSE / TRAVEL ORDER', key: 'purpose', sortable: false, minWidth: '250px', align: 'center' },
@@ -22,10 +26,14 @@ const headers = [
 ]
 
 const PROCESSED_BY_GMO = 'processed_by_gmo'
-const tripTypeLabels = { group: 'Group Trip', individual: 'Individual Trip' }
+const CLAIMABLE_TICKET_STATUSES = ['processed_by_gmo', 'partially_cancelled']
+const tripTypeLabels = { group: 'Group Trip', individual: 'Individual Trip', annual_ticket: 'Annual Ticket' }
 const normalize = value => String(value ?? '').trim().toLowerCase().replaceAll(' ', '_')
 const tripTypeLabel = type => tripTypeLabels[normalize(type)] ?? type ?? '-'
-const tripTypeColor = type => normalize(type) === 'group' ? 'primary' : 'deep-purple'
+const tripTypeColor = type => {
+  const key = normalize(type)
+  return key === 'group' ? 'info' : key === 'annual_ticket' ? 'success' : 'primary'
+}
 const statusLabel = status => normalize(status) === 'draft' ? 'Draft' : 'New'
 const currentUserId = computed(() => authStore.user?.id)
 
@@ -48,9 +56,12 @@ const formatPeriod = item => {
 async function load() {
   loading.value = true
   try {
-    const res = await getTravelOrders()
-    const list = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res) ? res : []
-    items.value = list.filter(to => String(to.user_id) === String(currentUserId.value) && normalize(to.status) === PROCESSED_BY_GMO).map(to => ({
+    const [ordersRes, ticketsRes] = await Promise.all([getTravelOrders(), getAnnualTickets()])
+
+    const orders = Array.isArray(ordersRes.data) ? ordersRes.data : Array.isArray(ordersRes.data?.data) ? ordersRes.data.data : Array.isArray(ordersRes) ? ordersRes : []
+    const tickets = Array.isArray(ticketsRes) ? ticketsRes : Array.isArray(ticketsRes?.data) ? ticketsRes.data : []
+
+    const orderItems = orders.filter(to => String(to.user_id) === String(currentUserId.value) && normalize(to.status) === PROCESSED_BY_GMO).map(to => ({
       id: to.id,
       status: 'new',
       trip_type: to.trip_type,
@@ -65,6 +76,32 @@ async function load() {
       eta: to.eta ?? to.arrival_time,
       total_claim: null,
     }))
+
+    const ticketItems = tickets
+      .filter(ticket => String(ticket.employee_id) === String(currentUserId.value))
+      .filter(ticket => CLAIMABLE_TICKET_STATUSES.includes(normalize(ticket.status)))
+      .filter(ticket => ticket.ticket_arrangement === 'Direct Payment' || ticket.route_condition === 'Different Route')
+      .map(ticket => {
+        const dates = (ticket.legs ?? []).map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean).sort()
+        const country = String(ticket.employee?.eligible_destination?.country ?? '').trim().toLowerCase()
+        const region = country === 'indonesia' ? 'Domestic' : country === 'singapore' ? 'Singapore' : country ? 'Overseas' : null
+        return {
+          id: `annual-ticket-${ticket.id}`,
+          status: 'new',
+          trip_type: 'annual_ticket',
+          purpose: `${ticket.route_condition} - ${ticket.ticket_arrangement} ${ticket.ticket_arrangement === 'Direct Payment' ? 'Reimbursement' : 'Excess'}`,
+          to_number: ticket.document_number,
+          travel_region: region,
+          departure_date: dates[0] ?? null,
+          return_date: dates.at(-1) ?? null,
+          total_claim: null,
+          claim_kind: ticket.ticket_arrangement === 'Direct Payment' ? 'Reimbursable' : 'Excess Potential',
+          annual_ticket_id: ticket.id,
+          raw: ticket,
+        }
+      })
+
+    items.value = [...orderItems, ...ticketItems]
   } catch (error) {
     console.error('Failed to load Travel Expense Reports:', error)
     items.value = []
@@ -74,6 +111,11 @@ async function load() {
 }
 
 function onContinue(item) {
+  if (item.trip_type === 'annual_ticket') {
+    ticketClaimRaw.value = item.raw ?? null
+    showTicketClaim.value = true
+    return
+  }
   selectedItem.value = item
   showDetail.value = true
 }
@@ -98,7 +140,12 @@ onMounted(load)
 
       <VDataTable :headers="headers" :items="items" :search="search" :loading="loading" item-value="id" hover class="ter-table" :items-per-page="10" :items-per-page-options="[10, 25, 50]" no-data-text="No Travel Expense Report found" loading-text="Loading travel reports...">
         <template #item.action="{ item }">
-          <VBtn color="primary" variant="flat" rounded="md" size="small" class="text-none font-weight-semibold" @click="onContinue(item)">continue</VBtn>
+          <VBtnGroup density="compact" variant="tonal">
+            <VBtn color="grey-darken-1" @click="onContinue(item)">
+              <VIcon icon="ri-edit-line" />
+              <VTooltip activator="parent" location="top">Continue</VTooltip>
+            </VBtn>
+          </VBtnGroup>
         </template>
         <template #item.status="{ item }">
   <VChip :color="item.status === 'draft' ? 'secondary' : 'warning'" variant="tonal" size="small">
@@ -126,4 +173,5 @@ onMounted(load)
       </VDataTable>
   </BrandCard>
     <TravelExpenseReportModal v-model="showDetail" :item="selectedItem" />
+    <AnnualTicketClaimModal v-model="showTicketClaim" :ticket="ticketClaimRaw" @submit="payload => console.log('Submit annual ticket claim:', payload)" @draft="payload => console.log('Draft annual ticket claim:', payload)" />
 </template>

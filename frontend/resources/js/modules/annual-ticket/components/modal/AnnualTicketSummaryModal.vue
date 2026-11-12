@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { legRouteStatus } from '../../utils/routeStatus.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -22,17 +23,9 @@ const formatDate = date => date ? new Intl.DateTimeFormat('en-GB', { timeZone: '
 const formatDateNumeric = date => date ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(date)) : '-'
 const norm = value => (value || '').trim().toLowerCase()
 
-function legRouteStatus(leg) {
-  const destination = props.ticket?.employee?.eligible_destination?.city_name ?? ''
-  const origin = props.ticket?.employee?.office_location ?? ''
-  const expectedFrom = leg.direction === 'departure' ? origin : destination
-  const expectedTo = leg.direction === 'departure' ? destination : origin
-  return norm(leg.travel_from) === norm(expectedFrom) && norm(leg.travel_to) === norm(expectedTo) ? 'Same Route' : 'Different Route'
-}
-
 function mapLegs(direction) {
   const legs = props.ticket?.legs?.filter(leg => leg.direction === direction) ?? []
-  return legs.map(leg => ({ id: leg.id, name: leg.name, role: leg.relationship || 'Employee', date: formatDate(leg.reschedule_date ?? leg.travel_date), route: `${leg.travel_from} - ${leg.travel_to}`, routeStatus: legRouteStatus(leg) }))
+  return legs.map(leg => ({ id: leg.id, name: leg.name, role: leg.relationship || 'Employee', date: formatDate(leg.reschedule_date ?? leg.travel_date), route: `${leg.travel_from} - ${leg.travel_to}`, routeStatus: legRouteStatus(props.ticket, leg, props.ticket?.legs) }))
 }
 
 const departureLegs = computed(() => mapLegs('departure'))

@@ -306,6 +306,7 @@ class ExternalFormRequestRepository
         return DB::transaction(function () use ($user, $data, $travelers) {
             $request = ExternalFormRequest::create([
                 'employee_id' => $user->id,
+                'request_type' => 'business_trip',
                 'type' => $data['type'],
                 'status' => $data['action'] === 'draft' ? ExternalFormRequest::STATUS_DRAFT : ExternalFormRequest::STATUS_AWAITING_DEPT_HEAD,
                 'document_number' => $data['action'] === 'draft' ? null : ExternalFormRequest::generateDocumentNumber(),

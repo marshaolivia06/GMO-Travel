@@ -99,6 +99,7 @@ class AnnualTicketRepository
                 'ticket_arrangement' => $data['ticket_arrangement'],
                 'status' => 'awaiting_check_hr_admin',
                 'document_number' => $this->generateDocumentNumber(),
+                'request_type' => 'annual_ticket',
                 'remarks' => $data['remarks'] ?? null,
                 'evidence_path' => $evidencePath,
             ]);

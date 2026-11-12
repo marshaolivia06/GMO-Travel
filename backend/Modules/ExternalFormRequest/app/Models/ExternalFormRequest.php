@@ -27,6 +27,7 @@ class ExternalFormRequest extends Model
 
     protected $fillable = [
         'employee_id',
+        'request_type',
         'type',
         'status',
         'document_number',

@@ -11,6 +11,7 @@ import FareReferenceModal from '../components/modal/FareReferenceModal.vue'
 import AnnualTicketSummaryModal from '../components/modal/AnnualTicketSummaryModal.vue'
 import PdfViewerModal from '../../travel-order/components/modal/PdfViewerModal.vue'
 import NoteModal from '../../travel-order/components/modal/NoteModal.vue'
+import { legRouteStatus } from '../utils/routeStatus.js'
 
 const toast = useToastStore()
 const auth = useAuthStore()
@@ -313,15 +314,6 @@ const farePaymentLabel = computed(() => {
   if (!raw) return ''
   return raw.ticket_arrangement === 'Direct Payment' ? 'Direct Payment · Reimbursable' : `Booked by Company · ${raw.route_condition === 'Different Route' ? 'Excess Potential' : 'Not Reimbursable'}`
 })
-
-function legRouteStatus(raw, leg) {
-  const norm = value => (value || '').trim().toLowerCase()
-  const destination = raw?.employee?.eligible_destination?.city_name ?? ''
-  const origin = raw?.employee?.office_location ?? ''
-  const expectedFrom = leg.direction === 'departure' ? origin : destination
-  const expectedTo = leg.direction === 'departure' ? destination : origin
-  return norm(leg.travel_from) === norm(expectedFrom) && norm(leg.travel_to) === norm(expectedTo) ? 'Same Route' : 'Different Route'
-}
 
 function mapFareLegs(direction) { return (fareItem.value?.raw?.legs ?? []).filter(leg => leg.direction === direction).map((leg, index) => ({ id: leg.id ?? index + 1, name: leg.name, role: leg.relationship || 'Employee', date: formatDate(leg.travel_date), route: `${leg.travel_from} - ${leg.travel_to}`, routeStatus: legRouteStatus(fareItem.value?.raw, leg) })) }
 function openFareReference(item) { fareItem.value = item; pdfDialog.value = false; fareDialog.value = true }

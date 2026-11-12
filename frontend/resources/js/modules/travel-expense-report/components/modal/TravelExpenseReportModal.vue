@@ -10,10 +10,13 @@ const emit = defineEmits(['update:modelValue'])
 const authStore = useAuthStore()
 const selectedDay = ref(null)
 
-const tripTypeLabels = { group: 'Group Trip', individual: 'Individual Trip' }
+const tripTypeLabels = { group: 'Group Trip', individual: 'Individual Trip', annual_ticket: 'Annual Ticket' }
 const normalize = value => String(value ?? '').trim().toLowerCase().replaceAll(' ', '_')
 const tripTypeLabel = type => tripTypeLabels[normalize(type)] ?? type ?? '-'
-const tripTypeColor = type => normalize(type) === 'group' ? 'primary' : 'deep-purple'
+const tripTypeColor = type => {
+  const key = normalize(type)
+  return key === 'group' ? 'info' : key === 'annual_ticket' ? 'success' : 'primary'
+}
 const toDate = value => {
   if (!value) return null
   const parsed = new Date(value)

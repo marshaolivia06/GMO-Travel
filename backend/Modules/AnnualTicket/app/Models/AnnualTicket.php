@@ -19,6 +19,7 @@ class AnnualTicket extends Model
         'status',
         'status_before_cancellation',
         'document_number',
+        'request_type',
         'remarks',
         'evidence_path',
     ];

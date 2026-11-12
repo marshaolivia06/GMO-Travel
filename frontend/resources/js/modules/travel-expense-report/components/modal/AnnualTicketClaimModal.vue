@@ -1,0 +1,394 @@
+<script setup>
+import { computed, ref, watch } from 'vue'
+import { useAuthStore } from '../../../../stores/auth.js'
+import { legRouteStatus } from '../../../annual-ticket/utils/routeStatus.js'
+
+const props = defineProps({
+  modelValue: { type: Boolean, default: false },
+  ticket: { type: Object, default: null },
+})
+const emit = defineEmits(['update:modelValue', 'close'])
+
+const t = computed(() => props.ticket || {})
+const legs = computed(() => t.value.legs ?? [])
+const isDirectPayment = computed(() => t.value.ticket_arrangement === 'Direct Payment')
+const claimType = computed(() => isDirectPayment.value ? 'Ticket Reimbursement' : 'Employee Excess Settlement')
+const arrangementLabel = computed(() => isDirectPayment.value ? 'Direct Payment' : `${t.value.ticket_arrangement || 'Booked by Company'} - Excess`)
+const claimTitle = computed(() => isDirectPayment.value ? 'Direct Payment - Ticket Reimbursement' : 'Booked by Company - Excess Settlement')
+
+// Reference route: rute leg pertama pada direction tersebut
+const directionRoute = direction => {
+  const leg = directionLegs(direction)[0]
+  return leg ? `${leg.travel_from} - ${leg.travel_to}` : '-'
+}
+
+const routeStatus = leg => legRouteStatus(t.value, leg)
+
+const directionLegs = direction => legs.value.filter(leg => leg.direction === direction)
+const departureLegs = computed(() => directionLegs('departure'))
+const returnLegs = computed(() => directionLegs('return'))
+const legDate = leg => {
+  const value = leg.reschedule_date ?? leg.travel_date
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const fareRows = computed(() => (t.value.fare_references ?? []).map(reference => {
+  const legCount = directionLegs(reference.direction).length
+  return {
+    direction: reference.direction === 'departure' ? 'Departure' : 'Return',
+    route: directionRoute(reference.direction),
+    fare: reference.fare_amount,
+    currency: reference.currency ?? 'IDR',
+    legs: legCount,
+    subtotal: Number(reference.fare_amount || 0) * legCount,
+    operator: reference.operator_name,
+  }
+}))
+const totalMaxFare = computed(() => fareRows.value.reduce((sum, row) => sum + row.subtotal, 0))
+const claimCurrency = computed(() => t.value.fare_references?.[0]?.currency ?? 'IDR')
+
+const formatMoney = value => new Intl.NumberFormat('id-ID').format(Number(value || 0))
+
+const totalActual = ref(null)
+const attachments = ref([])
+const actualError = ref('')
+
+// Excess settlement (Booked by Company)
+const bookingAmount = computed(() => Number(t.value.booking?.amount || 0))
+const bookingCurrency = computed(() => t.value.booking?.amount_currency ?? claimCurrency.value)
+const excessAmount = computed(() => Math.max(0, bookingAmount.value - totalMaxFare.value))
+
+async function downloadETicket() {
+  const url = t.value.booking?.e_ticket_url
+  if (!url) return
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('fetch failed')
+    const blob = await response.blob()
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = decodeURIComponent(url.split('/').pop().split('?')[0]) || 'e-ticket'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(link.href)
+  } catch {
+    window.open(url, '_blank')
+  }
+}
+// Finance Payment Account - read-only, dari data finance account
+const authStore = useAuthStore()
+const financeAccount = computed(() => t.value.finance_account ?? {})
+const bankName = computed(() => financeAccount.value.bank_name || '-')
+const accountNumber = computed(() => financeAccount.value.account_number || '-')
+const accountName = computed(() => financeAccount.value.account_name || '-')
+const paymentNote = computed(() => financeAccount.value.payment_note || [t.value.document_number, authStore.user?.name].filter(Boolean).join(' / ') || '-')
+const proofFile = ref(null)
+
+watch(() => props.modelValue, open => {
+  if (open) {
+    totalActual.value = null
+    attachments.value = []
+    actualError.value = ''
+    proofFile.value = null
+  }
+})
+
+const reimbursableAmount = computed(() => Math.min(Number(totalActual.value) || 0, totalMaxFare.value))
+
+const totalActualDisplay = computed(() => totalActual.value ? new Intl.NumberFormat('id-ID').format(Number(totalActual.value)) : '')
+
+function setTotalActual(value) {
+  const digits = String(value ?? '').replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '')
+  totalActual.value = digits ? Number(digits) : null
+  actualError.value = ''
+}
+
+function setAttachments(event) {
+  attachments.value = Array.from(event.target?.files ?? [])
+  actualError.value = ''
+}
+
+function setProofFile(event) {
+  proofFile.value = event.target?.files?.[0] ?? null
+}
+
+const canSubmit = computed(() => {
+  if (isDirectPayment.value) return (Number(totalActual.value) || 0) > 0 && attachments.value.length > 0
+  return !!proofFile.value
+})
+
+function payload(action) {
+  const base = {
+    action,
+    annual_ticket_id: t.value.id,
+    claim_type: claimType.value,
+    currency: claimCurrency.value,
+    total_fare_reference: totalMaxFare.value,
+  }
+  if (isDirectPayment.value) {
+    return {
+      ...base,
+      total_actual_amount: Number(totalActual.value) || 0,
+      settlement_amount: reimbursableAmount.value,
+      attachments: attachments.value.map(file => file.name),
+    }
+  }
+  return {
+    ...base,
+    company_booking_amount: bookingAmount.value,
+    employee_excess: excessAmount.value,
+    finance_bank_name: bankName.value.trim(),
+    finance_account_number: accountNumber.value.trim(),
+    finance_account_name: accountName.value.trim(),
+    payment_note: paymentNote.value.trim(),
+    proof_of_payment: proofFile.value?.name ?? null,
+  }
+}
+
+const submitPayload = () => emit('submit', payload('submit'))
+const draftPayload = () => emit('draft', payload('draft'))
+
+function close() {
+  emit('close')
+  emit('update:modelValue', false)
+}
+</script>
+
+<template>
+  <VDialog :model-value="modelValue" max-width="1400" width="95%" scrollable @update:model-value="emit('update:modelValue', $event)">
+    <VCard rounded="lg">
+      <div class="d-flex align-center justify-space-between px-4 py-3">
+        <span class="text-h6 font-weight-bold">Annual Ticket - Air Ticket Only</span>
+        <VBtn icon="ri-close-line" variant="text" size="small" @click="close" />
+      </div>
+      <VDivider />
+
+      <VCardText class="bg-grey-lighten-5 pa-4">
+        <VCard rounded="lg" border elevation="0" class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3">
+            <span class="text-subtitle-2 font-weight-bold">Linked Travel Information</span>
+          </div>
+          <VDivider />
+          <VCardText class="pa-4">
+            <VRow no-gutters class="border rounded-lg overflow-hidden">
+              <VCol cols="6" class="px-4 py-3 border-b border-e">
+                <div class="text-caption text-medium-emphasis">Annual Ticket Number</div>
+                <div class="text-body-2 font-weight-bold">{{ t.document_number || '-' }}</div>
+              </VCol>
+              <VCol cols="6" class="px-4 py-3 border-b">
+                <div class="text-caption text-medium-emphasis">Route Condition</div>
+                <VChip :color="t.route_condition === 'Same Route' ? 'success' : 'warning'" variant="tonal" size="small" class="mt-1">{{ t.route_condition || '-' }}</VChip>
+              </VCol>
+              <VCol cols="6" class="px-4 py-3 border-b border-e">
+                <div class="text-caption text-medium-emphasis">Employee</div>
+                <div class="text-body-2 font-weight-bold">{{ t.employee?.name || '-' }}</div>
+              </VCol>
+              <VCol cols="6" class="px-4 py-3 border-b">
+                <div class="text-caption text-medium-emphasis">Ticket Arrangement</div>
+                <div class="text-body-2 font-weight-bold">{{ arrangementLabel }}</div>
+              </VCol>
+              <VCol cols="12" class="px-4 py-3">
+                <div class="text-caption text-medium-emphasis">Claim / Settlement Type</div>
+                <div class="text-body-2 font-weight-bold">{{ claimType }}</div>
+              </VCol>
+            </VRow>
+          </VCardText>
+        </VCard>
+
+        <VCard v-for="direction in ['departure', 'return']" :key="direction" rounded="lg" border elevation="0" class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3">
+            <span class="text-subtitle-2 font-weight-bold text-capitalize">{{ direction }} Travel Legs</span>
+          </div>
+          <VDivider />
+          <VTable density="comfortable">
+            <thead>
+              <tr>
+                <th>Traveler</th>
+                <th>Relationship</th>
+                <th>Date</th>
+                <th>Travel From</th>
+                <th>Travel To</th>
+                <th>Route Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="leg in directionLegs(direction)" :key="leg.id">
+                <td class="text-body-2">{{ leg.name }}</td>
+                <td class="text-body-2">{{ leg.relationship || 'Employee' }}</td>
+                <td class="text-body-2">{{ legDate(leg) }}</td>
+                <td class="text-body-2">{{ leg.travel_from }}</td>
+                <td class="text-body-2">{{ leg.travel_to }}</td>
+                <td class="text-body-2">
+                  <VChip :color="routeStatus(leg) === 'Same Route' ? 'success' : 'warning'" variant="tonal" size="x-small">{{ routeStatus(leg) }}</VChip>
+                </td>
+              </tr>
+              <tr v-if="!directionLegs(direction).length">
+                <td colspan="6" class="text-center text-medium-emphasis py-3">No {{ direction }} legs.</td>
+              </tr>
+            </tbody>
+          </VTable>
+        </VCard>
+
+        <VCard rounded="lg" border elevation="0" class="mb-4">
+          <div class="bg-grey-lighten-4 px-4 py-3">
+            <span class="text-subtitle-2 font-weight-bold">Fare Reference</span>
+          </div>
+          <VDivider />
+          <VTable density="comfortable">
+            <thead>
+              <tr>
+                <th>Direction</th>
+                <th>Reference Route</th>
+                <th>Fare per Traveler</th>
+                <th>Travel Legs</th>
+                <th>Subtotal</th>
+                <th>Operator Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in fareRows" :key="row.direction">
+                <td class="text-body-2">{{ row.direction }}</td>
+                <td class="text-body-2">{{ row.route }}</td>
+                <td class="text-body-2">{{ row.currency }} {{ formatMoney(row.fare) }}</td>
+                <td class="text-body-2">{{ row.legs }}</td>
+                <td class="text-body-2 font-weight-bold">{{ row.currency }} {{ formatMoney(row.subtotal) }}</td>
+                <td class="text-body-2">{{ row.operator }}</td>
+              </tr>
+              <tr v-if="!fareRows.length">
+                <td colspan="6" class="text-center text-medium-emphasis py-3">No fare reference.</td>
+              </tr>
+            </tbody>
+            <tfoot v-if="fareRows.length">
+              <tr class="bg-grey-lighten-4">
+                <td colspan="4" class="text-subtitle-2 font-weight-bold">Total Maximum Ticket Fare Reference</td>
+                <td class="text-subtitle-2 font-weight-bold">{{ claimCurrency }} {{ formatMoney(totalMaxFare) }}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </VTable>
+        </VCard>
+
+        <VCard rounded="lg" border elevation="0">
+          <div class="bg-grey-lighten-4 px-4 py-3">
+            <span class="text-subtitle-2 font-weight-bold">{{ claimTitle }}</span>
+          </div>
+          <VDivider />
+          <VCardText class="pa-4">
+            <VRow v-if="isDirectPayment">
+              <VCol cols="12" md="4">
+                <div class="text-caption mb-1">Currency</div>
+                <VTextField :model-value="claimCurrency" variant="outlined" density="comfortable" readonly bg-color="grey-lighten-1" />
+              </VCol>
+              <VCol cols="12" md="4">
+                <div class="text-caption text-black mb-1">Total Actual Ticket Amount <span class="text-error"></span></div>
+                <VTextField
+                  :model-value="totalActualDisplay"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="Input actual ticket amount"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  class="text-right-input"
+                  :error-messages="actualError ? [actualError] : []"
+                  @update:model-value="setTotalActual"
+                />
+              </VCol>
+              <VCol cols="12" md="4">
+                <div class="text-caption mb-1">Total Fare Reference</div>
+                <VTextField :model-value="`${claimCurrency} ${formatMoney(totalMaxFare)}`" variant="outlined" density="comfortable" readonly bg-color="grey-lighten-2" />
+              </VCol>
+              <VCol cols="12" md="6">
+                <div class="d-flex flex-column h-100">
+                  <div class="text-caption text-black mb-1">E-Ticket + Boarding Pass + Invoice <span class="text-error"></span></div>
+                  <div class="d-flex align-center flex-grow-1 w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
+                    <input type="file" multiple accept=".jpg,.jpeg,.png,.pdf" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setAttachments">
+                  </div>
+                  <div class="text-caption text-medium-emphasis mt-1"><template v-if="attachments.length">{{ attachments.length }} file(s) selected</template><template v-else>&nbsp;</template></div>
+                </div>
+              </VCol>
+              <VCol cols="12" md="6">
+                <div class="d-flex flex-column h-100">
+                  <div class="text-caption mb-1">Reimbursable Amount</div>
+                  <div class="flex-grow-1">
+                    <VTextField
+                      :model-value="`${claimCurrency} ${formatMoney(reimbursableAmount)}`"
+                      variant="outlined"
+                      density="comfortable"
+                      readonly
+                      bg-color="grey-lighten-1"
+                      class="h-100"
+                      style="height: 100%"
+                    />
+                  </div>
+                  <div class="text-caption mt-1">&nbsp;</div>
+                </div>
+              </VCol>
+            </VRow>
+
+            <VRow v-else>
+              <VCol cols="12" md="4">
+                <div class="text-caption mb-1">Company Booking Amount</div>
+                <VTextField :model-value="`${bookingCurrency} ${formatMoney(bookingAmount)}`" variant="outlined" density="comfortable" readonly bg-color="grey-lighten-1" />
+              </VCol>
+              <VCol cols="12" md="4">
+                <div class="text-caption mb-1">Total Fare Reference</div>
+                <VTextField :model-value="`${claimCurrency} ${formatMoney(totalMaxFare)}`" variant="outlined" density="comfortable" readonly bg-color="grey-lighten-2" />
+              </VCol>
+              <VCol cols="12" md="4">
+                <div class="text-caption text-medium-emphasis mb-1">E-Ticket from GMO</div>
+                <VTextField variant="outlined" density="comfortable" readonly bg-color="grey-lighten-1" style="cursor: pointer" @click="downloadETicket">
+                  <template #prepend-inner>
+                    <span class="text-primary text-body-2 font-weight-medium text-decoration-underline">Download</span>
+                  </template>
+                </VTextField>
+              </VCol>
+              <VCol cols="12">
+                <VCard color="warning" variant="tonal" border rounded="lg" class="border-warning px-4 py-3">
+    <div class="text-caption text-uppercase">Employee Excess</div>
+    <div class="text-h5 font-weight-bold">{{ claimCurrency }} {{ formatMoney(excessAmount) }}</div>
+    <div class="text-caption mt-1">{{ excessAmount > 0 ? 'Pay this amount to Finance before completing the settlement.' : 'No excess - nothing to settle.' }}</div>
+  </VCard>
+</VCol>
+
+              <VCol cols="12" md="6">
+                <div class="border rounded-lg bg-grey-lighten-5 pa-4 h-100">
+                  <div class="text-subtitle-2 font-weight-bold mb-3">Finance Payment Account</div>
+                  <div class="d-flex justify-space-between py-2 border-b text-body-2"><span class="text-medium-emphasis">Bank</span><span class="font-weight-bold">{{ bankName }}</span></div>
+                  <div class="d-flex justify-space-between py-2 border-b text-body-2"><span class="text-medium-emphasis">Account Number</span><span class="font-weight-bold">{{ accountNumber }}</span></div>
+                  <div class="d-flex justify-space-between py-2 border-b text-body-2"><span class="text-medium-emphasis">Account Name</span><span class="font-weight-bold">{{ accountName }}</span></div>
+                  <div class="d-flex justify-space-between py-2 text-body-2"><span class="text-medium-emphasis">Payment Note</span><span class="font-weight-bold">{{ paymentNote }}</span></div>
+                </div>
+              </VCol>
+              <VCol cols="12" md="6">
+                <div class="text-caption text-black mb-1">Proof of Excess Payment to Finance <span class="text-error"></span></div>
+                <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
+                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setProofFile">
+                </div>
+                <div v-if="proofFile" class="text-caption text-medium-emphasis mt-1">{{ proofFile.name }}</div>
+              </VCol>
+            </VRow>
+          </VCardText>
+        </VCard>
+      </VCardText>
+
+      <VDivider />
+      <VCardActions class="justify-end px-4 py-3 ga-2">
+        <VBtn variant="text" :disabled="!canSubmit" @click="draftPayload">Draft</VBtn>
+        <VBtn color="primary" variant="flat" :disabled="!canSubmit" @click="submitPayload">Submit</VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
+</template>
+
+<style scoped>
+.text-right-input :deep(input) {
+  text-align: right;
+}
+.text-right-input :deep(input::placeholder) {
+  text-align: left;
+}
+</style>
