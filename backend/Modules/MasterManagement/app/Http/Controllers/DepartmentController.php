@@ -11,8 +11,7 @@ class DepartmentController extends Controller
 {
     public function __construct(
         private DepartmentRepository $departmentRepository
-    ) {
-    }
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -78,7 +77,7 @@ class DepartmentController extends Controller
                 'required',
                 'string',
                 'max:255',
-                'unique:departments,name,' . $id,
+                'unique:departments,name,'.$id,
             ],
             'category_id' => [
                 'required',

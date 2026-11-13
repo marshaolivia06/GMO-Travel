@@ -30,6 +30,8 @@ const headers = [
   { title: 'Eligible Destination', key: 'eligible_destination' },
   { title: 'Date of Join', key: 'date_of_join' },
   { title: 'Office Location', key: 'office_location' },
+  { title: 'Bank Name', key: 'bank_name' },
+  { title: 'Account Number', key: 'bank_account_number' },
 ]
 
 // user yang belum punya data employee - untuk mode Add
@@ -133,6 +135,10 @@ onMounted(loadEmployees)
       <template #item.date_of_join="{ item }">{{ formatDate(item.date_of_join) }}</template>
 
       <template #item.office_location="{ item }">{{ item.office_location || '-' }}</template>
+
+      <template #item.bank_name="{ item }">{{ item.bank_name || '-' }}</template>
+
+      <template #item.bank_account_number="{ item }">{{ item.bank_account_number || '-' }}</template>
     </VDataTable>
   </BrandCard>
 

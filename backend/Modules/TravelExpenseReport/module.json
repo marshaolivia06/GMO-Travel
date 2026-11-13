@@ -1,0 +1,11 @@
+{
+    "name": "TravelExpenseReport",
+    "alias": "travelexpensereport",
+    "description": "Travel Expense Report module - annual ticket reimbursement & excess settlement claims",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\TravelExpenseReport\\Providers\\TravelExpenseReportServiceProvider"
+    ],
+    "files": []
+}

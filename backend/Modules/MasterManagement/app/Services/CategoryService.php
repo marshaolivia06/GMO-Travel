@@ -11,8 +11,7 @@ class CategoryService
 {
     public function __construct(
         private CategoryRepositoryInterface $categoryRepository
-    ) {
-    }
+    ) {}
 
     public function paginate(int $perPage = 15, ?string $search = null)
     {

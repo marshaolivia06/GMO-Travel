@@ -4,7 +4,6 @@ namespace Modules\MasterManagement\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Modules\MasterManagement\Models\Department;
 use Modules\UserManagement\Models\User;
 
 class Section extends Model

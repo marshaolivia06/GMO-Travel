@@ -24,6 +24,8 @@ const form = reactive({
   eligibleDestinationId: null,
   dateOfJoin: '',
   officeLocation: '',
+  bankName: '',
+  bankAccountNumber: '',
 })
 
 const userItems = computed(() => props.userOptions.map(user => ({ ...user, title: user.name })))
@@ -67,6 +69,8 @@ async function submitAddEmployee() {
       eligible_destination_id: form.eligibleDestinationId || null,
       date_of_join: form.dateOfJoin || null,
       office_location: form.officeLocation || null,
+      bank_name: form.bankName || null,
+      bank_account_number: form.bankAccountNumber || null,
     })
 
     toast.success('Employee has been added successfully.')
@@ -140,6 +144,14 @@ getEmployeeDestinationOptions()
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Office Location</label>
               <VSelect v-model="form.officeLocation" :items="officeLocations" placeholder="Select office location" hide-details="auto" clearable :disabled="loading" />
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Bank Name</label>
+              <VTextField v-model="form.bankName" placeholder="Enter bank name" hide-details="auto" :disabled="loading" />
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Account Number</label>
+              <VTextField v-model="form.bankAccountNumber" placeholder="Enter account number" hide-details="auto" :disabled="loading" />
             </VCol>
           </VRow>
         </VCardText>

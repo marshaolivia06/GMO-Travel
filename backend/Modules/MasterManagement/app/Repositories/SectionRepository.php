@@ -3,8 +3,8 @@
 namespace Modules\MasterManagement\Repositories;
 
 use Illuminate\Database\Eloquent\Collection;
-use Modules\MasterManagement\Models\Section;
 use Modules\MasterManagement\Models\Department;
+use Modules\MasterManagement\Models\Section;
 use Modules\UserManagement\Models\User;
 
 class SectionRepository

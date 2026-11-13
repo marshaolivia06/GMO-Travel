@@ -2,10 +2,10 @@
 
 namespace Modules\MasterManagement\Providers;
 
-use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\MasterManagement\Repositories\CategoryRepository;
 use Modules\MasterManagement\Repositories\CategoryRepositoryInterface;
+use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class MasterManagementServiceProvider extends ModuleServiceProvider
 {
@@ -45,8 +45,8 @@ class MasterManagementServiceProvider extends ModuleServiceProvider
 
     /**
      * Define module schedules.
-     * 
-     * @param $schedule
+     *
+     * @param  $schedule
      */
     // protected function configureSchedules(Schedule $schedule): void
     // {

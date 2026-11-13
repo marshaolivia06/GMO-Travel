@@ -17,9 +17,9 @@ Route::middleware(['auth:sanctum'])
             'master-management/categories',
             CategoryController::class
         )->middlewareFor(['index', 'show'], 'permission:master-management.view')
-         ->middlewareFor('store', 'permission:master-management.create')
-         ->middlewareFor('update', 'permission:master-management.update')
-         ->middlewareFor('destroy', 'permission:master-management.delete');
+            ->middlewareFor('store', 'permission:master-management.create')
+            ->middlewareFor('update', 'permission:master-management.update')
+            ->middlewareFor('destroy', 'permission:master-management.delete');
 
         // DEPARTMENTS
         // options dipakai form Travel Order - longgar untuk pembuat travel order
@@ -32,9 +32,9 @@ Route::middleware(['auth:sanctum'])
             'master-management/departments',
             DepartmentController::class
         )->middlewareFor(['index', 'show'], 'permission:master-management.view')
-         ->middlewareFor('store', 'permission:master-management.create')
-         ->middlewareFor('update', 'permission:master-management.update')
-         ->middlewareFor('destroy', 'permission:master-management.delete');
+            ->middlewareFor('store', 'permission:master-management.create')
+            ->middlewareFor('update', 'permission:master-management.update')
+            ->middlewareFor('destroy', 'permission:master-management.delete');
 
         // SECTIONS
         // my-section dipakai form Travel Order - longgar untuk pembuat travel order
@@ -53,9 +53,9 @@ Route::middleware(['auth:sanctum'])
             'master-management/sections',
             SectionController::class
         )->middlewareFor(['index', 'show'], 'permission:master-management.view')
-         ->middlewareFor('store', 'permission:master-management.create')
-         ->middlewareFor('update', 'permission:master-management.update')
-         ->middlewareFor('destroy', 'permission:master-management.delete');
+            ->middlewareFor('store', 'permission:master-management.create')
+            ->middlewareFor('update', 'permission:master-management.update')
+            ->middlewareFor('destroy', 'permission:master-management.delete');
 
         // MASTER EMPLOYEE - dikelola Admin saja
         Route::apiResource('master-employees', MasterEmployeeController::class)

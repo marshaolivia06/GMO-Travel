@@ -8,5 +8,6 @@
     "TravelOrder": true,
     "AuthorityMatrix": true,
     "AnnualTicket": true,
-    "ExternalFormRequest": true
+    "ExternalFormRequest": true,
+    "TravelExpenseReport": true
 }

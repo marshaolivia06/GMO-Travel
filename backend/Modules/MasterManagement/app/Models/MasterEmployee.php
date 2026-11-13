@@ -17,6 +17,8 @@ class MasterEmployee extends Model
         'eligible_destination_id',
         'date_of_join',
         'office_location',
+        'bank_name',
+        'bank_account_number',
     ];
 
     protected function casts(): array

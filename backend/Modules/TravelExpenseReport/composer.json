@@ -1,0 +1,28 @@
+{
+    "name": "nwidart/travelexpensereport",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\TravelExpenseReport\\": "app/",
+            "Modules\\TravelExpenseReport\\Database\\Factories\\": "database/factories/",
+            "Modules\\TravelExpenseReport\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\TravelExpenseReport\\Tests\\": "tests/"
+        }
+    }
+}

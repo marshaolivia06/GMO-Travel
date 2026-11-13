@@ -33,6 +33,8 @@ class MasterEmployeeController extends Controller
             'eligible_destination' => $user->employee?->eligibleDestination?->only(['id', 'city_name', 'country']),
             'date_of_join' => $user->employee?->date_of_join,
             'office_location' => $user->employee?->office_location,
+            'bank_name' => $user->employee?->bank_name,
+            'bank_account_number' => $user->employee?->bank_account_number,
         ]);
 
         return response()->json(['data' => $data]);
@@ -78,6 +80,8 @@ class MasterEmployeeController extends Controller
             'eligible_destination_id' => ['nullable', 'integer', 'exists:master_destinations,id'],
             'date_of_join' => ['nullable', 'date', 'before_or_equal:today'],
             'office_location' => ['nullable', 'string', 'max:100'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_number' => ['nullable', 'string', 'max:50'],
         ]);
     }
 }

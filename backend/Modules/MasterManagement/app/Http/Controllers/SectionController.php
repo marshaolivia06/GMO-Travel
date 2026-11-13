@@ -5,15 +5,14 @@ namespace Modules\MasterManagement\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\MasterManagement\Repositories\SectionRepository;
 use Modules\MasterManagement\Models\Section;
+use Modules\MasterManagement\Repositories\SectionRepository;
 
 class SectionController extends Controller
 {
     public function __construct(
         private SectionRepository $sectionRepository
-    ) {
-    }
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -65,7 +64,7 @@ class SectionController extends Controller
                 'required',
                 'string',
                 'max:255',
-                'unique:sections,name,' . $id,
+                'unique:sections,name,'.$id,
             ],
             'section_head_id' => [
                 'required',
@@ -90,43 +89,43 @@ class SectionController extends Controller
     }
 
     public function destroy(int $id): JsonResponse
-{
-    $section = $this->sectionRepository
-        ->findById($id);
+    {
+        $section = $this->sectionRepository
+            ->findById($id);
 
-    $this->sectionRepository->delete($section);
+        $this->sectionRepository->delete($section);
 
-    return response()->json([
-        'message' => 'Section deleted successfully.',
-    ]);
-}
-public function mySection(Request $request): JsonResponse
-{
-    $section = Section::with('department')
-        ->where('section_head_id', $request->user()->id)
-        ->where('status', 1)
-        ->first();
-
-    if (!$section) {
         return response()->json([
-            'id' => null,
-            'name' => null,
-            'department' => null,
+            'message' => 'Section deleted successfully.',
         ]);
     }
 
-    return response()->json([
-        'id' => $section->id,
-        'name' => $section->name,
-        'department' => $section->department?->name,
-    ]);
-}
+    public function mySection(Request $request): JsonResponse
+    {
+        $section = Section::with('department')
+            ->where('section_head_id', $request->user()->id)
+            ->where('status', 1)
+            ->first();
 
-public function options(): JsonResponse
-{
-    return response()->json(
-        $this->sectionRepository->getOptions()
-    );
-}
+        if (! $section) {
+            return response()->json([
+                'id' => null,
+                'name' => null,
+                'department' => null,
+            ]);
+        }
 
+        return response()->json([
+            'id' => $section->id,
+            'name' => $section->name,
+            'department' => $section->department?->name,
+        ]);
+    }
+
+    public function options(): JsonResponse
+    {
+        return response()->json(
+            $this->sectionRepository->getOptions()
+        );
+    }
 }

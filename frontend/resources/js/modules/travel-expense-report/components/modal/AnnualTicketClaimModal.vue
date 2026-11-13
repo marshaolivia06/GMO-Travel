@@ -1,13 +1,18 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '../../../../stores/auth.js'
+import { useConfirm } from '../../../../composables/useConfirm'
 import { legRouteStatus } from '../../../annual-ticket/utils/routeStatus.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   ticket: { type: Object, default: null },
+  initial: { type: Object, default: null },
+  processing: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:modelValue', 'close'])
+const emit = defineEmits(['update:modelValue', 'close', 'submit', 'draft'])
+
+const { confirm } = useConfirm()
 
 const t = computed(() => props.ticket || {})
 const legs = computed(() => t.value.legs ?? [])
@@ -89,8 +94,10 @@ const proofFile = ref(null)
 
 watch(() => props.modelValue, open => {
   if (open) {
-    totalActual.value = null
+    // Prefill dari draft TER yang sudah ada - file lampiran tidak bisa diprefill (keamanan browser)
+    totalActual.value = props.initial?.total_actual_amount ?? null
     attachments.value = []
+    clearTimeout(actualErrorTimer)
     actualError.value = ''
     proofFile.value = null
   }
@@ -100,56 +107,123 @@ const reimbursableAmount = computed(() => Math.min(Number(totalActual.value) || 
 
 const totalActualDisplay = computed(() => totalActual.value ? new Intl.NumberFormat('id-ID').format(Number(totalActual.value)) : '')
 
+let actualErrorTimer = null
+
+// Digit yang melebihi fare reference diblokir di keydown - benar-benar tidak masuk ke input
+function onAmountKeydown(event) {
+  const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End']
+  if (allowedKeys.includes(event.key) || event.ctrlKey || event.metaKey || event.altKey) return
+
+  if (!/^\d$/.test(event.key)) {
+    event.preventDefault()
+    return
+  }
+
+  const input = event.target
+  const start = input.selectionStart ?? input.value.length
+
+  // Posisi cursor dipetakan ke index digit (pemisah titik tidak dihitung)
+  let digitIndex = 0
+  for (let i = 0; i < start; i++) {
+    if (/\d/.test(input.value[i])) digitIndex++
+  }
+
+  const digits = input.value.replace(/\D/g, '')
+  const nextDigits = digits.slice(0, digitIndex) + event.key + digits.slice(digitIndex)
+  const normalized = nextDigits.replace(/^0+(?=\d)/, '')
+  const nextAmount = Number(normalized || 0)
+
+  if (normalized.length > 10 || (totalMaxFare.value > 0 && nextAmount > totalMaxFare.value)) {
+    event.preventDefault()
+    showActualError()
+  }
+}
+
+// Warning hanya tampil sekali per 2.5 detik walau user spam digit
+function showActualError() {
+  if (actualError.value) return
+  actualError.value = 'Amount cannot exceed Total Fare Reference.'
+  actualErrorTimer = setTimeout(() => { actualError.value = '' }, 2500)
+}
+
 function setTotalActual(value) {
   const digits = String(value ?? '').replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '')
-  totalActual.value = digits ? Number(digits) : null
+  const amount = digits ? Number(digits) : null
+
+  clearTimeout(actualErrorTimer)
+
+  // Safety net (misal paste): cap tetap ke fare reference
+  if (amount !== null && totalMaxFare.value > 0 && amount > totalMaxFare.value) {
+    totalActual.value = totalMaxFare.value
+    return
+  }
+
+  totalActual.value = amount
   actualError.value = ''
 }
 
 function setAttachments(event) {
-  attachments.value = Array.from(event.target?.files ?? [])
+  const files = Array.from(event.target?.files ?? [])
+  // File baru ditambahkan ke daftar, bukan menggantikan yang lama
+  attachments.value = [...attachments.value, ...files]
+  // Reset nilai input agar file yang sama bisa dipilih lagi
+  event.target.value = ''
   actualError.value = ''
 }
+
+const removeAttachment = index => attachments.value.splice(index, 1)
 
 function setProofFile(event) {
   proofFile.value = event.target?.files?.[0] ?? null
 }
 
 const canSubmit = computed(() => {
-  if (isDirectPayment.value) return (Number(totalActual.value) || 0) > 0 && attachments.value.length > 0
-  return !!proofFile.value
+  if (isDirectPayment.value) return attachments.value.length > 0 || storedAttachments.value.length > 0
+  // Draft excess yang sudah punya proof tersimpan boleh submit tanpa upload ulang
+  return !!proofFile.value || !!props.initial?.has_proof
 })
 
+// File yang sudah tersimpan di draft TER (dari backend) - tetap tampil saat dibuka ulang
+const storedAttachments = computed(() => props.initial?.attachments ?? [])
+
+const isPdfFile = name => String(name ?? '').toLowerCase().endsWith('.pdf')
+
+const openStoredFile = url => url && window.open(url, '_blank')
+
+// Payload sesuai kontrak backend: nominal settlement/excess dihitung server, kirim hanya input user + file asli
 function payload(action) {
-  const base = {
+  const data = {
     action,
     annual_ticket_id: t.value.id,
-    claim_type: claimType.value,
-    currency: claimCurrency.value,
-    total_fare_reference: totalMaxFare.value,
   }
+
   if (isDirectPayment.value) {
+    data.total_actual_amount = Number(totalActual.value) || 0
     return {
-      ...base,
-      total_actual_amount: Number(totalActual.value) || 0,
-      settlement_amount: reimbursableAmount.value,
-      attachments: attachments.value.map(file => file.name),
+      data,
+      attachments: [...attachments.value],
+      proof_of_payment: null,
     }
   }
+
   return {
-    ...base,
-    company_booking_amount: bookingAmount.value,
-    employee_excess: excessAmount.value,
-    finance_bank_name: bankName.value.trim(),
-    finance_account_number: accountNumber.value.trim(),
-    finance_account_name: accountName.value.trim(),
-    payment_note: paymentNote.value.trim(),
-    proof_of_payment: proofFile.value?.name ?? null,
+    data,
+    attachments: [],
+    proof_of_payment: proofFile.value,
   }
 }
 
-const submitPayload = () => emit('submit', payload('submit'))
-const draftPayload = () => emit('draft', payload('draft'))
+const submitPayload = async () => {
+  const ok = await confirm({ title: 'Submit Claim?', text: 'Are you sure you want to submit this claim?', confirmText: 'Yes, Submit', color: 'primary' })
+  if (!ok) return
+  emit('submit', payload('submit'))
+}
+
+const draftPayload = async () => {
+  const ok = await confirm({ title: 'Save Draft?', text: 'Are you sure you want to save this claim as a draft?', confirmText: 'Save Draft', color: 'secondary' })
+  if (!ok) return
+  emit('draft', payload('draft'))
+}
 
 function close() {
   emit('close')
@@ -294,6 +368,8 @@ function close() {
                   hide-details="auto"
                   class="text-right-input"
                   :error-messages="actualError ? [actualError] : []"
+                  @keydown="onAmountKeydown"
+                  @paste.prevent
                   @update:model-value="setTotalActual"
                 />
               </VCol>
@@ -305,9 +381,22 @@ function close() {
                 <div class="d-flex flex-column h-100">
                   <div class="text-caption text-black mb-1">E-Ticket + Boarding Pass + Invoice <span class="text-error"></span></div>
                   <div class="d-flex align-center flex-grow-1 w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
-                    <input type="file" multiple accept=".jpg,.jpeg,.png,.pdf" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setAttachments">
+                    <input type="file" multiple accept=".jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setAttachments">
                   </div>
-                  <div class="text-caption text-medium-emphasis mt-1"><template v-if="attachments.length">{{ attachments.length }} file(s) selected</template><template v-else>&nbsp;</template></div>
+                  <div v-if="attachments.length" class="d-flex flex-wrap ga-1 mt-2">
+                    <VChip v-for="(file, index) in attachments" :key="`${file.name}-${index}`" size="x-small" variant="tonal" closable @click:close="removeAttachment(index)">
+                      {{ file.name }}
+                    </VChip>
+                  </div>
+                  <div v-if="storedAttachments.length" class="d-flex flex-wrap ga-1 mt-1">
+                    <VChip v-for="file in storedAttachments" :key="file.url" size="x-small" color="success" variant="tonal" class="cursor-pointer" @click="openStoredFile(file.url)">
+                      <VIcon v-if="!isPdfFile(file.name)" icon="ri-check-line" size="x-small" start />{{ file.name }}
+                    </VChip>
+                  </div>
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    <template v-if="attachments.length">{{ attachments.length }} file(s) selected</template>
+                    <template v-else>&nbsp;</template>
+                  </div>
                 </div>
               </VCol>
               <VCol cols="12" md="6">
@@ -366,9 +455,12 @@ function close() {
               <VCol cols="12" md="6">
                 <div class="text-caption text-black mb-1">Proof of Excess Payment to Finance <span class="text-error"></span></div>
                 <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
-                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setProofFile">
+                  <input type="file" accept=".jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setProofFile">
                 </div>
-                <div v-if="proofFile" class="text-caption text-medium-emphasis mt-1">{{ proofFile.name }}</div>
+                <div v-if="!proofFile && initial?.has_proof" class="text-caption mt-1">
+                  <VChip size="x-small" color="success" variant="tonal"><VIcon icon="ri-check-line" size="x-small" start />Proof of payment already uploaded</VChip>
+                </div>
+                <div v-else-if="!proofFile" class="text-caption text-medium-emphasis mt-1">&nbsp;</div>
               </VCol>
             </VRow>
           </VCardText>
@@ -377,8 +469,8 @@ function close() {
 
       <VDivider />
       <VCardActions class="justify-end px-4 py-3 ga-2">
-        <VBtn variant="text" :disabled="!canSubmit" @click="draftPayload">Draft</VBtn>
-        <VBtn color="primary" variant="flat" :disabled="!canSubmit" @click="submitPayload">Submit</VBtn>
+        <VBtn variant="text" :disabled="!canSubmit || processing" :loading="processing" @click="draftPayload">Draft</VBtn>
+        <VBtn color="primary" variant="flat" :disabled="!canSubmit || processing" @click="submitPayload">Submit</VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
