@@ -34,7 +34,7 @@ const form = reactive({
 const errors = reactive({ document_type: '', steps: '' })
 
 function createStep(step) {
-  return { step, role_id: null, label: '', action_type: 'approve', role_level: null, is_specific_section: false, section_id: null, is_specific_department: false, department_id: null }
+  return { step, role_id: null, label: '', area: '', action_type: 'approve', role_level: null, is_specific_section: false, section_id: null, is_specific_department: false, department_id: null }
 }
 
 function isSectionRole(item) {
@@ -42,9 +42,23 @@ function isSectionRole(item) {
   return role?.name?.trim().toLowerCase() === 'sect head'
 }
 
+function isSupervisorRole(item) {
+  const role = roles.value.find(role => String(role.id) === String(item.role_id))
+  return role?.name?.trim().toLowerCase() === 'supervisor'
+}
+
 function isDepartmentRole(item) {
   const role = roles.value.find(role => String(role.id) === String(item.role_id))
   return role?.name?.trim().toLowerCase() === 'dept head'
+}
+
+// Opsi area mengikuti field Area di Section (Master Management) untuk departemen yang dipilih
+function areaOptionsFor(item) {
+  if (!item.department_id) return []
+  return [...new Set(sections.value
+    .filter(section => String(section.department_id) === String(item.department_id))
+    .map(section => section.area)
+    .filter(Boolean))]
 }
 
 function changeRole(item) {
@@ -52,9 +66,10 @@ function changeRole(item) {
     item.is_specific_section = false
     item.section_id = null
   }
-  if (!isDepartmentRole(item)) {
+  if (!isDepartmentRole(item) && !isSupervisorRole(item)) {
     item.is_specific_department = false
     item.department_id = null
+    item.area = ''
   }
 }
 
@@ -195,7 +210,7 @@ onMounted(fetchOptions)
                     <VCol v-if="isSectionRole(item)" cols="12" md="3">
                       <VSwitch :model-value="item.is_specific_section" label="Specific Section" color="primary" hide-details :disabled="loading" @update:model-value="item.is_specific_section = !!$event" />
                     </VCol>
-                    <VCol v-if="isDepartmentRole(item)" cols="12" md="3">
+                    <VCol v-if="isDepartmentRole(item) || isSupervisorRole(item)" cols="12" md="3">
                       <VSwitch :model-value="item.is_specific_department" label="Specific Department" color="primary" hide-details :disabled="loading" @update:model-value="item.is_specific_department = !!$event" />
                     </VCol>
                     <VCol v-if="item.is_specific_section" cols="12" md="4">
@@ -206,7 +221,12 @@ onMounted(fetchOptions)
                     <VCol v-if="item.is_specific_department" cols="12" md="4">
                       <div class="mb-4">
 <label class="text-body-medium font-weight-600 d-block mb-1">Department</label>
-<VAutocomplete v-model="item.department_id" :items="departments" item-title="name" item-value="id" :disabled="loading"  placeholder="Select department" hide-details="auto"/></div>
+<VAutocomplete v-model="item.department_id" :items="departments" item-title="name" item-value="id" :disabled="loading" placeholder="Select department" hide-details="auto" @update:model-value="item.area = null" /></div>
+                    </VCol>
+                    <VCol v-if="isSupervisorRole(item) && item.is_specific_department && item.department_id" cols="12" md="4">
+                      <div class="mb-4">
+<label class="text-body-medium font-weight-600 d-block mb-1">Area (Optional)</label>
+<VAutocomplete v-model="item.area" :items="areaOptionsFor(item)" :disabled="loading" clearable placeholder="Select area" hide-details="auto"/></div>
                     </VCol>
                   </VRow>
                 </VCardText>

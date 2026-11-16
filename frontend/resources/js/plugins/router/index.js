@@ -30,6 +30,9 @@ export default function (app) {
       if (to.meta.permission && !auth.can(to.meta.permission))
         return next({ name: 'Forbidden' })
 
+      if (to.meta.check && !to.meta.check(auth))
+        return next({ name: 'Forbidden' })
+
       next()
     })
 

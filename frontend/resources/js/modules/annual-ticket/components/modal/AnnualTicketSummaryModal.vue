@@ -63,7 +63,7 @@ const summaryInformation = computed(() => [
   { label: 'Office Location', value: props.ticket?.employee?.office_location || '-' },
   { label: 'Travel Period', value: travelPeriod.value },
   { label: 'Route Condition', value: props.ticket?.route_condition },
-  { label: 'Eligible Travel Destination', value: props.ticket?.employee?.eligible_destination?.city_name },
+  { label: 'Point of Hire', value: props.ticket?.employee?.eligible_destination?.city_name },
   { label: 'Ticket Arrangement', value: arrangementLabel.value, tooltip: arrangementNotice.value ? `${arrangementNotice.value.title} — ${arrangementNotice.value.text}` : '' },
 ])
 

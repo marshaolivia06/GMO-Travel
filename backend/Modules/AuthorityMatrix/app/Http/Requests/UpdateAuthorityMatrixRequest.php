@@ -18,10 +18,13 @@ class UpdateAuthorityMatrixRequest extends FormRequest
             'steps.*.step' => ['required', 'integer', 'min:1'],
             'steps.*.role_id' => ['required', 'exists:roles,id'],
             'steps.*.label' => ['required', 'string', 'max:255'],
+            'steps.*.area' => ['nullable', 'string', 'max:100'],
             'steps.*.action_type' => ['required', Rule::in(['check', 'approve'])],
             'steps.*.role_level' => ['nullable', 'integer', 'min:1'],
             'steps.*.is_specific_section' => ['boolean'],
             'steps.*.section_id' => ['nullable', 'exists:sections,id'],
+            'steps.*.is_specific_supervisor' => ['boolean'],
+            'steps.*.supervisor_id' => ['nullable', 'exists:users,id'],
             'steps.*.is_specific_department' => ['boolean'],
             'steps.*.department_id' => ['nullable', 'exists:departments,id'],
         ];

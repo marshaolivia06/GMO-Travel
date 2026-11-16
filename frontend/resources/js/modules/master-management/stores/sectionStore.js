@@ -13,7 +13,7 @@ export const useSectionStore = defineStore('masterManagement/section', () => {
   const loading = ref(false)
   const error = ref('')
 
-  const options = ref({ section_heads: [], departments: [] })
+  const options = ref({ section_heads: [], supervisors: [], staffs: [], departments: [] })
   const optionsLoading = ref(false)
 
   async function fetchSections() {
@@ -37,6 +37,8 @@ export const useSectionStore = defineStore('masterManagement/section', () => {
       const response = await getSectionOptions()
       options.value = {
         section_heads: response.section_heads ?? [],
+        supervisors: response.supervisors ?? [],
+        staffs: response.staffs ?? [],
         departments: response.departments ?? [],
       }
     } finally {

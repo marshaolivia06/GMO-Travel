@@ -1,3 +1,5 @@
+import { canSeeAnnualTicket } from '../../utils/annualTicketAccess'
+
 export const annualTicketRoutes = [
     {
       path: '/annual-ticket',
@@ -7,6 +9,7 @@ export const annualTicketRoutes = [
         title: 'Annual Ticket',
         requiresAuth: true,
         permission: 'annual-ticket.view',
+        check: canSeeAnnualTicket,
       },
     },
   ]

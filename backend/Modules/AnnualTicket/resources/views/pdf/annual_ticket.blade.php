@@ -88,7 +88,7 @@
             <tr>
                 <td class="lbl">Office Location</td>
                 <td class="val">{{ $val($officeLocation) }}</td>
-                <td class="lbl">Eligible Travel Destination</td>
+                <td class="lbl">Point of Hire</td>
                 <td class="val">{{ $val($eligibleDestination) }}</td>
             </tr>
             <tr>

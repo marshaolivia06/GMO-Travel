@@ -4,6 +4,7 @@ import DefaultLayoutWithVerticalNav from '../../layouts/components/DefaultLayout
 import LoginView from '../../views/LoginView.vue'
 import { dashboardRoutes } from '../../modules/dashboard/routes'
 import { travelOrderRoutes } from '../../modules/travel-order/routes'
+import { groupTripRoutes } from '../../modules/group-trip/routes'
 import { travelExpenseReportRoutes } from '../../modules/travel-expense-report/routes'
 import { userManagementRoutes } from '../../modules/user-management/routes'
 import { masterManagementRoutes } from '../../modules/master-management/routes'
@@ -58,6 +59,7 @@ const routes = [
       },
       ...dashboardRoutes,
       ...travelOrderRoutes,
+      ...groupTripRoutes,
       ...travelExpenseReportRoutes,
       ...userManagementRoutes,
       ...masterManagementRoutes,

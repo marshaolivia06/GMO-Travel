@@ -26,7 +26,7 @@ class RolePermissionSeeder extends Seeder
         ]);
 
         // Organization roles looked up by name in Master Management & the Travel Order approval flow
-        foreach (['Admin-GMO', 'Dept Admin', 'Dept Head', 'Div Head', 'Sect Head'] as $role) {
+        foreach (['Admin-GMO', 'Dept Admin', 'Dept Head', 'Div Head', 'Sect Head', 'Supervisor'] as $role) {
             Role::firstOrCreate([
                 'name' => $role,
                 'guard_name' => 'web',
@@ -36,6 +36,7 @@ class RolePermissionSeeder extends Seeder
         $modules = [
             'user-management',
             'travel-order',
+            'group-trip',
             'annual-leave',
             'annual-ticket',
             'master-management',
@@ -68,9 +69,14 @@ class RolePermissionSeeder extends Seeder
             }
         }
 
+        // Group Trip dikelola khusus via permission group-trip.* - hanya role yang diberi permission yang melihat menu-nya
         $admin->syncPermissions(
-            Permission::where('guard_name', 'web')->get()
+            Permission::where('guard_name', 'web')
+                ->where('module', '!=', 'group-trip')
+                ->get()
         );
+
+        Role::where('name', 'Admin-GMO')->first()->givePermissionTo('group-trip.view');
 
         $staff->syncPermissions([
             'user-management.view',

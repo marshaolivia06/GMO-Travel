@@ -10,6 +10,7 @@ class AuthorityMatrixRepository
         'requesterRole',
         'steps.role',
         'steps.section',
+        'steps.supervisor',
         'steps.department',
     ];
 

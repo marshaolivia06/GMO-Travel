@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\MasterManagement\Models\Department;
 use Modules\MasterManagement\Models\Section;
 use Modules\UserManagement\Models\Role;
+use Modules\UserManagement\Models\User;
 
 class AuthorityMatrixStep extends Model
 {
@@ -15,16 +16,20 @@ class AuthorityMatrixStep extends Model
         'step',
         'role_id',
         'label',
+        'area',
         'action_type',
         'role_level',
         'is_specific_section',
         'section_id',
+        'is_specific_supervisor',
+        'supervisor_id',
         'is_specific_department',
         'department_id',
     ];
 
     protected $casts = [
         'is_specific_section' => 'boolean',
+        'is_specific_supervisor' => 'boolean',
         'is_specific_department' => 'boolean',
     ];
 
@@ -41,6 +46,11 @@ class AuthorityMatrixStep extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
+    }
+
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'supervisor_id');
     }
 
     public function department(): BelongsTo

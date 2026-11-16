@@ -30,6 +30,7 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'grade' => $user->employee?->grade,
+                'annual_ticket_eligible' => (bool) ($user->employee?->annual_ticket_eligible ?? false),
                 'roles' => $user->getRoleNames(),
                 'permissions' => $user->getAllPermissions()->pluck('name'),
             ],
@@ -45,6 +46,7 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'grade' => $user->employee?->grade,
+            'annual_ticket_eligible' => (bool) ($user->employee?->annual_ticket_eligible ?? false),
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
         ]);

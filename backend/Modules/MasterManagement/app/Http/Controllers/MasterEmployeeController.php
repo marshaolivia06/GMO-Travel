@@ -35,6 +35,7 @@ class MasterEmployeeController extends Controller
             'office_location' => $user->employee?->office_location,
             'bank_name' => $user->employee?->bank_name,
             'bank_account_number' => $user->employee?->bank_account_number,
+            'annual_ticket_eligible' => (bool) ($user->employee?->annual_ticket_eligible ?? false),
         ]);
 
         return response()->json(['data' => $data]);
@@ -82,6 +83,7 @@ class MasterEmployeeController extends Controller
             'office_location' => ['nullable', 'string', 'max:100'],
             'bank_name' => ['nullable', 'string', 'max:100'],
             'bank_account_number' => ['nullable', 'string', 'max:50'],
+            'annual_ticket_eligible' => ['nullable', 'boolean'],
         ]);
     }
 }

@@ -16,18 +16,24 @@ const sectionStore = useSectionStore()
 const loading = ref(false)
 const generalError = ref('')
 
-const errors = reactive({ name: '', section_head_id: '', department_id: '' })
+const errors = reactive({ name: '', section_head_id: '', supervisor_id: '', department_id: '', area: '', staff_ids: '' })
 
 const form = reactive({
   name: props.section?.name || '',
   section_head_id: props.section?.section_head_id ?? props.section?.section_head?.id ?? props.section?.sectionHead?.id ?? '',
+  supervisor_id: props.section?.supervisor_id ?? props.section?.supervisor?.id ?? '',
   department_id: props.section?.department_id ?? props.section?.department?.id ?? '',
+  area: props.section?.area || '',
+  staff_ids: (props.section?.staff ?? []).map(member => member.user_id),
 })
 
 function clearErrors() {
   errors.name = ''
   errors.section_head_id = ''
+  errors.supervisor_id = ''
   errors.department_id = ''
+  errors.area = ''
+  errors.staff_ids = ''
   generalError.value = ''
 }
 
@@ -62,7 +68,10 @@ async function submitSection() {
     await sectionStore.editSection(props.section.id, {
       name: form.name.trim(),
       section_head_id: form.section_head_id,
+      supervisor_id: form.supervisor_id || null,
       department_id: form.department_id,
+      area: form.area.trim() || null,
+      staff_ids: form.staff_ids,
     })
 
     toast.success('Section has been updated successfully.')
@@ -101,8 +110,27 @@ function close() {
               <VAutocomplete v-model="form.section_head_id" :items="sectionStore.options.section_heads" item-title="name" item-value="id" clearable :loading="sectionStore.optionsLoading" :disabled="loading || sectionStore.optionsLoading" :error-messages="errors.section_head_id ? [errors.section_head_id] : []" placeholder="Select sect head" hide-details="auto"/>
             </VCol>
             <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Supervisor</label>
+              <VAutocomplete v-model="form.supervisor_id" :items="sectionStore.options.supervisors" item-title="name" item-value="id" clearable :loading="sectionStore.optionsLoading" :disabled="loading || sectionStore.optionsLoading" :error-messages="errors.supervisor_id ? [errors.supervisor_id] : []" placeholder="Select supervisor" hide-details="auto"/>
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Staff</label>
+              <VAutocomplete v-model="form.staff_ids" :items="sectionStore.options.staffs" item-title="name" item-value="id" multiple clearable :loading="sectionStore.optionsLoading" :disabled="loading || sectionStore.optionsLoading" :error-messages="errors.staff_ids ? [errors.staff_ids] : []" placeholder="Select staff" hide-details="auto">
+                <template #item="{ props: itemProps, item }">
+                  <VListItem v-bind="itemProps" :title="item.raw.name" />
+                </template>
+                <template #selection="{ item, index }">
+                  <span v-if="index < 3" class="text-truncate">{{ item.raw.name }}{{ index < Math.min(form.staff_ids.length, 3) - 1 ? ', ' : '' }}</span>
+                </template>
+              </VAutocomplete>
+            </VCol>
+            <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Department</label>
               <VAutocomplete v-model="form.department_id" :items="sectionStore.options.departments" item-title="name" item-value="id" clearable :loading="sectionStore.optionsLoading" :disabled="loading || sectionStore.optionsLoading" :error-messages="errors.department_id ? [errors.department_id] : []" placeholder="Select department" hide-details="auto"/>
+            </VCol>
+            <VCol cols="12">
+              <label class="text-body-medium font-weight-600 d-block mb-1">Area</label>
+              <VTextField v-model="form.area" :disabled="loading" :error-messages="errors.area ? [errors.area] : []" placeholder="Enter area" hide-details="auto"/>
             </VCol>
           </VRow>
 

@@ -566,6 +566,9 @@ class AnnualTicketService
 
     public function create(User $user, array $data, $evidence): AnnualTicket
     {
+        // Hanya karyawan yang dicentang "Entitled to Annual Ticket" di master employee yang boleh mengajukan
+        abort_unless((bool) ($user->employee?->annual_ticket_eligible ?? false), 403, 'You are not entitled to the Annual Ticket benefit.');
+
         $quota = $this->quotaFor($user);
 
         abort_unless($quota['has_quota'], 422, 'The annual ticket quota for this period has already been used.');

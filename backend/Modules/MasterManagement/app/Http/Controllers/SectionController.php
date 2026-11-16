@@ -41,9 +41,27 @@ class SectionController extends Controller
                 'required',
                 'exists:users,id',
             ],
+            'supervisor_id' => [
+                'nullable',
+                'exists:users,id',
+            ],
             'department_id' => [
                 'required',
                 'exists:departments,id',
+            ],
+            'area' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'staff_ids' => [
+                'nullable',
+                'array',
+            ],
+            'staff_ids.*' => [
+                'integer',
+                'distinct',
+                'exists:users,id',
             ],
         ]);
 
@@ -70,9 +88,27 @@ class SectionController extends Controller
                 'required',
                 'exists:users,id',
             ],
+            'supervisor_id' => [
+                'nullable',
+                'exists:users,id',
+            ],
             'department_id' => [
                 'required',
                 'exists:departments,id',
+            ],
+            'area' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'staff_ids' => [
+                'nullable',
+                'array',
+            ],
+            'staff_ids.*' => [
+                'integer',
+                'distinct',
+                'exists:users,id',
             ],
         ]);
 

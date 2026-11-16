@@ -26,6 +26,7 @@ const form = reactive({
   officeLocation: '',
   bankName: '',
   bankAccountNumber: '',
+  annualTicketEligible: false,
 })
 
 const userItems = computed(() => props.userOptions.map(user => ({ ...user, title: user.name })))
@@ -71,6 +72,7 @@ async function submitAddEmployee() {
       office_location: form.officeLocation || null,
       bank_name: form.bankName || null,
       bank_account_number: form.bankAccountNumber || null,
+      annual_ticket_eligible: form.annualTicketEligible === true,
     })
 
     toast.success('Employee has been added successfully.')
@@ -125,7 +127,7 @@ getEmployeeDestinationOptions()
               <VTextField v-model.number="form.grade" type="number" placeholder="Enter grade" hide-details="auto" :disabled="loading" :error-messages="errors.grade ? [errors.grade] : []" />
             </VCol>
             <VCol cols="12">
-              <label class="text-body-medium font-weight-600 d-block mb-1">Eligible Destination</label>
+              <label class="text-body-medium font-weight-600 d-block mb-1">Point of Hire</label>
               <VAutocomplete
                 v-model="form.eligibleDestinationId"
                 :items="destinationOptions"
@@ -152,6 +154,13 @@ getEmployeeDestinationOptions()
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Account Number</label>
               <VTextField v-model="form.bankAccountNumber" placeholder="Enter account number" hide-details="auto" :disabled="loading" />
+            </VCol>
+            <VCol cols="12">
+              <VCheckbox v-model="form.annualTicketEligible" density="comfortable" hide-details :disabled="loading">
+                <template #label>
+                  Entitled to Annual Ticket
+                </template>
+              </VCheckbox>
             </VCol>
           </VRow>
         </VCardText>

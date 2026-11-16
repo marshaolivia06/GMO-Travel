@@ -19,6 +19,7 @@ class MasterEmployee extends Model
         'office_location',
         'bank_name',
         'bank_account_number',
+        'annual_ticket_eligible',
     ];
 
     protected function casts(): array
@@ -26,6 +27,7 @@ class MasterEmployee extends Model
         return [
             'grade' => 'integer',
             'date_of_join' => 'date:Y-m-d',
+            'annual_ticket_eligible' => 'boolean',
         ];
     }
 

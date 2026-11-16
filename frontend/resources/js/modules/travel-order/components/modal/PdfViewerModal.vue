@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -10,16 +10,42 @@ const props = defineProps({
   approving: Boolean,
   showBack: Boolean,
   hideBack: Boolean,
+  attachmentUrl: { type: String, default: null },
+  attachments: { type: Array, default: () => [] },
   confirmText: { type: String, default: 'I confirm that I have reviewed the Travel Order document and agree that it is ready for approval.' },
 })
 
 const emit = defineEmits(['update:modelValue', 'back', 'reject', 'revision', 'approve'])
 const agreed = ref(false)
 const pdfReady = ref(false)
+const activeTab = ref('document')
+const activeAttachmentTab = ref('')
+
+// Path relatif storage di-resolve ke URL API - path absolut (http) dilewati apa adanya
+function getFileUrl(path) {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+  const filePath = String(path).replace(/^\/+/, '').replace(/^storage\//, '')
+  return `${baseUrl}/storage/${filePath}`
+}
+
+// Travel Order: beberapa lampiran dikelompokkan ke dalam satu tab "Attachment" (sub-tab di dalamnya)
+const groupedAttachments = computed(() => (props.attachments || [])
+  .filter(item => item.path || item.url)
+  .map(item => ({ key: item.key, title: item.title, url: item.url || getFileUrl(item.path) })))
+
+// Module lain (mis. External Form Request): satu lampiran langsung jadi tab "Attachment"
+const flatAttachments = computed(() => props.attachmentUrl ? [{ key: 'attachment', title: 'Attachment', url: props.attachmentUrl }] : [])
+
+const isImage = url => /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url || '')
+const isPdf = url => /\.pdf(\?.*)?$/i.test(url || '')
 
 watch(() => [props.modelValue, props.pdfUrl], () => {
   agreed.value = false
   pdfReady.value = false
+  activeTab.value = 'document'
+  activeAttachmentTab.value = groupedAttachments.value[0]?.key || ''
 })
 </script>
 
@@ -39,9 +65,73 @@ watch(() => [props.modelValue, props.pdfUrl], () => {
       <VDivider />
 
       <VCardText class="bg-grey-lighten-3 pa-0">
-        <VProgressLinear v-if="loading || (pdfUrl && !pdfReady)" indeterminate />
-        <iframe v-if="pdfUrl" :key="pdfUrl" :src="pdfUrl" title="Document PDF" height="750" class="d-block w-100 border-0" @load="pdfReady = true" />
-        <div v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
+        <!-- Lampiran terkelompok: tab utama Document | Attachment, lampiran jadi sub-tab di dalam Attachment -->
+        <template v-if="groupedAttachments.length">
+          <VTabs v-model="activeTab" color="primary" density="comfortable" class="bg-white">
+            <VTab value="document" class="text-none">Document</VTab>
+            <VTab value="attachments" class="text-none">Attachment</VTab>
+          </VTabs>
+
+          <VWindow v-model="activeTab">
+            <VWindowItem value="document">
+              <VProgressLinear v-if="loading || (pdfUrl && !pdfReady)" indeterminate />
+              <iframe v-if="pdfUrl" :key="pdfUrl" :src="pdfUrl" title="Document PDF" height="750" class="d-block w-100 border-0" @load="pdfReady = true" />
+              <div v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
+            </VWindowItem>
+
+            <VWindowItem value="attachments">
+              <template v-if="groupedAttachments.length > 1">
+                <VTabs v-model="activeAttachmentTab" color="primary" density="comfortable" class="bg-white">
+                  <VTab v-for="tab in groupedAttachments" :key="tab.key" :value="tab.key" class="text-none">{{ tab.title }}</VTab>
+                </VTabs>
+                <VWindow v-model="activeAttachmentTab">
+                  <VWindowItem v-for="tab in groupedAttachments" :key="tab.key" :value="tab.key">
+                    <div class="pa-4 d-flex justify-center align-center" style="min-height: 400px">
+                      <img v-if="isImage(tab.url)" :src="tab.url" :alt="tab.title" style="max-width: 100%; max-height: 70vh; object-fit: contain" />
+                      <iframe v-else-if="isPdf(tab.url)" :src="tab.url" :title="tab.title" class="d-block w-100 border-0" height="750" />
+                      <VBtn v-else variant="tonal" color="primary" :href="tab.url" target="_blank" prepend-icon="ri-external-link-line">Open File</VBtn>
+                    </div>
+                  </VWindowItem>
+                </VWindow>
+              </template>
+              <div v-else class="pa-4 d-flex justify-center align-center" style="min-height: 400px">
+                <img v-if="isImage(groupedAttachments[0].url)" :src="groupedAttachments[0].url" :alt="groupedAttachments[0].title" style="max-width: 100%; max-height: 70vh; object-fit: contain" />
+                <iframe v-else-if="isPdf(groupedAttachments[0].url)" :src="groupedAttachments[0].url" :title="groupedAttachments[0].title" class="d-block w-100 border-0" height="750" />
+                <VBtn v-else variant="tonal" color="primary" :href="groupedAttachments[0].url" target="_blank" prepend-icon="ri-external-link-line">Open File</VBtn>
+              </div>
+            </VWindowItem>
+          </VWindow>
+        </template>
+
+        <!-- Lampiran tunggal (module lain): PDF | Attachment -->
+        <template v-else-if="flatAttachments.length">
+          <VTabs v-model="activeTab" color="primary" density="comfortable" class="bg-white">
+            <VTab value="document" class="text-none">Document</VTab>
+            <VTab value="attachment" class="text-none">Attachment</VTab>
+          </VTabs>
+
+          <VWindow v-model="activeTab">
+            <VWindowItem value="document">
+              <VProgressLinear v-if="loading || (pdfUrl && !pdfReady)" indeterminate />
+              <iframe v-if="pdfUrl" :key="pdfUrl" :src="pdfUrl" title="Document PDF" height="750" class="d-block w-100 border-0" @load="pdfReady = true" />
+              <div v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
+            </VWindowItem>
+            <VWindowItem value="attachment">
+              <div class="pa-4 d-flex justify-center align-center" style="min-height: 400px">
+                <img v-if="isImage(flatAttachments[0].url)" :src="flatAttachments[0].url" :alt="flatAttachments[0].title" style="max-width: 100%; max-height: 70vh; object-fit: contain" />
+                <iframe v-else-if="isPdf(flatAttachments[0].url)" :src="flatAttachments[0].url" :title="flatAttachments[0].title" class="d-block w-100 border-0" height="750" />
+                <VBtn v-else variant="tonal" color="primary" :href="flatAttachments[0].url" target="_blank" prepend-icon="ri-external-link-line">Open File</VBtn>
+              </div>
+            </VWindowItem>
+          </VWindow>
+        </template>
+
+        <!-- Tanpa lampiran: PDF saja -->
+        <template v-else>
+          <VProgressLinear v-if="loading || (pdfUrl && !pdfReady)" indeterminate />
+          <iframe v-if="pdfUrl" :key="pdfUrl" :src="pdfUrl" title="Document PDF" height="750" class="d-block w-100 border-0" @load="pdfReady = true" />
+          <div v-else-if="!loading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
+        </template>
       </VCardText>
 
 <template v-if="canDecide && pdfUrl && pdfReady && !loading">

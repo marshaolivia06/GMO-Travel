@@ -6,12 +6,12 @@ import { useAuthStore } from '../../../stores/auth'
 import { useConfirm } from '../../../composables/useConfirm'
 import CreateAnnualTicketModal from '../components/modal/CreateAnnualTicketModal.vue'
 import HistoryLogModal from '../components/modal/HistoryLogModal.vue'
-import AttachmentsModal from '../components/modal/AttachmentsModal.vue'
 import FareReferenceModal from '../components/modal/FareReferenceModal.vue'
 import AnnualTicketSummaryModal from '../components/modal/AnnualTicketSummaryModal.vue'
 import PdfViewerModal from '../../travel-order/components/modal/PdfViewerModal.vue'
 import NoteModal from '../../travel-order/components/modal/NoteModal.vue'
 import { legRouteStatus } from '../utils/routeStatus.js'
+import { canSeeAnnualTicket } from '../../../utils/annualTicketAccess'
 
 const toast = useToastStore()
 const auth = useAuthStore()
@@ -21,6 +21,7 @@ const loading = ref(false)
 const quota = ref(null)
 const search = ref('')
 const statusTab = ref('all')
+const yearFilter = ref('all')
 const showCreateModal = ref(false)
 const resubmitTicket = ref(null)
 const travelers = ref(null)
@@ -54,6 +55,7 @@ onMounted(() => { fetchRequests(); fetchQuota() })
 async function handleSubmitted() {
   statusTab.value = 'all'
   cancelSubTab.value = 'all'
+  yearFilter.value = 'all'
   await fetchRequests()
 }
 
@@ -77,7 +79,6 @@ const cellClass = 'px-3 py-3'
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
 
 const headers = [
-  col('ATTACHMENT', 'attachment', { align: 'center', width: 130 }),
   col('ACTION', 'action', { align: 'center', width: 260 }),
   col('STATUS', 'status', { align: 'center' }),
   col('TRAVEL PERIOD', 'travel_period', { align: 'center' }),
@@ -119,6 +120,16 @@ const cancelSubTabs = computed(() => [
   ...cancellationStatuses.map(status => ({ value: status, title: statusMeta[status].title, count: requests.value.filter(row => row.status === status).length })),
 ])
 
+// Filter tahun kuota (distinct quota_year dari tiket yang terlihat) - pengguna bisa lihat tahun yang sudah pernah dipakai
+const yearFilters = computed(() => {
+  const years = [...new Set(requests.value.map(row => Number(row.raw?.quota_year)).filter(Boolean))].sort((a, b) => b - a)
+
+  return [
+    { value: 'all', title: 'All Years' },
+    ...years.map(year => ({ value: year, title: String(year) })),
+  ]
+})
+
 const filteredRows = computed(() => {
   const query = search.value.trim().toLowerCase()
 
@@ -127,7 +138,9 @@ const filteredRows = computed(() => {
       || (statusTab.value === 'cancelled-group' && row.status === cancelSubTab.value)
       || row.status === statusTab.value
 
-    return matchesTab && (!query || `${row.id} ${row.travel_period}`.toLowerCase().includes(query))
+    const matchesYear = !yearFilter.value || yearFilter.value === 'all' || Number(row.raw?.quota_year) === Number(yearFilter.value)
+
+    return matchesTab && matchesYear && (!query || `${row.id} ${row.travel_period}`.toLowerCase().includes(query))
   })
 })
 
@@ -246,7 +259,7 @@ const summaryDialog = ref(false)
 const summaryTicket = ref(null)
 
 function openSummary(item) { summaryTicket.value = item.raw; summaryDialog.value = true }
-function openSummaryPdf(ticketId) { if (!ticketId) return; summaryDialog.value = false; pdfReviewMode.value = 'view'; pdfBackToSummary.value = true; reviewItem.value = null; loadPdf({ id: ticketId }) }
+function openSummaryPdf(ticketId) { if (!ticketId) return; summaryDialog.value = false; pdfReviewMode.value = 'view'; pdfBackToSummary.value = true; reviewItem.value = null; pdfTicket.value = summaryTicket.value; loadPdf({ id: ticketId }) }
 
 async function handleScheduleUpdate({ ticketId, reschedules }) {
   if (processing.value) return
@@ -319,11 +332,6 @@ function mapFareLegs(direction) { return (fareItem.value?.raw?.legs ?? []).filte
 function openFareReference(item) { fareItem.value = item; pdfDialog.value = false; fareDialog.value = true }
 function handleFareBack() { fareDialog.value = false; fareItem.value = null; pdfDialog.value = true }
 
-const attachmentsDialog = ref(false)
-const attachmentsTicket = ref(null)
-
-function openAttachments(item) { attachmentsTicket.value = item.raw; attachmentsDialog.value = true }
-
 async function loadPdf(item) {
   pdfDialog.value = true
   pdfLoading.value = true
@@ -332,9 +340,27 @@ async function loadPdf(item) {
 }
 
 function handlePdfBack() { pdfDialog.value = false; if (pdfBackToSummary.value) { pdfBackToSummary.value = false; summaryDialog.value = true } }
-function openPdf(item) { pdfReviewMode.value = 'view'; pdfBackToSummary.value = false; reviewItem.value = null; loadPdf(item) }
-function openReview(item) { pdfReviewMode.value = 'decide'; pdfBackToSummary.value = false; reviewItem.value = item; loadPdf(item) }
-function openProcess(item) { pdfReviewMode.value = 'gmo'; pdfBackToSummary.value = false; reviewItem.value = item; loadPdf(item) }
+function openPdf(item) { pdfReviewMode.value = 'view'; pdfBackToSummary.value = false; reviewItem.value = null; pdfTicket.value = item.raw; loadPdf(item) }
+function openReview(item) { pdfReviewMode.value = 'decide'; pdfBackToSummary.value = false; reviewItem.value = item; pdfTicket.value = item.raw; loadPdf(item) }
+function openProcess(item) { pdfReviewMode.value = 'gmo'; pdfBackToSummary.value = false; reviewItem.value = item; pdfTicket.value = item.raw; loadPdf(item) }
+
+// Lampiran tiket (bukti Haermes, fare reference, e-ticket) dari ticket yang sedang dibuka - ditampilkan sebagai tab di PDF viewer
+const pdfTicket = ref(null)
+
+const pdfAttachments = computed(() => {
+  const ticket = pdfTicket.value
+  if (!ticket) return []
+
+  const fareAttachments = (ticket.fare_reference_attachments ?? []).map(attachment => ({ key: `fare-${attachment.fare_reference_attachment_id}`, title: 'Fare Reference', path: attachment.file_url }))
+  const documents = ticket.booking_documents ?? []
+  const bookingDocs = documents.map((doc, index) => ({ key: `booking-doc-${doc.booking_document_id}`, title: documents.length > 1 ? `E-Ticket / Travel Document ${index + 1}` : 'E-Ticket / Travel Document', path: doc.file_url }))
+
+  return [
+    { key: 'hermes', title: 'Haermes Evidence', path: ticket.evidence_url },
+    ...fareAttachments,
+    ...(bookingDocs.length ? bookingDocs : [{ key: 'e-ticket', title: 'E-Ticket / Travel Document', path: ticket.booking?.e_ticket_url }]),
+  ].filter(item => item.path)
+})
 
 function handleReviewProcess() {
   if (!reviewItem.value) return
@@ -381,19 +407,21 @@ async function handleFareProcess(payload) {
         </div>
       </template>
       <template #action>
-        <VTooltip :disabled="quota?.has_quota" location="top">
-          <template #activator="{ props: activatorProps }">
-            <span v-bind="activatorProps" class="d-inline-block">
-              <VBtn variant="flat" color="primary" prepend-icon="ri-add-line" :disabled="!!quota && !quota.has_quota || !auth.can('annual-ticket.create')" @click="openCreate">Create Annual Ticket</VBtn>
-            </span>
-          </template>
-          <span v-if="!quota?.date_of_join">Your date of join has not been set. Please contact HR Admin.</span>
-          <span v-else-if="!quota?.has_quota">The annual ticket quota for {{ quota?.quota_year }} has already been used or a request is still in progress.</span>
-        </VTooltip>
+        <div class="d-flex flex-wrap align-center" style="gap: 8px">
+          <VTooltip :disabled="quota?.has_quota" location="top">
+            <template #activator="{ props: activatorProps }">
+              <span v-bind="activatorProps" class="d-inline-block">
+                <VBtn variant="flat" color="primary" prepend-icon="ri-add-line" :disabled="!!quota && !quota.has_quota || !auth.can('annual-ticket.create') || !canSeeAnnualTicket(auth)" @click="openCreate">Create Annual Ticket</VBtn>
+              </span>
+            </template>
+            <span v-if="!quota?.date_of_join">Your date of join has not been set. Please contact HR Admin.</span>
+            <span v-else-if="!quota?.has_quota">The annual ticket quota for {{ quota?.quota_year }} has already been used or a request is still in progress.</span>
+          </VTooltip>
+          <VSelect v-model="yearFilter" :items="yearFilters" item-title="title" item-value="value" placeholder="All Years" clearable density="comfortable" hide-details min-width="180" />
+        </div>
       </template>
       <template #search><VTextField v-model="search" prepend-inner-icon="ri-search-line" placeholder="Search annual ticket..." variant="outlined" density="comfortable" hide-details clearable style="min-width: 260px; max-width: 320px" /></template>
       <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No annual tickets found.">
-        <template #item.attachment="{ item }"><VBtn v-if="item.raw?.evidence_url" color="grey-darken-1" variant="tonal" @click="openAttachments(item)"><VIcon icon="ri-attachment-2" /><VTooltip activator="parent" location="top">View Attachments</VTooltip></VBtn><span v-else>-</span></template>
         <template #item.action="{ item }">
           <VBtnGroup density="compact" variant="tonal">
             <template v-if="item.can_process"><VBtn color="grey-darken-1" :disabled="processing" @click="openReview(item)"><VIcon :icon="item.stage_action === 'check' ? 'ri-eye-line' : 'ri-check-line'" /><VTooltip activator="parent" location="top">{{ item.stage_action === 'check' ? 'Review' : 'Approval' }}</VTooltip></VBtn></template>
@@ -411,9 +439,8 @@ async function handleFareProcess(payload) {
     </BrandCard>
     <CreateAnnualTicketModal v-if="showCreateModal" :travelers="travelers" :ticket="resubmitTicket" :quota-year="quota?.quota_year ?? new Date().getFullYear()" @close="showCreateModal = false" @submitted="handleSubmitted" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
-    <AttachmentsModal v-model="attachmentsDialog" :ticket="attachmentsTicket" />
     <NoteModal v-model="noteDialog" :meta="noteMeta" @submit="handleNoteSubmit" />
-    <PdfViewerModal v-model="pdfDialog" :title="!pdfCanDecide ? 'Annual Ticket Detail' : reviewItem?.can_gmo_process ? 'Process Annual Ticket' : 'Review Annual Ticket'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="pdfCanDecide" :show-back="pdfBackToSummary" :approving="processing" :confirm-text="reviewConfirmText" @back="handlePdfBack" @update:model-value="value => !value && (pdfReviewMode = 'view')">
+    <PdfViewerModal v-model="pdfDialog" :title="!pdfCanDecide ? 'Annual Ticket Detail' : reviewItem?.can_gmo_process ? 'Process Annual Ticket' : 'Review Annual Ticket'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="pdfCanDecide" :show-back="pdfBackToSummary" :approving="processing" :attachments="pdfAttachments" :confirm-text="reviewConfirmText" @back="handlePdfBack" @update:model-value="value => !value && (pdfReviewMode = 'view')">
       <template #decide="{ agreed }">
         <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
           <template v-if="reviewItem?.can_gmo_process"><VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">Continue</VBtn></template>

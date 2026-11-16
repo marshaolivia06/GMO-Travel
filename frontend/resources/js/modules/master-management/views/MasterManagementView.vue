@@ -139,7 +139,10 @@ const sectionHeaders = [
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Name', key: 'name' },
   { title: 'Sect Head', key: 'section_head' },
+  { title: 'Supervisor', key: 'supervisor' },
+  { title: 'Staff', key: 'staff' },
   { title: 'Department', key: 'department' },
+  { title: 'Area', key: 'area' },
   { title: 'Created', key: 'created_at' },
   { title: 'Updated', key: 'updated_at' },
 ]
@@ -245,7 +248,7 @@ onMounted(() => {
             {{ departmentStore.error }}
           </VAlert>
 
-          <VDataTable :headers="departmentHeaders" :items="departmentStore.departments" :loading="departmentStore.loading" :search="departmentSearch" item-value="id" density="default" hover>
+          <VDataTable :headers="departmentHeaders" :items="departmentStore.departments" :loading="departmentStore.loading" :search="departmentSearch" item-value="id" density="comfortable" hover>
 
             <template #item.category="{ item }">{{ item.category?.name || '-' }}</template>
             <template #item.dept_head="{ item }">{{ item.dept_head?.name || '-' }}</template>
@@ -268,10 +271,19 @@ onMounted(() => {
             {{ sectionStore.error }}
           </VAlert>
 
-          <VDataTable :headers="sectionHeaders" :items="sectionStore.sections" :loading="sectionStore.loading" :search="sectionSearch" item-value="id" density="default" hover>
+          <VDataTable :headers="sectionHeaders" :items="sectionStore.sections" :loading="sectionStore.loading" :search="sectionSearch" item-value="id" density="comfortable" hover>
 
             <template #item.section_head="{ item }">{{ item.section_head?.name || item.sectionHead?.name || '-' }}</template>
+            <template #item.supervisor="{ item }">{{ item.supervisor?.name || '-' }}</template>
+            <template #item.staff="{ item }">
+              <div v-if="item.staff?.length" class="d-flex flex-wrap align-center ga-1" style="max-width: 320px">
+                <VChip v-for="member in item.staff.slice(0, 3)" :key="member.id" size="small" color="grey" variant="tonal">{{ member.user?.name || '-' }}</VChip>
+                <VChip v-if="item.staff.length > 3" size="small" color="grey" variant="tonal">+{{ item.staff.length - 3 }}</VChip>
+              </div>
+              <span v-else>-</span>
+            </template>
             <template #item.department="{ item }">{{ item.department?.name || '-' }}</template>
+            <template #item.area="{ item }">{{ item.area || '-' }}</template>
             <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
             <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
 
@@ -289,7 +301,7 @@ onMounted(() => {
             {{ categoryStore.error }}
           </VAlert>
 
-          <VDataTableServer v-model:items-per-page="categoryStore.perPage" :headers="categoryHeaders" :items="categoryStore.categories" :items-length="categoryStore.total" :loading="categoryStore.loading" item-value="id" density="default" hover @update:options="opts => categoryStore.fetchCategories(opts.page)">
+          <VDataTableServer v-model:items-per-page="categoryStore.perPage" :headers="categoryHeaders" :items="categoryStore.categories" :items-length="categoryStore.total" :loading="categoryStore.loading" item-value="id" density="comfortable" hover @update:options="opts => categoryStore.fetchCategories(opts.page)">
 
             <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
             <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>

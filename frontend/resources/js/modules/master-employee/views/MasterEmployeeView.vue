@@ -27,7 +27,7 @@ const headers = [
   { title: 'ID', key: 'id', width: 80 },
   { title: 'Employee', key: 'name' },
   { title: 'Grade', key: 'grade' },
-  { title: 'Eligible Destination', key: 'eligible_destination' },
+  { title: 'Point of Hire', key: 'eligible_destination' },
   { title: 'Date of Join', key: 'date_of_join' },
   { title: 'Office Location', key: 'office_location' },
   { title: 'Bank Name', key: 'bank_name' },
@@ -138,7 +138,7 @@ onMounted(loadEmployees)
 
       <template #item.bank_name="{ item }">{{ item.bank_name || '-' }}</template>
 
-      <template #item.bank_account_number="{ item }">{{ item.bank_account_number || '-' }}</template>
+        <template #item.bank_account_number="{ item }">{{ item.bank_account_number || '-' }}</template>
     </VDataTable>
   </BrandCard>
 

@@ -11,7 +11,6 @@ import AirplaneFerryFormModal from '../components/modal/AirplaneFerryFormModal.v
 import HotelReservationFormModal from '../components/modal/HotelReservationFormModal.vue'
 import HistoryLogModal from '../components/modal/HistoryLogModal.vue'
 import GmoReviewModal from '../components/modal/GmoReviewModal.vue'
-import AttachmentModal from '../components/modal/AttachmentModal.vue'
 
 const toast = useToastStore()
 const auth = useAuthStore()
@@ -165,13 +164,6 @@ async function handleResendEmail() {
 
 const showGmoRelease = ref(false)
 const releasing = ref(false)
-const attachmentDialog = ref(false)
-const attachmentUrl = ref(null)
-
-function openAttachment(item) {
-  attachmentUrl.value = item.raw.attachment_url
-  attachmentDialog.value = true
-}
 
 const releasePrefill = computed(() => {
   const raw = pdfRow.value?.raw
@@ -524,7 +516,6 @@ const cellClass = 'px-3 py-3'
 const col = (title, key, extra = {}) => ({ title, key, sortable: false, headerProps: { class: headerClass }, cellProps: { class: cellClass }, ...extra })
 
 const headers = [
-  col('ATTACHMENT', 'attachment', { align: 'center', width: 130 }),
   col('ACTION', 'action', { align: 'center', width: 160 }),
   col('STATUS', 'status', { align: 'center' }),
   col('TYPE', 'type', { align: 'center' }),
@@ -583,14 +574,7 @@ const filteredRows = computed(() => {
     </template>
 
     <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No external form requests found.">
-      <template #item.attachment="{ item }">
-        <VBtn v-if="item.raw.attachment_url" color="grey-darken-1" variant="tonal" @click="openAttachment(item)">
-          <VIcon icon="ri-attachment-2" />
-          <VTooltip activator="parent" location="top">View Attachment</VTooltip>
-        </VBtn>
-        <span v-else>-</span>
-      </template>
-      <template #item.action="{ item }">
+<template #item.action="{ item }">
         <VBtnGroup density="compact" variant="tonal">
           <VBtn v-if="item.raw.status === 'draft' || item.raw.status === 'revision_required'" color="green-darken-1" @click="editDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
           <VBtn v-else-if="item.raw.can_approve" color="grey-darken-1" @click="openPdf(item, 'decide')"><VIcon :icon="item.raw.pending_action === 'Review' ? 'ri-eye-line' : 'ri-checkbox-circle-line'" /><VTooltip activator="parent" location="top">{{ item.raw.pending_action === 'Review' ? 'Review' : 'Approval' }}</VTooltip></VBtn>
@@ -658,8 +642,6 @@ const filteredRows = computed(() => {
     @submit="handleGmoReleaseSubmit"
   />
 
-  <AttachmentModal v-model="attachmentDialog" :attachment-url="attachmentUrl" />
-
   <PdfViewerModal
     v-model="pdfDialog"
     title="External Travel Purchase Request"
@@ -668,6 +650,7 @@ const filteredRows = computed(() => {
     :can-decide="pdfCanDecide"
     :hide-back="true"
     :approving="deciding"
+    :attachment-url="pdfRow?.raw?.attachment_url || null"
     confirm-text="I confirm that I have reviewed the External Form Request document and agree to proceed with my decision."
     @approve="handleDecision('approve')"
     @reject="handleDecision('reject')"
