@@ -174,6 +174,7 @@ const releasePrefill = computed(() => {
     return: { operator: raw.return_operator ?? '', flight_vessel_no: raw.return_flight_vessel_no ?? '', atd: raw.return_atd ?? '', ata: raw.return_ata ?? '' },
     hotel: raw.hotel ?? '',
     room_type: raw.room_type ?? '',
+    email: { to: raw.employee?.email ?? '' },
   }
 })
 
@@ -507,7 +508,7 @@ const statusMeta = {
   rejected: { title: 'Rejected', color: 'error', icon: 'ri-close-circle-line' },
   awaiting_review_gmo: { title: 'Awaiting Review - GMO', color: 'info', icon: 'ri-search-eye-line' },
   awaiting_approval_div_head: { title: 'Awaiting Approval - Div Head', color: 'warning', icon: 'ri-user-star-line' },
-  booking_payment_in_progress: { title: 'Booking & Payment in Progress', color: 'info', icon: 'ri-wallet-3-line' },
+  booking_payment_in_progress: { title: 'Booking & Payment in Progress', color: 'info', icon: 'ri-bank-card-line' },
   released: { title: 'Released', color: 'success', icon: 'ri-checkbox-circle-line' },
 }
 
@@ -578,25 +579,25 @@ const filteredRows = computed(() => {
         <VBtnGroup density="compact" variant="tonal">
           <VBtn v-if="item.raw.status === 'draft' || item.raw.status === 'revision_required'" color="green-darken-1" @click="editDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">Edit</VTooltip></VBtn>
           <VBtn v-else-if="item.raw.can_approve" color="grey-darken-1" @click="openPdf(item, 'decide')"><VIcon :icon="item.raw.pending_action === 'Review' ? 'ri-eye-line' : 'ri-checkbox-circle-line'" /><VTooltip activator="parent" location="top">{{ item.raw.pending_action === 'Review' ? 'Review' : 'Approval' }}</VTooltip></VBtn>
-          <VBtn v-else-if="item.raw.can_process" color="orange-darken-3" @click="openPdf(item, 'decide')"><VIcon icon="ri-wallet-3-line" /><VTooltip activator="parent" location="top">Booking & Payment</VTooltip></VBtn>
+          <VBtn v-else-if="item.raw.can_process" color="orange-darken-3" @click="openPdf(item, 'decide')"><VIcon icon="ri-bank-card-line" /><VTooltip activator="parent" location="top">Booking & Payment</VTooltip></VBtn>
           <VBtn v-else color="grey-darken-1" @click="openPdf(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn>
           <VBtn color="blue-grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
         </VBtnGroup>
       </template>
       <template #item.status="{ item }">
-        <VChip size="small" variant="tonal" :color="statusMeta[item.status]?.color || 'primary'" class="text-no-wrap">
+        <VChip variant="tonal" :color="statusMeta[item.status]?.color || 'primary'" class="text-no-wrap">
           <VIcon icon="ri-checkbox-blank-circle-fill" size="8" start /> {{ statusMeta[item.status]?.title || item.status }}
         </VChip>
       </template>
       <template #item.type="{ item }">
         <div class="d-flex ga-1 justify-center">
-          <VChip size="small" variant="tonal" :color="item.type_color" class="text-no-wrap">{{ item.type }}</VChip>
-          <VChip v-if="item.trip_label" size="small" variant="tonal" :color="tripColor" class="text-no-wrap">{{ item.trip_label }}</VChip>
+          <VChip variant="tonal" :color="item.type_color" class="text-no-wrap">{{ item.type }}</VChip>
+          <VChip v-if="item.trip_label" variant="tonal" :color="tripColor" class="text-no-wrap">{{ item.trip_label }}</VChip>
         </div>
       </template>
-      <template #item.traveler="{ item }"><span class="text-body-2" style="white-space: pre-line">{{ item.traveler }}</span></template>
-      <template #item.route_hotel="{ item }"><span class="text-body-2">{{ item.route_hotel }}</span></template>
-      <template #item.stay_period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.stay_period }}</span></template>
+      <template #item.traveler="{ item }"><span class="text-body-1" style="white-space: pre-line">{{ item.traveler }}</span></template>
+      <template #item.route_hotel="{ item }"><span class="text-body-1">{{ item.route_hotel }}</span></template>
+      <template #item.stay_period="{ item }"><span class="text-body-1 text-no-wrap">{{ item.stay_period }}</span></template>
     </VDataTable>
   </BrandCard>
 

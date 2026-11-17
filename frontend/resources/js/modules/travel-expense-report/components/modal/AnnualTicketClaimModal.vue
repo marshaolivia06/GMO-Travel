@@ -380,7 +380,7 @@ function close() {
               <VCol cols="12" md="6">
                 <div class="d-flex flex-column h-100">
                   <div class="text-caption text-black mb-1">E-Ticket + Boarding Pass + Invoice <span class="text-error"></span></div>
-                  <div class="d-flex align-center flex-grow-1 w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
+                  <div class="d-flex align-center flex-grow-1 w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px">
                     <input type="file" multiple accept=".jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setAttachments">
                   </div>
                   <div v-if="attachments.length" class="d-flex flex-wrap ga-1 mt-2">
@@ -454,7 +454,7 @@ function close() {
               </VCol>
               <VCol cols="12" md="6">
                 <div class="text-caption text-black mb-1">Proof of Excess Payment to Finance <span class="text-error"></span></div>
-                <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
+                <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px">
                   <input type="file" accept=".jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setProofFile">
                 </div>
                 <div v-if="!proofFile && initial?.has_proof" class="text-caption mt-1">

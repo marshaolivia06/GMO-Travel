@@ -66,7 +66,7 @@ watch(() => props.modelValue, open => {
     hotel: p.hotel ?? '',
     room_type: p.room_type ?? '',
     reservation_no: '',
-    email: { to: '', cc: '', subject: '', message: '' },
+    email: { to: p.email?.to ?? '', cc: '', subject: '', message: '' },
   }
   attachment.value = null
   divHeadError.value = ''
@@ -383,7 +383,7 @@ function onSubmit() {
 
             <VCol cols="12">
               <div class="text-caption text-medium-emphasis font-weight-bold mb-1">Email Attachment <span class="text-error"></span></div>
-              <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
+              <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px">
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="e => { attachment = e.target.files?.[0] ?? null; emailError = '' }">
               </div>
               <div v-if="emailError" class="text-caption text-error mt-1">{{ emailError }}</div>

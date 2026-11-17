@@ -4,11 +4,36 @@
     $dateTime = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y H:i') : '-';
     $steps = $approvals->where('step', '>', 0);
     $documentNo = $steps->isNotEmpty() && $steps->every(fn ($step) => in_array($step->status, ['approved', 'reviewed'])) ? $form->document_number : null;
-    $segments = collect([['date' => $form->departure_date, 'route' => $form->travel_from . '-' . $form->travel_to, 'etd' => $form->departure_etd ?? null, 'eta' => $form->departure_eta ?? null, 'purpose' => $form->purpose, 'remark' => $form->remark]]);
-    if ($form->trip_type !== 'one_way') $segments->push(['date' => $form->return_date, 'route' => $form->travel_to . '-' . $form->travel_from, 'etd' => $form->return_etd ?? null, 'eta' => $form->return_eta ?? null, 'purpose' => null, 'remark' => $form->return_remark ?? null]);
-    $rows = max($form->travelers->count(), 1);
 
-    // Hierarki organisasi requester untuk label Role di tabel approval (Sect/Dept/Div Head)
+    $isRoundTrip = $form->trip_type !== 'one_way';
+    $transportMode = $form->transport_mode ?: 'Airplane';
+    $operatorLabel = $transportMode === 'Ferry' ? 'Ferry Operator' : 'Airline Operator';
+    $flightLabel = $transportMode === 'Ferry' ? 'Vessel No' : 'Flight No';
+
+    $trips = collect([[
+        'title' => 'Departure Trip',
+        'route' => $form->travel_from . ' - ' . $form->travel_to,
+        'date' => $form->departure_date,
+        'operator' => $form->operator,
+        'flight' => $form->flight_vessel_no,
+        'booking' => $form->departure_booking_code,
+        'atd' => $form->departure_atd,
+        'ata' => $form->departure_ata,
+    ]]);
+
+    if ($isRoundTrip) {
+        $trips->push([
+            'title' => 'Return Trip',
+            'route' => $form->travel_to . ' - ' . $form->travel_from,
+            'date' => $form->return_date,
+            'operator' => $form->return_operator,
+            'flight' => $form->return_flight_vessel_no,
+            'booking' => $form->return_booking_code,
+            'atd' => $form->return_atd,
+            'ata' => $form->return_ata,
+        ]);
+    }
+
     $section = \Modules\MasterManagement\Models\Section::with('department')->where('section_head_id', $form->employee_id)->first();
     $department = $section?->department
         ?? \Modules\MasterManagement\Models\Department::find($form->employee?->department_id)
@@ -23,22 +48,26 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Air Ticket Purchase Request #{{ $form->id }}</title>
+    <title>External Form Request #{{ $form->id }}</title>
     <style>
         @page { margin: 40px 60px 70px 60px; }
         body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #000; line-height: 1.4; }
         table { width: 100%; border-collapse: collapse; }
         .center { text-align: center; }
         .right { text-align: right; }
-        .section { margin-bottom: 22px; }
-        .section-title { text-align: center; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
-        .grid td, .grid th { border: 1px solid #000; padding: 7px 8px; vertical-align: middle; }
-        .grid th { text-align: center; font-size: 10px; }
-        .flight td { height: 16px; }
-        .spacer td { height: 18px; }
-        .detail td { padding: 12px 4px; vertical-align: top; font-size: 11px; }
-        .detail td.lbl { width: 30%; font-weight: bold; }
-        .detail td.sep { width: 3%; }
+        .section { margin-bottom: 20px; }
+        .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; padding-bottom: 3px; margin-bottom: 8px; }
+        .grid td, .grid th { border: 1px solid #000; padding: 7px 8px; vertical-align: top; }
+        .grid th { text-align: center; font-size: 10px; background: #d9d9d9; }
+        .box { border: 1px solid #000; }
+        .box-head { background: #d9d9d9; border-bottom: 1px solid #000; padding: 6px 10px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        .box-body { padding: 8px 10px; }
+        .kv td { padding: 4px 0; vertical-align: top; }
+        .kv td.lbl { font-weight: bold; }
+        .kv td.sep { width: 3%; text-align: center; }
+        .trips td.trip { width: 50%; padding: 0 6px; vertical-align: top; }
+        .trips td.trip:first-child { padding-left: 0; }
+        .trips td.trip:last-child { padding-right: 0; }
         .footer { position: fixed; bottom: -48px; left: 0; right: 0; border-top: 1px solid #000; padding-top: 5px; font-size: 9px; }
     </style>
 </head>
@@ -50,57 +79,70 @@
             <td class="right" style="vertical-align: middle; width: 1%;"><img src="{{ public_path('img/logo-eco.png') }}" style="height: 80px;" alt="Logo"></td>
         </tr>
     </table>
-    <div class="center" style="font-size: 15px; font-weight: bold; text-decoration: underline; margin: 30px 0 26px;">AIR TICKET PURCHASE REQUEST</div>
+    <div class="center" style="font-size: 15px; font-weight: bold; text-decoration: underline; margin: 30px 0 26px;">EXTERNAL TRAVEL PURCHASE REQUEST</div>
 
     <table style="margin-bottom: 8px;">
         <tr><td></td><td class="right">Date : &nbsp;<u>{{ $date($form->created_at) }}</u></td></tr>
     </table>
 
-    <table class="detail">
-        @if ($form->operator)<tr><td class="lbl">Operator</td><td class="sep">:</td><td>{{ $form->operator }}</td></tr>@endif
-        @if ($form->flight_vessel_no)<tr><td class="lbl">Flight / Vessel No</td><td class="sep">:</td><td>{{ $form->flight_vessel_no }}</td></tr>@endif
-        <tr><td class="lbl">Booking Code</td><td class="sep">:</td><td>{{ $val($form->departure_booking_code) }}</td></tr>
-        @if ($form->departure_atd)<tr><td class="lbl">Departure Time (ATD)</td><td class="sep">:</td><td>{{ $dateTime($form->departure_atd) }}</td></tr>@endif
-        @if ($form->departure_ata)<tr><td class="lbl">Arrival Time (ATA)</td><td class="sep">:</td><td>{{ $dateTime($form->departure_ata) }}</td></tr>@endif
-        @if ($form->return_operator)<tr><td class="lbl">Return Operator</td><td class="sep">:</td><td>{{ $form->return_operator }}</td></tr>@endif
-        @if ($form->return_flight_vessel_no)<tr><td class="lbl">Return Flight / Vessel No</td><td class="sep">:</td><td>{{ $form->return_flight_vessel_no }}</td></tr>@endif
-        @if ($form->trip_type === 'round_trip')<tr><td class="lbl">Return Booking Code</td><td class="sep">:</td><td>{{ $val($form->return_booking_code) }}</td></tr>@endif
-        @if ($form->return_atd)<tr><td class="lbl">Return Departure (ATD)</td><td class="sep">:</td><td>{{ $dateTime($form->return_atd) }}</td></tr>@endif
-        @if ($form->return_ata)<tr><td class="lbl">Return Arrival (ATA)</td><td class="sep">:</td><td>{{ $dateTime($form->return_ata) }}</td></tr>@endif
-    </table>
+    <div class="section">
+        <div class="box">
+            <div class="box-head">Transport Information</div>
+            <div class="box-body">
+                <table class="kv">
+                    <tr><td class="lbl" style="width: 25%">Transport Mode</td><td class="sep">:</td><td style="width: 22%">{{ $val($transportMode) }}</td><td class="lbl" style="width: 25%">Trip Type</td><td class="sep">:</td><td style="width: 22%">{{ $val(ucwords(str_replace('_', ' ', $form->trip_type))) }}</td></tr>
+                    <tr><td class="lbl">Vendor / Customer</td><td class="sep">:</td><td colspan="4">{{ $val($form->vendor_customer) }}</td></tr>
+                    <tr><td class="lbl">Purpose</td><td class="sep">:</td><td colspan="4">{{ $val($form->purpose) }}</td></tr>
+                    <tr><td class="lbl">Travel From</td><td class="sep">:</td><td>{{ $val($form->travel_from) }}</td><td class="lbl">Travel To</td><td class="sep">:</td><td>{{ $val($form->travel_to) }}</td></tr>
+                    <tr><td class="lbl">Departure Date</td><td class="sep">:</td><td>{{ $date($form->departure_date) }}</td>@if ($isRoundTrip)<td class="lbl">Return Date</td><td class="sep">:</td><td>{{ $date($form->return_date) }}</td>@else<td colspan="3"></td>@endif</tr>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <div class="section">
-        <table class="grid">
-            <thead>
-                <tr>
-                    <th style="width: 13%">DATE</th><th style="width: 25%">NAME</th><th style="width: 11%">ROUTE</th><th style="width: 8%">ETD</th><th style="width: 8%">ETA</th><th style="width: 19%">PURPOSE</th><th style="width: 16%">REMARKS</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($segments as $segment)
-                    <tr class="spacer"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                    @forelse ($form->travelers as $traveler)
-                        <tr class="flight">
-                            @if ($loop->first)<td class="center" rowspan="{{ $rows }}">{{ $date($segment['date']) }}</td>@endif
-                            <td>{{ $val($traveler->name) }}</td>
-                            @if ($loop->first)
-                                <td class="center" rowspan="{{ $rows }}">{{ $val($segment['route']) }}</td>
-                                <td class="center" rowspan="{{ $rows }}">{{ $val($segment['etd']) }}</td>
-                                <td class="center" rowspan="{{ $rows }}">{{ $val($segment['eta']) }}</td>
-                                <td class="center" rowspan="{{ $rows }}">{{ $val($segment['purpose']) }}</td>
-                                <td class="center" rowspan="{{ $rows }}">{{ $val($segment['remark']) }}</td>
-                            @endif
-                        </tr>
-                    @empty
-                        <tr class="flight"><td class="center">{{ $date($segment['date']) }}</td><td>-</td><td class="center">{{ $val($segment['route']) }}</td><td class="center">{{ $val($segment['etd']) }}</td><td class="center">{{ $val($segment['eta']) }}</td><td class="center">{{ $val($segment['purpose']) }}</td><td class="center">{{ $val($segment['remark']) }}</td></tr>
-                    @endforelse
+        <div class="section-title">Trip Detail</div>
+        <table class="trips">
+            <tr>
+                @foreach ($trips as $trip)
+                    <td class="trip">
+                        <div class="box">
+                            <div class="box-head">{{ $trip['title'] }}</div>
+                            <div class="box-body">
+                                <table class="kv">
+                                    <tr><td class="lbl" style="width: 42%">Route</td><td class="sep">:</td><td>{{ $val($trip['route']) }}</td></tr>
+                                    <tr><td class="lbl">Travel Date</td><td class="sep">:</td><td>{{ $date($trip['date']) }}</td></tr>
+                                    <tr><td class="lbl">{{ $operatorLabel }}</td><td class="sep">:</td><td>{{ $val($trip['operator']) }}</td></tr>
+                                    <tr><td class="lbl">{{ $flightLabel }}</td><td class="sep">:</td><td>{{ $val($trip['flight']) }}</td></tr>
+                                    <tr><td class="lbl">Booking Code</td><td class="sep">:</td><td>{{ $val($trip['booking']) }}</td></tr>
+                                    <tr><td class="lbl">ATD</td><td class="sep">:</td><td>{{ $dateTime($trip['atd']) }}</td></tr>
+                                    <tr><td class="lbl">ATA</td><td class="sep">:</td><td>{{ $dateTime($trip['ata']) }}</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </td>
                 @endforeach
-                <tr class="spacer"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-            </tbody>
+            </tr>
         </table>
     </div>
 
     <div class="section">
+        <div class="section-title">Traveler Information</div>
+        <div class="box">
+            <div class="box-body">
+                @forelse ($form->travelers as $traveler)<div>{{ $loop->iteration }}. {{ $val($traveler->name) }}</div>@empty<div>-</div>@endforelse
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Remarks</div>
+        <div class="box">
+            <div class="box-body">{{ $val($form->remark) }}</div>
+        </div>
+    </div>
+
+    <div class="section" style="page-break-before: always;">
         <div class="section-title">Approval &amp; Processing</div>
         <table class="grid">
             <thead>
@@ -111,15 +153,18 @@
                     @php
                         $isPending = $step->status === 'pending';
                         $role = $step->role?->name ?? '-';
-    $organization = match ($role) {
-        'Sect Head' => $section?->name,
-        'Dept Head' => $department?->name,
-        'Div Head' => $divisionNameByUser($step->user_id) ?? $division?->division_name,
-        default => null,
-    };
-    $roleLabel = $organization
-        ? "{$organization} (" . str_replace(' ', '.', $role) . ')'
-        : ($step->label ?: str_replace(' ', '.', $role));
+
+                        $organization = match ($role) {
+                            'Sect Head' => $department?->name,
+                            'Dept Head' => $department?->name,
+                            'Div Head' => $divisionNameByUser($step->user_id) ?? $division?->division_name,
+                            default => null,
+                        };
+
+                        $roleLabel = $organization
+                            ? "{$organization} (" . str_replace(' ', '.', $role) . ')'
+                            : ($step->label ?: str_replace(' ', '.', $role));
+
                         $statusLabel = match ($step->status) { 'submitted' => 'Requested', 'approved' => 'Approved', 'reviewed' => 'Reviewed', default => $step->action_type === 'check' ? 'Awaiting Review' : 'Awaiting Approval' };
                         $statusStyle = match ($step->status) { 'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;', 'approved', 'reviewed' => 'background-color: #DCFCE7; color: #15803D;', default => 'background-color: #FEF3C7; color: #92400E;' };
                     @endphp

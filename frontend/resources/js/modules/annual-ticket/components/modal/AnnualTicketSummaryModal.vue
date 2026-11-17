@@ -8,9 +8,15 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   processing: { type: Boolean, default: false },
   canEditSchedule: { type: Boolean, default: false },
+  pdfUrl: { type: String, default: null },
+  pdfLoading: { type: Boolean, default: false },
+  attachments: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['update:modelValue', 'update-schedule', 'add-documents', 'cancel-ticket', 'update-refund', 'resend-email', 'view-pdf', 'cancel-request'])
+const emit = defineEmits(['update:modelValue', 'update-schedule', 'add-documents', 'cancel-ticket', 'update-refund', 'resend-email', 'cancel-request', 'request-pdf'])
+
+const activeTab = ref('view')
+const activeAttachmentTab = ref('')
 
 const legHeaders = [
   { title: 'TRAVELER', key: 'name', sortable: false },
@@ -22,6 +28,8 @@ const legHeaders = [
 const formatDate = date => date ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date)) : '-'
 const formatDateNumeric = date => date ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(date)) : '-'
 const norm = value => (value || '').trim().toLowerCase()
+const isImage = url => /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url || '')
+const isPdf = url => /\.pdf(\?.*)?$/i.test(url || '')
 
 function mapLegs(direction) {
   const legs = props.ticket?.legs?.filter(leg => leg.direction === direction) ?? []
@@ -41,7 +49,9 @@ const formatIdr = value => 'IDR ' + new Intl.NumberFormat('id-ID').format(Number
 const formatBookingAmount = value => new Intl.NumberFormat('id-ID').format(Number(value || 0))
 
 const travelPeriod = computed(() => {
-  const dates = [...new Set((props.ticket?.legs ?? []).map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean).map(formatDate))].sort()
+  const dates = [...new Set((props.ticket?.legs ?? []).map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean))]
+    .sort((a, b) => new Date(a) - new Date(b))
+    .map(formatDate)
   if (!dates.length) return '-'
   return dates.length > 1 ? `${dates[0]} → ${dates[dates.length - 1]}` : dates[0]
 })
@@ -101,7 +111,9 @@ function syncScheduleForm() {
   for (const leg of props.ticket?.legs ?? []) scheduleForm[leg.id] = rawDate(leg.reschedule_date ?? leg.travel_date)
 }
 
-watch(() => [props.modelValue, props.ticket], ([open]) => { if (open) { editingSchedule.value = false; syncScheduleForm() } }, { immediate: true })
+watch(() => [props.modelValue, props.ticket], ([open]) => { if (open) { editingSchedule.value = false; syncScheduleForm(); activeTab.value = 'view'; activeAttachmentTab.value = props.attachments[0]?.key || '' } }, { immediate: true })
+
+watch(activeTab, tab => { if (tab === 'document' && !props.pdfUrl && !props.pdfLoading) emit('request-pdf') })
 
 function editSchedule() { syncScheduleForm(); editingSchedule.value = true }
 function cancelSchedule() { syncScheduleForm(); editingSchedule.value = false }
@@ -274,16 +286,24 @@ const close = () => emit('update:modelValue', false)
 
 <template>
   <VDialog :model-value="modelValue" max-width="1250" scrollable @update:model-value="emit('update:modelValue', $event)">
-    <VCard rounded="lg" style="height: min(90vh, 960px)">
-      <VCardItem class="px-6 py-4">
+    <VCard rounded="lg" class="d-flex flex-column" style="height: min(90vh, 960px)">
+      <VCardItem class="px-6 py-4 flex-shrink-0">
         <div class="d-flex align-center flex-wrap ga-2"><VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">Annual Ticket Summary</VCardTitle></div>
         <template #append><VBtn icon="ri-close-line" size="small" variant="text" @click="close" /></template>
       </VCardItem>
-      <VDivider />
+      <VDivider class="flex-shrink-0" />
       <VProgressLinear v-if="loading" indeterminate />
-      <VCardText class="px-6 py-5">
+      <VTabs v-model="activeTab" color="primary" density="comfortable" class="flex-shrink-0">
+        <VTab value="view" class="text-none">View</VTab>
+        <VTab value="document" class="text-none">Document</VTab>
+        <VTab value="attachment" class="text-none">Attachment</VTab>
+      </VTabs>
+      <VDivider class="flex-shrink-0" />
+      <VWindow v-model="activeTab" class="flex-grow-1" style="min-height: 0; overflow-y: auto">
+        <VWindowItem value="view">
+          <VCardText class="px-6 py-5">
         <VCard rounded="lg" elevation="0" border class="mb-5">
-          <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between"><div class="text-subtitle-2 font-weight-bold">Annual Ticket Information</div><VBtn color="primary" variant="flat" size="small" :disabled="!ticket?.id" @click="emit('view-pdf', ticket?.id)">PDF</VBtn></div>
+          <div class="bg-grey-lighten-4 px-4 py-3"><div class="text-subtitle-2 font-weight-bold">Annual Ticket Information</div></div>
           <VDivider />
           <VCardText class="pa-4">
             <VRow dense>
@@ -374,7 +394,7 @@ const close = () => emit('update:modelValue', false)
               </div>
               <div class="text-body-2 font-weight-medium mt-4 mb-2">E-Ticket / Travel Document</div>
               <template v-if="editingDocuments">
-                <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px"><input ref="documentInput" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="onDocumentsChange" /></div>
+                <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px"><input ref="documentInput" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="onDocumentsChange" /></div>
                 <div class="text-caption text-medium-emphasis mt-1">New documents will be added — existing documents are kept.</div>
               </template>
               <div v-else class="d-flex align-center flex-wrap ga-3 locked-control"><VBtn size="small" variant="outlined" disabled>Choose file</VBtn><span v-if="!issuedDocuments.length" class="text-body-2">No file chosen</span></div>
@@ -486,7 +506,32 @@ const close = () => emit('update:modelValue', false)
             </VRow>
           </VCardText>
         </VCard>
-      </VCardText>
+          </VCardText>
+        </VWindowItem>
+
+        <VWindowItem value="document">
+          <VProgressLinear v-if="pdfLoading" indeterminate />
+          <iframe v-if="pdfUrl" :src="pdfUrl" title="Annual Ticket PDF" height="700" class="d-block w-100 border-0" />
+          <div v-else-if="!pdfLoading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
+        </VWindowItem>
+
+        <VWindowItem value="attachment">
+          <VTabs v-model="activeAttachmentTab" color="primary" density="comfortable">
+            <VTab v-for="attachment in attachments" :key="attachment.key" :value="attachment.key" class="text-none">{{ attachment.title }}</VTab>
+          </VTabs>
+          <VDivider />
+          <VWindow v-model="activeAttachmentTab">
+            <VWindowItem v-for="attachment in attachments" :key="attachment.key" :value="attachment.key">
+              <div class="pa-4 d-flex justify-center align-center">
+                <img v-if="isImage(attachment.path)" :src="attachment.path" :alt="attachment.title" style="max-width: 100%; max-height: 60vh; object-fit: contain" />
+                <iframe v-else-if="isPdf(attachment.path)" :src="attachment.path" :title="attachment.title" height="640" class="d-block w-100 border-0" />
+                <VBtn v-else variant="tonal" color="primary" :href="attachment.path" target="_blank" rel="noopener" prepend-icon="ri-external-link-line">Open File</VBtn>
+              </div>
+            </VWindowItem>
+          </VWindow>
+          <div v-if="!attachments.length" class="text-center text-medium-emphasis pa-4">No attachments available.</div>
+        </VWindowItem>
+      </VWindow>
       <VDivider />
       <VCardActions v-if="canRequestCancellation" class="px-6 py-4 justify-end"><VBtn color="error" variant="flat" :disabled="processing" @click="emit('cancel-request', ticket?.id)">Cancellation Request</VBtn></VCardActions>
     </VCard>

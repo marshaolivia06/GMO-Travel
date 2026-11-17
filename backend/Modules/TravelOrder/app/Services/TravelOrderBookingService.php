@@ -6,7 +6,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\{DB, Mail, Storage, Validator};
 use Illuminate\Validation\ValidationException;
 use Modules\TravelOrder\Emails\TravelOrderBookingCompletedMail;
-use Modules\TravelOrder\Models\{TravelOrder, TravelOrderBooking, TravelOrderBookingCancellation, TravelOrderEmail};
+use Modules\TravelOrder\Models\{TravelOrder, TravelOrderBooking, TravelOrderBookingCancellation, TravelOrderEmail, TravelOrderGroup};
 use Modules\UserManagement\Models\User;
 
 class TravelOrderBookingService
@@ -115,6 +115,8 @@ class TravelOrderBookingService
                 $travelOrder->status = 'processed_by_gmo';
                 $travelOrder->save();
 
+                $this->autoCloseGroupIfAllProcessed($travelOrder);
+
                 return $travelOrder->fresh(['user', 'department', 'booking']);
             });
         } catch (\Throwable $exception) {
@@ -169,6 +171,32 @@ class TravelOrderBookingService
         $this->approvalService->logGmoActivity($order, $user, 'gmo_processing_completed', 'GMO Processing Completed');
 
         return $order;
+    }
+
+    // Tutup otomatis Group Trip ketika semua member sudah membuat Travel Order
+    // dan seluruh order-nya sudah diproses GMO.
+    protected function autoCloseGroupIfAllProcessed(TravelOrder $travelOrder): void
+    {
+        if (!$travelOrder->travel_order_group_id) {
+            return;
+        }
+
+        $group = TravelOrderGroup::query()->find($travelOrder->travel_order_group_id);
+
+        if (!$group || $group->status !== 'open') {
+            return;
+        }
+
+        $memberCount = $group->members()->count();
+        $orders = $group->travelOrders();
+
+        $allProcessed = $orders->count() === $memberCount
+            && $memberCount >= 2
+            && $orders->where('status', 'processed_by_gmo')->count() === $memberCount;
+
+        if ($allProcessed) {
+            $group->update(['status' => 'closed', 'closed_at' => now()]);
+        }
     }
 
     public function updateSchedule(TravelOrder $travelOrder, User $user, array $data): TravelOrder

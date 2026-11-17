@@ -9,6 +9,7 @@ const props = defineProps({
   departureLegs: { type: Array, default: () => [] },
   returnLegs: { type: Array, default: () => [] },
   processing: { type: Boolean, default: false },
+  recipientEmail: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'back', 'process'])
@@ -72,7 +73,7 @@ watch(() => props.modelValue, open => {
   bookingCurrency.value = 'IDR'
   bookingAmountInput.value = ''
   eTicketFile.value = null
-  emailForm.to = ''
+  emailForm.to = props.recipientEmail || ''
   emailForm.cc = ''
   emailForm.subject = ''
   emailForm.message = ''
@@ -153,7 +154,7 @@ const onProcess = () => {
 
           <div class="mt-4">
             <div class="text-caption font-weight-medium mb-1">Fare Reference Attachment <span class="text-error"></span></div>
-            <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px"><input ref="fileInput" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="onFilesChange" /></div>
+            <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px"><input ref="fileInput" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="onFilesChange" /></div>
           </div>
 
           <div class="text-subtitle-1 font-weight-bold mt-6 mb-3">Maximum Ticket Entitlement</div>
@@ -186,13 +187,16 @@ const onProcess = () => {
           <div class="text-subtitle-1 font-weight-bold mt-6 mb-3">Booking Item</div>
           <VSheet color="grey-lighten-5" border rounded="lg" class="pa-4">
             <div class="text-subtitle-2 font-weight-bold mb-3">Ticket</div>
-            <div class="text-caption text-medium-emphasis mb-1">Booking Amount <span class="text-error"></span></div>
-            <div class="d-flex ga-2 mb-4">
-              <VSelect v-model="bookingCurrency" :items="['IDR']" variant="outlined" density="compact" bg-color="white" hide-details disabled style="max-width: 110px" />
-              <VTextField :model-value="bookingAmountInput" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="compact" bg-color="white" hide-details class="fare-input" @update:model-value="handleBookingAmountInput" />
-            </div>
-            <div class="text-caption text-medium-emphasis mb-1">E-Ticket / Travel Document <span class="text-error"></span></div>
-            <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px"><input ref="eTicketInput" type="file" accept=".pdf,.jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="eTicketFile = $event.target.files?.[0] || null" /></div>
+            <VRow>
+              <VCol cols="12" md="6">
+                <div class="text-caption text-medium-emphasis mb-1">Booking Amount <span class="text-error"></span></div>
+                <VTextField :model-value="bookingAmountInput" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="compact" bg-color="white" hide-details class="fare-input" @update:model-value="handleBookingAmountInput" />
+              </VCol>
+              <VCol cols="12" md="6">
+                <div class="text-caption text-medium-emphasis mb-1">E-Ticket / Travel Document <span class="text-error"></span></div>
+                <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px"><input ref="eTicketInput" type="file" accept=".pdf,.jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="eTicketFile = $event.target.files?.[0] || null" /></div>
+              </VCol>
+            </VRow>
           </VSheet>
 
           <div class="text-subtitle-1 font-weight-bold mt-6 mb-3">Send Email</div>

@@ -144,7 +144,7 @@ watch(step, async () => { await nextTick(); const el = cardRef.value?.$el; if (!
         </VRow>
       </VCardText>
 
-      <template v-if="step === 1">
+      <div v-show="step === 1">
         <VCardText class="px-6 py-4">
           <div class="d-flex align-center justify-space-between mb-3"><span class="text-body-1 font-weight-bold">HR Dependent Master</span><span class="text-body-2 text-medium-emphasis">Employee must participate in at least one direction · Maximum {{ MAX_CHILDREN }} children</span></div>
           <VAlert v-if="!employeeValid" type="error" variant="tonal" density="compact" class="mb-3">Employee must participate in at least one direction.</VAlert>
@@ -174,10 +174,14 @@ watch(step, async () => { await nextTick(); const el = cardRef.value?.$el; if (!
           <VBtn variant="outlined" color="secondary" @click="emit('close')">Cancel</VBtn>
           <VBtn variant="flat" color="primary" :disabled="!isValid" @click="next">Continue to Travel Information</VBtn>
         </VCardActions>
-      </template>
+      </div>
 
-      <TravelLegInformationDialog v-else-if="step === 2" :key="legsKey" :travelers="selectedTravelers" :route="defaultRoute" :draft="legsDraft" :quota-year="isResubmit ? props.ticket.quota_year : props.quotaYear" :validate-date-window="!isResubmit" :date-created="props.ticket?.created_at ?? undefined" @update="onLegsUpdate" @next="goTo(3)" />
-      <ReviewSubmit v-else :travelers="selectedTravelers" :legs="legsDraft" :route="defaultRoute" :quota-year="isResubmit ? props.ticket.quota_year : props.quotaYear" :submitting="submitting" :initial="{ arrangement: initialArrangement, remarks: initialRemarks }" :evidence-required="!isResubmit" :submit-label="isResubmit ? 'Resubmit Annual Ticket Request' : 'Submit Annual Ticket Request'" @back="step = 2" @submit="submit" />
+      <div v-show="step === 2">
+        <TravelLegInformationDialog :key="legsKey" :travelers="selectedTravelers" :route="defaultRoute" :draft="legsDraft" :quota-year="isResubmit ? props.ticket.quota_year : props.quotaYear" :validate-date-window="!isResubmit" :date-created="props.ticket?.created_at ?? undefined" @update="onLegsUpdate" @next="goTo(3)" />
+      </div>
+      <div v-show="step === 3">
+        <ReviewSubmit :travelers="selectedTravelers" :legs="legsDraft" :route="defaultRoute" :quota-year="isResubmit ? props.ticket.quota_year : props.quotaYear" :submitting="submitting" :initial="{ arrangement: initialArrangement, remarks: initialRemarks }" :evidence-required="!isResubmit" :submit-label="isResubmit ? 'Resubmit Annual Ticket Request' : 'Submit Annual Ticket Request'" @back="step = 2" @submit="submit" />
+      </div>
     </VCard>
   </VDialog>
 </template>

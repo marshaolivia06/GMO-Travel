@@ -8,9 +8,15 @@ import { useConfirm } from '../../../../composables/useConfirm'
 
 const { confirm } = useConfirm()
 
-const props = defineProps({ modelValue: Boolean, title: { type: String, default: 'GMO Processing History' }, order: { type: Object, default: null }, savedBooking: { type: Object, default: null }, savedEmail: { type: [Object, Array], default: null }, loading: Boolean, processing: Boolean })
+const props = defineProps({ modelValue: Boolean, title: { type: String, default: 'GMO Processing History' }, order: { type: Object, default: null }, savedBooking: { type: Object, default: null }, savedEmail: { type: [Object, Array], default: null }, loading: Boolean, processing: Boolean, pdfUrl: { type: String, default: '' }, pdfLoading: Boolean })
 
-const emit = defineEmits(['update:modelValue', 'close', 'resend-email', 'cancel-booking-items', 'view-pdf', 'update-schedule', 'update-booking', 'update-refund', 'save-refund'])
+const emit = defineEmits(['update:modelValue', 'close', 'resend-email', 'cancel-booking-items', 'view-pdf', 'update-schedule', 'update-booking', 'update-refund', 'save-refund', 'request-pdf'])
+
+const activeTab = ref('view')
+
+watch(() => props.modelValue, open => { if (open) activeTab.value = 'view' })
+
+watch(activeTab, tab => { if (tab === 'document' && !props.pdfUrl && !props.pdfLoading) emit('request-pdf') })
 
 const order = computed(() => props.order || {})
 const booking = computed(() => props.savedBooking || order.value.booking || {})
@@ -421,16 +427,23 @@ function close() {
 
 <template>
   <VDialog :model-value="modelValue" max-width="1100" scrollable @update:model-value="emit('update:modelValue', $event)">
-    <VCard rounded="lg">
-      <VCardItem class="px-4 py-2">
+    <VCard rounded="lg" class="d-flex flex-column" style="height: min(90vh, 960px)">
+      <VCardItem class="px-4 py-2 flex-shrink-0">
         <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">{{ title }}</VCardTitle>
         <template #append><VBtn icon="ri-close-line" size="small" variant="text" :disabled="processing" @click="close" /></template>
       </VCardItem>
-      <VDivider />
-      <VProgressLinear v-if="loading" indeterminate color="primary" />
-      <VCardText v-else class="bg-grey-lighten-5 pa-5">
+      <VDivider class="flex-shrink-0" />
+      <VTabs v-model="activeTab" color="primary" density="comfortable" class="flex-shrink-0">
+        <VTab value="view" class="text-none">View</VTab>
+        <VTab value="document" class="text-none">Document</VTab>
+      </VTabs>
+      <VDivider class="flex-shrink-0" />
+      <VWindow v-model="activeTab" class="flex-grow-1" style="min-height: 0; overflow-y: auto">
+        <VWindowItem value="view">
+          <VProgressLinear v-if="loading" indeterminate color="primary" />
+          <VCardText v-else class="bg-grey-lighten-5 pa-5">
         <VCard rounded="lg" elevation="0" border class="mb-4">
-          <div class="bg-grey-lighten-4 px-4 py-3 d-flex align-center justify-space-between"><div class="text-subtitle-2 font-weight-bold">Travel Order Information</div><VBtn color="primary" variant="flat" size="small" :disabled="loading || !order?.id" @click="emit('view-pdf', order.id)">PDF</VBtn></div>
+          <div class="bg-grey-lighten-4 px-4 py-3"><div class="text-subtitle-2 font-weight-bold">Travel Order Information</div></div>
           <VDivider />
           <VCardText class="pa-4">
             <VRow dense>
@@ -756,9 +769,17 @@ function close() {
             </VRow>
           </VCardText>
         </VCard>
-      </VCardText>
+          </VCardText>
+        </VWindowItem>
+
+        <VWindowItem value="document">
+          <VProgressLinear v-if="pdfLoading" indeterminate color="primary" />
+          <iframe v-if="pdfUrl" :src="pdfUrl" title="Travel Order PDF" height="700" class="d-block w-100 border-0" />
+          <div v-else-if="!pdfLoading" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
+        </VWindowItem>
+      </VWindow>
       <VDivider />
-      <VCardActions class="px-5 py-4 justify-end"><VBtn variant="text" :disabled="processing" @click="close">Close</VBtn></VCardActions>
+      <VCardActions class="px-5 py-4 justify-end flex-shrink-0"><VBtn variant="text" :disabled="processing" @click="close">Close</VBtn></VCardActions>
 
       <VDialog v-model="previewDialog" max-width="900" scrollable>
         <VCard rounded="lg">

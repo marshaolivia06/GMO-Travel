@@ -710,49 +710,71 @@ class AnnualTicketService
             ->where('event', 'submitted')
             ->first();
 
-        $approvals = $this->approvalService->latestRoundApprovals($ticket);
+        $allApprovals = $this->approvalService->latestRoundApprovals($ticket);
 
-        // Baris approval alur pembatalan tidak pernah ditampilkan di PDF - catatannya cukup di history log.
-        // Saat cancellation berjalan -> tampilkan Requester + rantai pembatalan TERBARIS saja;
-        // setelah selesai (rejected/finalized) -> kembali ke rantai alur normal seperti sebelumnya.
-        $hasCancellationRows = $ticket->approvals()->where('flow_type', 'cancellation')->exists()
-            || $ticket->approvals()->whereNull('flow_type')->whereNull('authority_matrix_step_id')->whereNotNull('action_type')->exists();
+        $isCancellationRow = fn ($approval) => $approval->flow_type === 'cancellation'
+            || (is_null($approval->flow_type) && is_null($approval->authority_matrix_step_id) && ! is_null($approval->action_type));
 
-        if ($hasCancellationRows) {
-            $isCancellationRow = fn ($approval) => $approval->flow_type === 'cancellation'
-                || (is_null($approval->flow_type) && is_null($approval->authority_matrix_step_id) && ! is_null($approval->action_type));
+        // Tabel utama: rantai alur request normal saja - baris pembatalan tidak pernah masuk.
+        $approvals = $allApprovals->filter(fn ($approval) => ! $isCancellationRow($approval));
 
-            if (str_starts_with($ticket->status, 'awaiting_cancellation_')) {
-                // Batas rantai terbaris: jalan mundur dari sequence terakhir sampai baris alur normal
-                $rows = $approvals->values();
-                $latestChainStart = null;
+        // Tabel kedua: rantai pembatalan TERBARIS - tampil saat pengajuan pembatalan berjalan
+        // maupun setelah difinalisasi (status cancelled).
+        $cancellationApprovals = collect();
 
-                for ($i = $rows->count() - 1; $i >= 0; $i--) {
-                    if (! $isCancellationRow($rows[$i])) {
-                        break;
-                    }
+        if (str_starts_with($ticket->status, 'awaiting_cancellation_') || $ticket->status === 'cancelled') {
+            // Batas rantai terbaris: jalan mundur dari sequence terakhir sampai baris alur normal
+            $rows = $allApprovals->values();
+            $latestChainStart = null;
 
-                    $latestChainStart = $rows[$i]->sequence;
+            for ($i = $rows->count() - 1; $i >= 0; $i--) {
+                if (! $isCancellationRow($rows[$i])) {
+                    break;
                 }
 
-                $approvals = $approvals->filter(
-                    fn ($approval) => $approval->status === 'submitted'
-                        || ($latestChainStart !== null && $approval->sequence >= $latestChainStart && $isCancellationRow($approval) && $approval->action_type !== 'finalization'),
-                );
-            } else {
-                $approvals = $approvals->filter(fn ($approval) => ! $isCancellationRow($approval));
+                $latestChainStart = $rows[$i]->sequence;
             }
+
+            $cancellationApprovals = $latestChainStart === null
+                ? collect()
+                : $allApprovals->filter(
+                    fn ($approval) => $approval->sequence >= $latestChainStart && $isCancellationRow($approval) && $approval->action_type !== 'finalization',
+                );
+
+            // Log pengajuan pembatalan - baris "Requested" tabel pembatalan dibangun dari sini
+            // agar waktunya saat pengajuan pembatalan, bukan waktu submit tiket.
+            $cancellationRequestLog = \Spatie\Activitylog\Models\Activity::with('causer')
+                ->where('log_name', 'annual-ticket')
+                ->where('subject_type', $ticket->getMorphClass())
+                ->where('subject_id', $ticket->id)
+                ->where('event', 'cancel_requested')
+                ->latest('id')
+                ->first();
         }
 
-        $approvals = $approvals
-            ->map(fn ($approval) => (object) [
-                'sequence' => $approval->sequence,
-                'role' => $approval->role_name,
-                'name' => $approval->name,
-                'acted_at' => $approval->acted_at,
-                'status' => $approval->status,
-                'action_type' => $approval->action_type,
+        $mapApproval = fn ($approval) => (object) [
+            'sequence' => $approval->sequence,
+            'role' => $approval->role_name,
+            'name' => $approval->name,
+            'acted_at' => $approval->acted_at,
+            'status' => $approval->status,
+            'action_type' => $approval->action_type,
+        ];
+
+        $approvals = $approvals->map($mapApproval);
+        $cancellationApprovals = $cancellationApprovals->map($mapApproval);
+
+        // Baris pertama tabel pembatalan: pemohon yang mengajukan cancellation
+        if (($cancellationRequestLog ?? null) && $cancellationApprovals->isNotEmpty()) {
+            $cancellationApprovals = $cancellationApprovals->prepend((object) [
+                'sequence' => $latestChainStart - 1,
+                'role' => $cancellationRequestLog->properties->get('role', 'Employee'),
+                'name' => $cancellationRequestLog->causer?->name,
+                'acted_at' => $cancellationRequestLog->created_at,
+                'status' => 'submitted',
+                'action_type' => null,
             ]);
+        }
 
         if ($submittedLog && $ticket->approvals()->doesntExist()) {
             $approvals->prepend((object) [
@@ -764,7 +786,7 @@ class AnnualTicketService
             ]);
         }
 
-        return Pdf::loadView('annualticket::pdf.annual_ticket', ['ticket' => $ticket, 'approvals' => $approvals])->setPaper('a4');
+        return Pdf::loadView('annualticket::pdf.annual_ticket', ['ticket' => $ticket, 'approvals' => $approvals, 'cancellationApprovals' => $cancellationApprovals])->setPaper('a4');
     }
 
     public function historyById(int $id, User $user): array

@@ -70,10 +70,12 @@
 
 <body>
     <div class="doc-head">
-        <div style="text-align: left; font-size: 11px; font-weight: bold; margin-bottom: 18px;">
-            {{ config('company.name') }}<br>
-            {{ $officeLabel }}
-        </div>
+        <table>
+            <tr>
+                <td style="text-align: left; font-size: 11px; font-weight: bold;">{{ config('company.name') }}<br>{{ $officeLabel }}</td>
+                <td class="right" style="vertical-align: middle; width: 1%;"><img src="{{ public_path('img/logo-eco.png') }}" style="height: 80px;" alt="Logo"></td>
+            </tr>
+        </table>
         <div class="doc-title">ANNUAL TICKET</div>
     </div>
 
@@ -172,76 +174,8 @@
         </table>
     </div>
 
-    <div class="section">
-        <div class="section-title">Reviewed &amp; Approved By</div>
-        <table class="grid">
-            <thead>
-                <tr>
-                    <th style="width: 6%">No</th>
-                    <th style="width: 24%">Role</th>
-                    <th style="width: 23%">Name</th>
-                    <th class="center" style="width: 22%">Date &amp; Time</th>
-                    <th class="center" style="width: 25%">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($approvals->sortBy('sequence') as $step)
-                    @php
-                        $role = $step->role instanceof \Spatie\Permission\Models\Role ? $step->role->name : $step->role;
-
-                        $organization = match ($role) {
-                            'Sect Head' => $section?->name,
-                            'Dept Head' => $department?->name,
-                            'Div Head' => $division?->division_name,
-                            default => null,
-                        };
-
-                        $displayRole = str_replace(' ', '.', $role);
-                        $roleLabel = $organization
-                            ? "{$organization} ({$displayRole})"
-                            : $displayRole;
-
-                        $statusStyle = match ($step->status) {
-                            'submitted' => 'background-color: #DBEAFE; color: #1D4ED8;',
-                            'approved', 'checked' => 'background-color: #DCFCE7; color: #15803D;',
-                            'revision', 'pending' => 'background-color: #FEF9C3; color: #A16207;',
-                            default => '',
-                        };
-
-                        $statusLabel = match ($step->status) {
-                            'submitted' => 'Requested',
-                            'checked' => 'Reviewed',
-                            'approved' => 'Approved',
-                            'revision' => 'Revision',
-                            'finalized' => 'Finalized',
-                            'rejected' => 'Rejected',
-                            'pending' => match ($step->action_type) {
-                                'check' => 'Awaiting Review',
-                                'finalization' => 'Awaiting Finalization',
-                                default => 'Awaiting Approval',
-                            },
-                            default => $step->status,
-                        };
-                    @endphp
-                    <tr>
-                        <td class="center">{{ $loop->iteration }}</td>
-                        <td>{{ $val($roleLabel) }}</td>
-                        <td>{{ $val($step->name) }}</td>
-                        <td class="center">{{ $dateTime($step->acted_at) }}</td>
-                        <td class="center">
-                            <span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; {{ $statusStyle }}">
-                                {{ $statusLabel }}
-                            </span>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="center">No approval data yet.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+    @include('annualticket::pdf.approvals_table', ['title' => 'Reviewed & Approved By', 'rows' => $approvals])
+    @include('annualticket::pdf.approvals_table', ['title' => 'Cancellation Request Reviewed & Approved By', 'rows' => $cancellationApprovals, 'pageBreak' => true])
 
     <div class="footer">
         <table>

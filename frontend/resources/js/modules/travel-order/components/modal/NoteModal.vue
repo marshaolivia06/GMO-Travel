@@ -70,7 +70,7 @@ function submit() {
         <VTextarea v-model="text" :placeholder="meta.placeholder || 'Enter remark'" variant="outlined" rows="3" auto-grow :error-messages="error" @update:model-value="error = ''" />
         <template v-if="requiresEvidence()">
   <div class="text-caption font-weight-medium mb-1 mt-0">Upload Evidence <span class="text-error"></span></div>
-  <div class="d-flex align-center w-100" style="background:#fff;border:1px solid #bdbdbd;border-radius:8px;padding:8px 10px;min-height:48px">
+  <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px">
   <input type="file" accept=".pdf,.jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setEvidenceFile" />
 </div>
   <div v-if="fileError" class="text-caption text-error mt-1">{{ fileError }}</div>

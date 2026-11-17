@@ -53,6 +53,8 @@ const gmoHistoryOrder = ref(null)
 const gmoHistoryBooking = ref(null)
 const gmoHistoryEmail = ref(null)
 const gmoHistoryProcessing = ref(false)
+const gmoHistoryPdfUrl = ref('')
+const gmoHistoryPdfLoading = ref(false)
 const processLoading = ref(false)
 const processingOrderId = ref(null)
 const bookingDialog = ref(false)
@@ -463,6 +465,7 @@ async function openGmoHistory(row) {
   gmoHistoryOrder.value = row.raw
   gmoHistoryBooking.value = null
   gmoHistoryEmail.value = null
+  gmoHistoryPdfUrl.value = ''
   try {
     const response = await getTravelOrder(row.id)
     const detail = response?.data?.data ?? response?.data ?? response
@@ -475,6 +478,21 @@ async function openGmoHistory(row) {
     gmoHistoryDialog.value = false
   } finally {
     gmoHistoryLoading.value = false
+  }
+}
+
+async function loadGmoHistoryPdf() {
+  const id = gmoHistoryOrder.value?.id
+  if (!id || gmoHistoryPdfLoading.value) return
+  gmoHistoryPdfLoading.value = true
+  try {
+    if (gmoHistoryPdfUrl.value) URL.revokeObjectURL(gmoHistoryPdfUrl.value)
+    const blob = await getTravelOrderPdf(id)
+    gmoHistoryPdfUrl.value = URL.createObjectURL(blob)
+  } catch (error) {
+    showMessage(error?.response?.data?.message || 'Failed to load the Travel Order PDF.', 'error')
+  } finally {
+    gmoHistoryPdfLoading.value = false
   }
 }
 
@@ -765,12 +783,12 @@ onMounted(() => {
       <VAlert v-if="errorMessage" type="error" variant="tonal" class="ma-4">{{ errorMessage }}</VAlert>
 
       <VDataTable class="orders-table" :headers="headers" :items="filteredRows" :loading="loading" show-current-page item-value="id" hover no-data-text="No travel orders found.">
-        <template #item.id="{ item }"><span class="font-weight-bold text-body-2 text-no-wrap">{{ item.id }}</span></template>
-        <template #item.type="{ item }"><VChip size="small" variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip></template>
-        <template #item.subject="{ item }"><div class="font-weight-bold text-body-2">{{ item.subject }}</div><div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div></template>
-        <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.period }}</span></template>
-        <template #item.arrangement="{ item }"><span class="text-body-2 text-no-wrap d-block text-center">{{ item.arrangement }}</span></template>
-        <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="statusMeta[statusKey(item.raw.status)]?.color || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip></template>
+      <template #item.id="{ item }"><span class="font-weight-bold text-body-1 text-no-wrap">{{ item.id }}</span></template>
+      <template #item.type="{ item }"><VChip variant="tonal" :color="typeColor[item.type] || 'primary'" class="text-no-wrap">{{ item.type }}</VChip></template>
+      <template #item.subject="{ item }"><div class="font-weight-bold text-body-1">{{ item.subject }}</div><div class="text-caption text-medium-emphasis">{{ item.department || '-' }}</div></template>
+      <template #item.period="{ item }"><span class="text-body-1 text-no-wrap">{{ item.period }}</span></template>
+      <template #item.arrangement="{ item }"><span class="text-body-1 text-no-wrap d-block text-center">{{ item.arrangement }}</span></template>
+      <template #item.status="{ item }"><VChip variant="tonal" :color="statusMeta[statusKey(item.raw.status)]?.color || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip></template>
         <template #item.action="{ item }">
           <VBtnGroup density="compact" variant="tonal">
             <VBtn v-if="['draft', 'revision_required', 'awaiting_input_travel_advance', 'awaiting_submit_without_travel_advance'].includes(item.raw.status)" color="blue-grey-darken-1" :loading="editingDraftId === item.id" @click="continueDraft(item)"><VIcon icon="ri-edit-line" /><VTooltip activator="parent" location="top">{{ item.raw.status === 'draft' ? 'Edit Draft' : item.raw.status === 'revision_required' ? 'Edit' : 'Continue' }}</VTooltip></VBtn>
@@ -801,7 +819,7 @@ onMounted(() => {
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <NoteModal v-model="noteDialog" :meta="currentNoteMeta" @submit="handleNoteSubmit" @back="backToGmoModal" />
     <GmoProcessModal v-model="processDialog" :title="processMode === 'view-only' ? 'Travel Order PDF' : processMode === 'direct-payment' ? 'Direct Payment' : 'Booked by Company'" :mode="processMode" :status="selected?.status" :order="selected" :pdf-url="pdfUrl" :loading="processLoading || pdfLoading" :processing="processSubmitting" @cancel="processDialog = false" @reject="handleGmoReject" @revision="handleGmoRevision('process')" @continue="continueToBooking" @complete="handleCompleteGmo" />
-    <GmoHistoryModal v-model="gmoHistoryDialog" title="GMO Processing History" :order="gmoHistoryOrder" :saved-booking="gmoHistoryBooking" :saved-email="gmoHistoryEmail" :loading="gmoHistoryLoading" :processing="gmoHistoryProcessing" @close="gmoHistoryDialog = false" @view-pdf="openGmoHistoryPdf" @update-schedule="handleUpdateGmoSchedule" @update-booking="handleUpdateGmoBooking" @cancel-booking-items="handleCancelBookingItems" @save-refund="handleSaveRefund" @resend-email="handleResendGmoEmail" />
+    <GmoHistoryModal v-model="gmoHistoryDialog" title="GMO Processing History" :order="gmoHistoryOrder" :saved-booking="gmoHistoryBooking" :saved-email="gmoHistoryEmail" :loading="gmoHistoryLoading" :processing="gmoHistoryProcessing" :pdf-url="gmoHistoryPdfUrl" :pdf-loading="gmoHistoryPdfLoading" @close="gmoHistoryDialog = false" @update-schedule="handleUpdateGmoSchedule" @update-booking="handleUpdateGmoBooking" @cancel-booking-items="handleCancelBookingItems" @save-refund="handleSaveRefund" @resend-email="handleResendGmoEmail" @request-pdf="loadGmoHistoryPdf" />
     <PickGroupTripModal v-model="pickGroupDialog" :groups="myGroups" :loading="pickGroupLoading" @select="selectGroup" @back="backToBusinessType" />
   </div>
 </template>

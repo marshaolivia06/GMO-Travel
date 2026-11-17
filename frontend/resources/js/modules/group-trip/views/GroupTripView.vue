@@ -185,17 +185,17 @@ onMounted(() => { loadGroups(); loadMemberOptions() })
             <VBtn color="blue-grey-darken-1" :loading="deletingGroupId === item.id" @click="removeGroup(item)"><VIcon icon="ri-delete-bin-line" /><VTooltip activator="parent" location="top">Delete</VTooltip></VBtn>
           </VBtnGroup>
         </template>
-        <template #item.trip_name="{ item }"><div class="font-weight-bold text-body-2">{{ item.trip_name }}</div><div class="text-caption text-medium-emphasis">{{ groupSubtitle(item) }}</div></template>
-        <template #item.route="{ item }"><span class="text-body-2 text-no-wrap">{{ item.travel_from }} - {{ item.travel_to }}</span></template>
-        <template #item.travel_region="{ item }"><VChip size="small" variant="tonal" :color="regionColor(item.travel_region)" class="text-no-wrap">{{ item.travel_region }}</VChip></template>
-        <template #item.period="{ item }"><span class="text-body-2 text-no-wrap">{{ formatDate(item.departure_date) }} - {{ formatDate(item.return_date) }}</span></template>
+        <template #item.trip_name="{ item }"><div class="font-weight-bold text-body-1">{{ item.trip_name }}</div><div class="text-caption text-medium-emphasis">{{ groupSubtitle(item) }}</div></template>
+        <template #item.route="{ item }"><span class="text-body-1 text-no-wrap">{{ item.travel_from }} - {{ item.travel_to }}</span></template>
+        <template #item.travel_region="{ item }"><VChip variant="tonal" :color="regionColor(item.travel_region)" class="text-no-wrap">{{ item.travel_region }}</VChip></template>
+        <template #item.period="{ item }"><span class="text-body-1 text-no-wrap">{{ formatDate(item.departure_date) }} - {{ formatDate(item.return_date) }}</span></template>
         <template #item.departments="{ item }">
           <div class="d-flex flex-wrap ga-1">
             <VChip v-for="name in groupDepartments(item)" :key="name" size="small" color="grey" variant="tonal" class="text-no-wrap">{{ name }}</VChip>
             <span v-if="!groupDepartments(item).length" class="text-body-2">-</span>
           </div>
         </template>
-        <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="groupStatusColor[item.status] || 'grey'" class="text-no-wrap text-capitalize"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip></template>
+        <template #item.status="{ item }"><VChip variant="tonal" :color="groupStatusColor[item.status] || 'grey'" class="text-no-wrap text-capitalize"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start />{{ item.status }}</VChip></template>
       </VDataTable>
     </BrandCard>
 

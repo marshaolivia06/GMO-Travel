@@ -27,6 +27,7 @@ class AnnualTicketRepository
         ...self::GMO_STATUSES,
         'partially_cancelled',
         'awaiting_cancellation_finalization_gmo',
+        'cancelled',
     ];
 
     // Cancellation request hanya bisa diajukan setelah tiket diproses GMO

@@ -35,7 +35,9 @@ async function openResubmit(item) { travelers.value = await getMyDependents(); s
 const formatDate = date => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date))
 
 function formatPeriod(rowLegs = []) {
-  const dates = [...new Set(rowLegs.map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean).map(formatDate))].sort()
+  const dates = [...new Set(rowLegs.map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean))]
+    .sort((a, b) => new Date(a) - new Date(b))
+    .map(formatDate)
   if (!dates.length) return '-'
   return dates.length > 1 ? `${dates[0]} → ${dates[dates.length - 1]}` : dates[0]
 }
@@ -258,8 +260,13 @@ const historyRounds = computed(() => buildHistoryRounds(historyLogs.value))
 const summaryDialog = ref(false)
 const summaryTicket = ref(null)
 
-function openSummary(item) { summaryTicket.value = item.raw; summaryDialog.value = true }
-function openSummaryPdf(ticketId) { if (!ticketId) return; summaryDialog.value = false; pdfReviewMode.value = 'view'; pdfBackToSummary.value = true; reviewItem.value = null; pdfTicket.value = summaryTicket.value; loadPdf({ id: ticketId }) }
+function openSummary(item) { summaryTicket.value = item.raw; summaryPdfUrl.value = null; summaryDialog.value = true }
+
+async function loadSummaryPdf() {
+  if (!summaryTicket.value?.id || summaryPdfLoading.value) return
+  summaryPdfLoading.value = true
+  try { const blob = await getAnnualTicketPdf(summaryTicket.value.id); summaryPdfUrl.value = URL.createObjectURL(blob) } catch { toast.error('Failed to load the Annual Ticket document.') } finally { summaryPdfLoading.value = false }
+}
 
 async function handleScheduleUpdate({ ticketId, reschedules }) {
   if (processing.value) return
@@ -317,6 +324,8 @@ const reviewItem = ref(null)
 const pdfCanDecide = computed(() => ['decide', 'gmo'].includes(pdfReviewMode.value))
 const fareDialog = ref(false)
 const fareItem = ref(null)
+const summaryPdfUrl = ref(null)
+const summaryPdfLoading = ref(false)
 
 const fareShowFareReference = computed(() => { const raw = fareItem.value?.raw; return raw?.ticket_arrangement === 'Direct Payment' || raw?.route_condition === 'Different Route' })
 const fareDepartureLegs = computed(() => mapFareLegs('departure'))
@@ -347,8 +356,10 @@ function openProcess(item) { pdfReviewMode.value = 'gmo'; pdfBackToSummary.value
 // Lampiran tiket (bukti Haermes, fare reference, e-ticket) dari ticket yang sedang dibuka - ditampilkan sebagai tab di PDF viewer
 const pdfTicket = ref(null)
 
-const pdfAttachments = computed(() => {
-  const ticket = pdfTicket.value
+const pdfAttachments = computed(() => buildTicketAttachments(pdfTicket.value))
+const summaryAttachments = computed(() => buildTicketAttachments(summaryTicket.value).filter(item => !item.key.startsWith('fare-')))
+
+function buildTicketAttachments(ticket) {
   if (!ticket) return []
 
   const fareAttachments = (ticket.fare_reference_attachments ?? []).map(attachment => ({ key: `fare-${attachment.fare_reference_attachment_id}`, title: 'Fare Reference', path: attachment.file_url }))
@@ -360,7 +371,7 @@ const pdfAttachments = computed(() => {
     ...fareAttachments,
     ...(bookingDocs.length ? bookingDocs : [{ key: 'e-ticket', title: 'E-Ticket / Travel Document', path: ticket.booking?.e_ticket_url }]),
   ].filter(item => item.path)
-})
+}
 
 function handleReviewProcess() {
   if (!reviewItem.value) return
@@ -432,15 +443,15 @@ async function handleFareProcess(payload) {
             <VBtn color="grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
           </VBtnGroup>
         </template>
-        <template #item.travel_period="{ item }"><span class="text-body-2 text-no-wrap">{{ item.travel_period }}</span></template>
-        <template #item.route_condition="{ item }"><VChip size="small" variant="tonal" :color="routeColor[item.route_condition] || 'secondary'" class="text-no-wrap">{{ item.route_condition }}</VChip></template>
-        <template #item.status="{ item }"><VChip size="small" variant="tonal" :color="statusMeta[item.status]?.color || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start /> {{ statusMeta[item.status]?.title || item.status }}</VChip></template>
+        <template #item.travel_period="{ item }"><span class="text-body-1 text-no-wrap">{{ item.travel_period }}</span></template>
+        <template #item.route_condition="{ item }"><VChip variant="tonal" :color="routeColor[item.route_condition] || 'secondary'" class="text-no-wrap">{{ item.route_condition }}</VChip></template>
+        <template #item.status="{ item }"><VChip variant="tonal" :color="statusMeta[item.status]?.color || 'primary'" class="text-no-wrap"><VIcon icon="ri-checkbox-blank-circle-fill" size="8" start /> {{ statusMeta[item.status]?.title || item.status }}</VChip></template>
       </VDataTable>
     </BrandCard>
     <CreateAnnualTicketModal v-if="showCreateModal" :travelers="travelers" :ticket="resubmitTicket" :quota-year="quota?.quota_year ?? new Date().getFullYear()" @close="showCreateModal = false" @submitted="handleSubmitted" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
     <NoteModal v-model="noteDialog" :meta="noteMeta" @submit="handleNoteSubmit" />
-    <PdfViewerModal v-model="pdfDialog" :title="!pdfCanDecide ? 'Annual Ticket Detail' : reviewItem?.can_gmo_process ? 'Process Annual Ticket' : 'Review Annual Ticket'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="pdfCanDecide" :show-back="pdfBackToSummary" :approving="processing" :attachments="pdfAttachments" :confirm-text="reviewConfirmText" @back="handlePdfBack" @update:model-value="value => !value && (pdfReviewMode = 'view')">
+    <PdfViewerModal v-model="pdfDialog" :title="!pdfCanDecide ? 'Annual Ticket Detail' : reviewItem?.can_gmo_process ? 'Process Annual Ticket' : 'Review Annual Ticket'" :pdf-url="pdfUrl" :loading="pdfLoading" :can-decide="pdfCanDecide" :show-back="pdfBackToSummary" :hide-back="pdfCanDecide && !pdfBackToSummary" :approving="processing" :attachments="pdfAttachments" :confirm-text="reviewConfirmText" @back="handlePdfBack" @update:model-value="value => !value && (pdfReviewMode = 'view')">
       <template #decide="{ agreed }">
         <VCardActions v-if="agreed" class="px-8 pb-5 pt-0 justify-end ga-3">
           <template v-if="reviewItem?.can_gmo_process"><VBtn variant="flat" color="primary" :loading="processing" @click="handleReviewProcess">Continue</VBtn></template>
@@ -460,7 +471,7 @@ async function handleFareProcess(payload) {
         </VCardActions>
       </template>
     </PdfViewerModal>
-    <FareReferenceModal v-model="fareDialog" :departure-legs="fareDepartureLegs" :return-legs="fareReturnLegs" :payment-label="farePaymentLabel" :booked-by-company="fareItem?.raw?.ticket_arrangement === 'Booked by Company'" :show-fare-reference="fareShowFareReference" :processing="processing" @back="handleFareBack" @process="handleFareProcess" />
-    <AnnualTicketSummaryModal v-model="summaryDialog" :ticket="summaryTicket" :processing="processing" :can-edit-schedule="summaryTicket?.can_gmo_summary === true" @update-schedule="handleScheduleUpdate" @add-documents="handleAddDocuments" @cancel-ticket="handleCancelTicket" @update-refund="handleUpdateRefund" @resend-email="handleResendEmail" @view-pdf="openSummaryPdf" @cancel-request="openCancelRequest" />
+    <FareReferenceModal v-model="fareDialog" :departure-legs="fareDepartureLegs" :return-legs="fareReturnLegs" :payment-label="farePaymentLabel" :booked-by-company="fareItem?.raw?.ticket_arrangement === 'Booked by Company'" :show-fare-reference="fareShowFareReference" :recipient-email="fareItem?.raw?.employee?.email ?? ''" :processing="processing" @back="handleFareBack" @process="handleFareProcess" />
+    <AnnualTicketSummaryModal v-model="summaryDialog" :ticket="summaryTicket" :pdf-url="summaryPdfUrl" :pdf-loading="summaryPdfLoading" :attachments="summaryAttachments" :processing="processing" :can-edit-schedule="summaryTicket?.can_gmo_summary === true" @update-schedule="handleScheduleUpdate" @add-documents="handleAddDocuments" @cancel-ticket="handleCancelTicket" @update-refund="handleUpdateRefund" @resend-email="handleResendEmail" @request-pdf="loadSummaryPdf" @cancel-request="openCancelRequest" />
   </div>
 </template>
