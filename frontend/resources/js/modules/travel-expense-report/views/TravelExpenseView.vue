@@ -4,7 +4,8 @@ import { useAuthStore } from '../../../stores/auth.js'
 import { useToastStore } from '../../../stores/toast'
 import { getTravelOrders } from '../../travel-order/services/travelOrderService.js'
 import { getAnnualTickets } from '../../annual-ticket/services/annualTicketService.js'
-import { createTravelExpenseReport, getTravelExpenseReportHistory, getTravelExpenseReports, submitTravelExpenseReport, updateTravelExpenseReportDraft } from '../services/travelExpenseReportService.js'
+import { createTravelExpenseReport, getTravelExpenseReportHistory, getTravelExpenseReports, submitTravelExpenseReport, updateTravelExpenseReportDraft, checkTravelExpenseReport, approveTravelExpenseReport, revisionTravelExpenseReport } from '../services/travelExpenseReportService.js'
+import { useConfirm } from '../../../composables/useConfirm'
 import TravelExpenseReportModal from '../components/modal/TravelExpenseReportModal.vue'
 import AnnualTicketClaimModal from '../components/modal/AnnualTicketClaimModal.vue'
 import TerClaimDetailModal from '../components/modal/TerClaimDetailModal.vue'
@@ -12,6 +13,7 @@ import HistoryLogModal from '../../annual-ticket/components/modal/HistoryLogModa
 
 const authStore = useAuthStore()
 const toast = useToastStore()
+const { confirm } = useConfirm()
 const search = ref('')
 const items = ref([])
 const loading = ref(false)
@@ -28,16 +30,6 @@ const historyDialog = ref(false)
 const historyLoading = ref(false)
 const historyLogs = ref([])
 
-const headers = [
-  { title: 'ACTION', key: 'action', sortable: false, width: '80px', align: 'center' },
-  { title: 'STATUS', key: 'status', sortable: false, width: '100px', align: 'center' },
-  { title: 'TRIP TYPE', key: 'trip_type', sortable: false, width: '130px', align: 'center' },
-  { title: 'PURPOSE / TRAVEL ORDER', key: 'purpose', sortable: false, minWidth: '250px', align: 'center' },
-  { title: 'TRAVEL REGION', key: 'travel_region', sortable: false, width: '150px', align: 'center' },
-  { title: 'PERIOD', key: 'period', sortable: false, width: '180px', align: 'center' },
-  { title: 'TOTAL CLAIM', key: 'total_claim', sortable: false, width: '190px', align: 'center' },
-]
-
 const PROCESSED_BY_GMO = 'processed_by_gmo'
 const CLAIMABLE_TICKET_STATUSES = ['processed_by_gmo', 'partially_cancelled']
 const tripTypeLabels = { group: 'Group Trip', individual: 'Individual Trip', annual_ticket: 'Annual Ticket' }
@@ -48,23 +40,55 @@ const tripTypeColor = type => {
   return key === 'group' ? 'info' : key === 'annual_ticket' ? 'success' : 'primary'
 }
 // Status tile di atas tabel - kategori sama seperti module lain
+// Setelah submit status jadi banyak (awaiting review/approval per role) - di card digroup
+// menjadi Awaiting Review & Awaiting Approval saja, detail lengkap tetap di kolom status baris
 const statusTab = ref('all')
 const statusMeta = {
   new: { title: 'New', color: 'warning', icon: 'ri-add-circle-line' },
   draft: { title: 'Draft', color: 'secondary', icon: 'ri-draft-line' },
-  approval_progress: { title: 'Approval Progress', color: 'warning', icon: 'ri-progress-4-line' },
+  awaiting_review: { title: 'Awaiting Review', color: 'warning', icon: 'ri-eye-line' },
+  awaiting_approval: { title: 'Awaiting Approval', color: 'warning', icon: 'ri-progress-4-line' },
   revision_required: { title: 'Revision Required', color: 'info', icon: 'ri-edit-2-line' },
   approved: { title: 'Approved', color: 'success', icon: 'ri-checkbox-circle-line' },
   not_eligible: { title: 'Not Eligible', color: 'error', icon: 'ri-forbid-line' },
 }
 
-// Peta status backend ke kategori tile - submitted & semua tahap awaiting masuk approval progress
-const categoryMap = { draft: 'draft', submitted: 'approval_progress', revision_required: 'revision_required', approved: 'approved' }
+// Peta status backend ke kategori tile - submitted masuk awaiting review (menunggu tahap pertama)
+const categoryMap = { draft: 'draft', submitted: 'awaiting_review', revision_required: 'revision_required', approved: 'approved' }
 const rowCategory = item => {
   const key = normalize(item.category ?? item.status)
-  return categoryMap[key] ?? (key.startsWith('awaiting_') ? 'approval_progress' : key)
+  if (key.startsWith('awaiting_review')) return 'awaiting_review'
+  if (key.startsWith('awaiting_approval')) return 'awaiting_approval'
+  return categoryMap[key] ?? key
 }
+
+// Label status lengkap untuk kolom status baris, mis. awaiting_review_gmo -> "Awaiting Review - GMO"
+// admin_gmo (data lama) ikut dinormalkan jadi gmo
+const roleLabelSpecials = { gmo: 'GMO', oc: 'OC', ap: 'AP', hr: 'HR' }
+const statusPhraseSpecials = { finance_treasury: 'Finance & Treasury' }
+const statusLabel = status => {
+  const key = normalize(status).replace('admin_gmo', 'gmo')
+  const prefix = key.startsWith('awaiting_review') ? 'Awaiting Review' : key.startsWith('awaiting_approval') ? 'Awaiting Approval' : null
+  if (!prefix) return null
+  const rest = key.replace(/^awaiting_(review|approval)_?/, '')
+  const label = statusPhraseSpecials[rest] ?? rest.split('_').filter(Boolean).map(word => roleLabelSpecials[word] ?? word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  return label ? `${prefix} - ${label}` : prefix
+}
+
 const currentUserId = computed(() => authStore.user?.id)
+const isAdmin = computed(() => authStore.hasRole('Admin'))
+
+// Admin melihat semua pengajuan - kolom EMPLOYEE hanya tampil untuk admin
+const headers = computed(() => [
+  { title: 'ACTION', key: 'action', sortable: false, width: '80px', align: 'center' },
+  { title: 'STATUS', key: 'status', sortable: false, width: '100px', align: 'center' },
+  ...(isAdmin.value ? [{ title: 'EMPLOYEE', key: 'employee_name', sortable: false, width: '170px', align: 'center' }] : []),
+  { title: 'TRIP TYPE', key: 'trip_type', sortable: false, width: '130px', align: 'center' },
+  { title: 'PURPOSE / TRAVEL ORDER', key: 'purpose', sortable: false, minWidth: '250px', align: 'center' },
+  { title: 'TRAVEL REGION', key: 'travel_region', sortable: false, width: '150px', align: 'center' },
+  { title: 'PERIOD', key: 'period', sortable: false, width: '180px', align: 'center' },
+  { title: 'TOTAL CLAIM', key: 'total_claim', sortable: false, width: '190px', align: 'center' },
+])
 
 const formatDate = date => {
   if (!date) return '-'
@@ -120,6 +144,11 @@ async function load() {
         status: ter.status,
         category: ter.status,
         ter,
+        employee_id: ter.employee_id,
+        employee_name: ter.employee?.name ?? ter.annual_ticket?.employee?.name ?? '-',
+        can_process: !!ter.can_process,
+        stage_action: ter.stage_action,
+        stage_role: ter.stage_role,
         trip_type: 'annual_ticket',
         purpose: `${ticket.route_condition} - ${ticket.ticket_arrangement} ${ticket.ticket_arrangement === 'Direct Payment' ? 'Reimbursement' : 'Excess'}`,
         to_number: ticket.document_number,
@@ -138,8 +167,8 @@ async function load() {
         prefill: {
           total_actual_amount: ter.total_actual_amount,
           has_proof: !!ter.proof_of_payment_url,
-          // File yang sudah terupload di draft - ditampilkan sebagai chips, tidak bisa diprefill ke input file
-          attachments: (ter.attachments ?? []).map(file => ({ name: file.original_name ?? 'attachment', url: file.file_url })),
+          // File yang sudah terupload di draft - ditampilkan sebagai chips, bisa dihapus saat revisi
+          attachments: (ter.attachments ?? []).map(file => ({ id: file.id, name: file.original_name ?? 'attachment', url: file.file_url })),
         },
       }
     })
@@ -212,6 +241,9 @@ const statusTabs = computed(() => [
 
 const filteredRows = computed(() => statusTab.value === 'all' ? items.value : items.value.filter(row => rowCategory(row) === statusTab.value))
 
+// Draft hanya bisa dilanjutkan pemiliknya - admin hanya melihat TER milik orang lain
+const canEditItem = item => !item.employee_id || String(item.employee_id) === String(currentUserId.value)
+
 const openClaimDetail = item => {
   claimDetail.value = item.ter ?? null
   showClaimDetail.value = true
@@ -276,10 +308,58 @@ const firstError = err => {
   return errors ? Object.values(errors).flat()[0] : null
 }
 
+// Aksi approver dipicu dari dalam modal view: review/approval atau kembalikan untuk revisi
+const processing = ref(false)
+
+async function onProcess(action) {
+  if (processing.value) return
+  const isCheck = action === 'check'
+  const confirmed = await confirm({
+    title: isCheck ? 'Review Travel Expense Report' : 'Approve Travel Expense Report',
+    text: `Are you sure you want to mark this claim as ${isCheck ? 'reviewed' : 'approved'}?`,
+  })
+  if (!confirmed) return
+
+  processing.value = true
+  try {
+    if (isCheck) await checkTravelExpenseReport(claimDetail.value.id)
+    else await approveTravelExpenseReport(claimDetail.value.id)
+    toast.success(`Travel Expense Report has been ${isCheck ? 'checked' : 'approved'} successfully.`)
+    showClaimDetail.value = false
+    await load()
+  } catch (err) {
+    toast.error(firstError(err) || err.response?.data?.message || 'Failed to process the Travel Expense Report.')
+  } finally {
+    processing.value = false
+  }
+}
+
+async function onRevision(remark) {
+  if (processing.value) return
+  const confirmed = await confirm({
+    title: 'Return for Revision',
+    text: 'Are you sure you want to return this Travel Expense Report for revision?',
+    color: 'warning',
+  })
+  if (!confirmed) return
+
+  processing.value = true
+  try {
+    await revisionTravelExpenseReport(claimDetail.value.id, remark)
+    toast.success('Travel Expense Report has been returned for revision.')
+    showClaimDetail.value = false
+    await load()
+  } catch (err) {
+    toast.error(firstError(err) || err.response?.data?.message || 'Failed to return the Travel Expense Report for revision.')
+  } finally {
+    processing.value = false
+  }
+}
+
 async function onClaimDraft(payload) {
   claimProcessing.value = true
   try {
-    if (claimTerId.value) await updateTravelExpenseReportDraft(claimTerId.value, payload.data, payload.attachments, payload.proof_of_payment)
+    if (claimTerId.value) await updateTravelExpenseReportDraft(claimTerId.value, payload.data, payload.attachments, payload.proof_of_payment, payload.remove_proof_of_payment)
     else await createTravelExpenseReport({ ...payload.data, action: 'draft' }, payload.attachments, payload.proof_of_payment)
     toast.success('Travel Expense Report draft has been saved successfully.')
     showTicketClaim.value = false
@@ -296,7 +376,7 @@ async function onClaimSubmit(payload) {
   try {
     if (claimTerId.value) {
       // Draft yang sudah ada: update input terbaru dulu (termasuk file), baru submit finalisasi
-      await updateTravelExpenseReportDraft(claimTerId.value, payload.data, payload.attachments, payload.proof_of_payment)
+      await updateTravelExpenseReportDraft(claimTerId.value, payload.data, payload.attachments, payload.proof_of_payment, payload.remove_proof_of_payment)
       await submitTravelExpenseReport(claimTerId.value)
     } else {
       await createTravelExpenseReport({ ...payload.data, action: 'submit' }, payload.attachments, payload.proof_of_payment)
@@ -340,13 +420,17 @@ onMounted(load)
       <VDataTable :headers="headers" :items="filteredRows" :search="search" :loading="loading" item-value="id" hover class="ter-table" :items-per-page="10" :items-per-page-options="[10, 25, 50]" no-data-text="No Travel Expense Report found" loading-text="Loading travel reports...">
         <template #item.action="{ item }">
           <VBtnGroup density="compact" variant="tonal">
-            <VBtn v-if="['new', 'draft'].includes(rowCategory(item))" color="grey-darken-1" @click="onContinue(item)">
+            <VBtn v-if="['new'].includes(rowCategory(item)) && canEditItem(item)" color="grey-darken-1" @click="onContinue(item)">
               <VIcon icon="ri-edit-line" />
-              <VTooltip activator="parent" location="top">Continue</VTooltip>
+              <VTooltip activator="parent" location="top">Claim</VTooltip>
             </VBtn>
-            <VBtn v-else-if="['approval_progress', 'approved'].includes(rowCategory(item))" color="grey-darken-1" @click="openClaimDetail(item)">
+            <VBtn v-else-if="['draft', 'revision_required'].includes(rowCategory(item)) && canEditItem(item)" color="grey-darken-1" @click="onContinue(item)">
+              <VIcon icon="ri-edit-line" />
+              <VTooltip activator="parent" location="top">{{ rowCategory(item) === 'revision_required' ? 'Revise & Resubmit' : 'Continue' }}</VTooltip>
+            </VBtn>
+            <VBtn v-else-if="item.ter_id" color="grey-darken-1" @click="openClaimDetail(item)">
               <VIcon icon="ri-eye-line" />
-              <VTooltip activator="parent" location="top">View Claim</VTooltip>
+              <VTooltip activator="parent" location="top">View</VTooltip>
             </VBtn>
             <VBtn v-if="item.ter_id && rowCategory(item) !== 'draft'" color="grey-darken-1" @click="openHistory(item)">
               <VIcon icon="ri-history-line" />
@@ -359,8 +443,11 @@ onMounted(load)
         </template>
         <template #item.status="{ item }">
           <VChip :color="statusMeta[rowCategory(item)]?.color ?? 'primary'" variant="tonal" size="small">
-            {{ statusMeta[rowCategory(item)]?.title ?? item.status }}
+            {{ statusLabel(item.status) ?? statusMeta[rowCategory(item)]?.title ?? item.status }}
           </VChip>
+        </template>
+        <template #item.employee_name="{ item }">
+          <span>{{ item.employee_name || '-' }}</span>
         </template>
         <template #item.trip_type="{ item }">
           <VChip :color="tripTypeColor(item.trip_type)" variant="tonal" size="small">{{ tripTypeLabel(item.trip_type) }}</VChip>
@@ -386,7 +473,7 @@ onMounted(load)
       </VDataTable>
   </BrandCard>
     <TravelExpenseReportModal v-model="showDetail" :item="selectedItem" />
-    <AnnualTicketClaimModal v-model="showTicketClaim" :ticket="ticketClaimRaw" :initial="claimInitial" :processing="claimProcessing" @submit="onClaimSubmit" @draft="onClaimDraft" />
-    <TerClaimDetailModal v-model="showClaimDetail" :report="claimDetail" />
+    <AnnualTicketClaimModal v-model="showTicketClaim" :ticket="ticketClaimRaw" :initial="claimInitial" :processing="claimProcessing" :report-id="claimTerId" @submit="onClaimSubmit" @draft="onClaimDraft" />
+    <TerClaimDetailModal v-model="showClaimDetail" :report="claimDetail" :processing="processing" @process="onProcess" @revision="onRevision" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />
 </template>

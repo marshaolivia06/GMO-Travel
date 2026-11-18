@@ -25,7 +25,7 @@ export const createTravelExpenseReport = (payload, attachments = [], proofOfPaym
   return http.post('/v1/travel-expense-reports', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data)
 }
 
-export const updateTravelExpenseReportDraft = (id, payload = {}, attachments = [], proofOfPayment = null) => {
+export const updateTravelExpenseReportDraft = (id, payload = {}, attachments = [], proofOfPayment = null, removeProofOfPayment = false) => {
   const form = new FormData()
 
   if (payload.total_actual_amount !== undefined && payload.total_actual_amount !== null)
@@ -36,9 +36,22 @@ export const updateTravelExpenseReportDraft = (id, payload = {}, attachments = [
   if (proofOfPayment)
     form.append('proof_of_payment', proofOfPayment)
 
+  if (removeProofOfPayment)
+    form.append('remove_proof_of_payment', '1')
+
   return http.post(`/v1/travel-expense-reports/${id}/update`, form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data)
 }
+
+// Hapus lampiran lama yang sudah tersimpan (draft / revisi)
+export const deleteTravelExpenseReportAttachment = (id, attachmentId) => http.delete(`/v1/travel-expense-reports/${id}/attachments/${attachmentId}`).then(res => res.data)
 
 export const submitTravelExpenseReport = id => http.post(`/v1/travel-expense-reports/${id}/submit`).then(res => res.data)
 
 export const deleteTravelExpenseReportDraft = id => http.delete(`/v1/travel-expense-reports/${id}`).then(res => res.data)
+
+// Aksi approver sesuai tahap matrix: check (review) / approve / kembalikan untuk revisi
+export const checkTravelExpenseReport = (id, note = null) => http.post(`/v1/travel-expense-reports/${id}/check`, { note }).then(res => res.data)
+
+export const approveTravelExpenseReport = (id, note = null) => http.post(`/v1/travel-expense-reports/${id}/approve`, { note }).then(res => res.data)
+
+export const revisionTravelExpenseReport = (id, remark) => http.post(`/v1/travel-expense-reports/${id}/revision`, { remark }).then(res => res.data)

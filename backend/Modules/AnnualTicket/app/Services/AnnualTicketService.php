@@ -7,6 +7,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\{DB, Mail, Storage, Validator};
 use Illuminate\Validation\ValidationException;
 use Modules\MasterManagement\Models\Department;
+use Modules\MasterManagement\Models\MasterDivision;
 use Modules\MasterManagement\Models\Section;
 use Modules\AnnualTicket\Models\AnnualTicket;
 use Modules\AnnualTicket\Models\AnnualTicketBooking;
@@ -673,7 +674,8 @@ class AnnualTicketService
             // Buat rantai approval pembatalan: HR Admin -> HR Supervisor -> Admin-GMO
             $this->approvalService->initCancellationFlow($ticket);
 
-            $this->approvalService->logActivity($ticket, $user, 'cancel_requested', 'Cancellation requested by employee', ['role' => 'Employee', 'note' => $reason]);
+            // Role asli pemohon tampil di tabel PDF, bukan label generik "Employee"
+            $this->approvalService->logActivity($ticket, $user, 'cancel_requested', 'Cancellation requested by employee', ['role' => $user->roles->first()?->name ?? 'Employee', 'note' => $reason]);
         });
 
         return $ticket->refresh()->load(['legs', 'employee.eligibleDestination', 'fareReferences', 'fareReferenceAttachments', 'booking', 'bookingDocuments', 'legCancellations', 'emails']);
@@ -764,11 +766,14 @@ class AnnualTicketService
         $approvals = $approvals->map($mapApproval);
         $cancellationApprovals = $cancellationApprovals->map($mapApproval);
 
-        // Baris pertama tabel pembatalan: pemohon yang mengajukan cancellation
+        // Baris pertama tabel pembatalan: pemohon yang mengajukan cancellation.
+        // Role diambil dari user pemohon (log lama ter-hardcode Employee) agar tampil
+        // dengan nama department/divisinya seperti tabel utama, mis. "Finance & Accounting (Sect.Head)"
         if (($cancellationRequestLog ?? null) && $cancellationApprovals->isNotEmpty()) {
             $cancellationApprovals = $cancellationApprovals->prepend((object) [
                 'sequence' => $latestChainStart - 1,
-                'role' => $cancellationRequestLog->properties->get('role', 'Employee'),
+                'role' => $cancellationRequestLog->causer?->roles->first()?->name
+                    ?? $cancellationRequestLog->properties->get('role', 'Employee'),
                 'name' => $cancellationRequestLog->causer?->name,
                 'acted_at' => $cancellationRequestLog->created_at,
                 'status' => 'submitted',
@@ -796,27 +801,79 @@ class AnnualTicketService
 
     public function history(AnnualTicket $ticket): array
     {
+        $approvals = $ticket->approvals()->with('matrixStep.section', 'matrixStep.department')->get()->keyBy('sequence');
+        [$section, $department, $division] = $this->requesterOrganization($ticket->employee_id);
+
         return \Spatie\Activitylog\Models\Activity::with('causer')
             ->where('log_name', 'annual-ticket')
             ->where('subject_type', $ticket->getMorphClass())
             ->where('subject_id', $ticket->id)
             ->orderBy('id')
             ->get()
-            ->map(fn ($log) => [
-                'id' => $log->id,
-                'event' => $log->event,
-                'description' => $log->description,
-                'round' => $log->properties->get('round', 1),
-                'role' => $log->properties->get('role'),
-                'note' => $log->properties->get('note'),
-                'remark' => $log->properties->get('remark'),
-                'evidence' => $log->properties->get('evidence'),
-                'documents' => $log->properties->get('documents', []),
-                'flow' => $log->properties->get('flow'),
-                'causer' => $log->causer?->name,
-                'created_at' => $log->created_at,
-            ])
+            ->map(function ($log) use ($approvals, $section, $department, $division) {
+                $step = $approvals->get($log->properties->get('sequence'))?->matrixStep;
+
+                // Log cancel_requested lama ter-hardcode "Employee" - pakai role asli pemohon
+                $role = $log->properties->get('role');
+                if ((! $role || $role === 'Employee') && $log->event === 'cancel_requested') {
+                    $role = $log->causer?->roles->first()?->name ?? $role;
+                }
+
+                // Alasan pengajuan cancellation tampil sebagai Remark, bukan Note
+                $isCancelRequest = $log->event === 'cancel_requested';
+
+                return [
+                    'id' => $log->id,
+                    'event' => $log->event,
+                    'description' => $log->description,
+                    'round' => $log->properties->get('round', 1),
+                    // Label role gaya Travel Order: "Unit (Role)" - unit dari step matrix, fallback org pengaju
+                    'role' => $this->historyRoleLabel(
+                        $role,
+                        $step?->section?->name ?? (filled($step?->area) ? $step->area : null) ?? $step?->department?->name,
+                        $section,
+                        $department,
+                        $division,
+                    ),
+                    'note' => $isCancelRequest ? null : $log->properties->get('note'),
+                    'remark' => $isCancelRequest
+                        ? ($log->properties->get('note') ?? $log->properties->get('remark'))
+                        : $log->properties->get('remark'),
+                    'evidence' => $log->properties->get('evidence'),
+                    'documents' => $log->properties->get('documents', []),
+                    'flow' => $log->properties->get('flow'),
+                    'causer' => $log->causer?->name,
+                    'created_at' => $log->created_at,
+                ];
+            })
             ->values()
             ->all();
+    }
+
+    // Konteks organisasi pengaju: section (jika sect head), department, division
+    private function requesterOrganization(int $employeeId): array
+    {
+        $section = Section::with('department')->where('section_head_id', $employeeId)->first();
+        $department = $section?->department
+            ?? Department::where('dept_head_id', $employeeId)->first()
+            ?? Department::where('dept_admin_id', $employeeId)->first();
+        $division = $department ? MasterDivision::find($department->division_head_id) : null;
+
+        return [$section, $department, $division];
+    }
+
+    // Label role gaya Travel Order/PDF: "Unit (Role)" - Sect Head pakai section, Dept Head department, Div Head division
+    private function historyRoleLabel(?string $role, ?string $unit, $section, $department, $division): string
+    {
+        $display = $role ? str_replace(' ', '.', $role) : '-';
+
+        $organization = $unit ?? match (trim((string) $role)) {
+            'Sect Head' => $section?->name,
+            'Dept Head' => $department?->name,
+            'Div Head' => $division?->division_name,
+            default => null,
+        };
+
+        return $organization ? "{$organization} ({$display})" : $display;
     }
 }

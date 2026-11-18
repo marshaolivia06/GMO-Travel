@@ -15,6 +15,10 @@ class TravelExpenseReport extends Model
 
     public const STATUS_SUBMITTED = 'submitted';
 
+    public const STATUS_REVISION_REQUIRED = 'revision_required';
+
+    public const STATUS_APPROVED = 'approved';
+
     public const SOURCE_ANNUAL_TICKET = 'annual_ticket';
 
     public const SOURCE_TRAVEL_ORDER = 'travel_order';
@@ -61,5 +65,10 @@ class TravelExpenseReport extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(TravelExpenseReportAttachment::class);
+    }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(TravelExpenseReportApproval::class);
     }
 }

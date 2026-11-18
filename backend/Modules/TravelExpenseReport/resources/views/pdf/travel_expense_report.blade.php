@@ -17,6 +17,8 @@
     $section = Section::with('department')->where('section_head_id', $employeeId)->first();
     $department = $section?->department ?? Department::where('dept_head_id', $employeeId)->first() ?? Department::where('dept_admin_id', $employeeId)->first();
     $division = MasterDivision::where('division_head_id', $employeeId)->first();
+    // Divisi yang menaungi department pengaju - untuk label tahap Div Head
+    $requesterDivision = $department ? MasterDivision::find($department->division_head_id) : null;
 
     $employee = $ticket?->employee ?? User::find($employeeId);
     $officeLocation = $employee?->employee?->office_location;
@@ -55,17 +57,18 @@
     // Transfer purpose mengikuti jenis claim - reimbursement & excess beda keterangan
     $transferPurpose = $isReimbursement ? 'Travel expense reimbursement' : 'Travel expense excess settlement';
 
-    // Approval: alur authority matrix TER belum ada - tampilkan baris Requested (submitter) saja
-    $requestedLog = Activity::with('causer')
-        ->where('log_name', 'travel-expense-report')
-        ->where('subject_type', $report->getMorphClass())
-        ->where('subject_id', $report->id)
-        ->where('event', 'submitted')
-        ->latest('id')
-        ->first();
-    $requestedBy = $requestedLog?->causer?->name;
-    $requestedRole = str_replace(' ', '.', $requestedLog?->properties->get('role') ?? 'Employee');
-    $requestedAt = $requestedLog?->created_at;
+    // Approval: rantai dari putaran terakhir (requested + semua tahap matrix) - dikirim dari service
+    $approvals = $approvals ?? collect();
+
+    // Chip status per baris approval: [label, background, color]
+    $approvalStatusMeta = [
+        'submitted' => ['Requested', '#DBEAFE', '#1D4ED8'],
+        'checked' => ['Reviewed', '#DCFCE7', '#15803D'],
+        'approved' => ['Approved', '#DCFCE7', '#15803D'],
+        'revision' => ['Revision', '#FEF3C7', '#B45309'],
+        'pending' => ['Pending', '#F3F4F6', '#6B7280'],
+        'cancelled' => ['Cancelled', '#F3F4F6', '#6B7280'],
+    ];
 
     $attachments = collect($report->attachments ?? []);
 @endphp
@@ -183,19 +186,46 @@
                 </tr>
             </thead>
             <tbody>
-                @if ($requestedBy)
+                @forelse ($approvals as $row)
+                    @php
+                        [$statusLabel, $statusBg, $statusColor] = $approvalStatusMeta[$row->status] ?? [$row->status, '#F3F4F6', '#6B7280'];
+                        // Pending sama seperti PDF Annual Ticket: awaiting sesuai action tahap, warna kuning
+                        if ($row->status === 'pending') {
+                            $statusLabel = $row->matrixStep?->action_type === 'check' ? 'Awaiting Review' : 'Awaiting Approval';
+                            [$statusBg, $statusColor] = ['#FEF9C3', '#A16207'];
+                        }
+                        // Label tahap mengikuti step matrix (mis. Admin.GMO), baris requested memakai role submitter
+                        $roleLabel = $row->matrixStep?->label ?? str_replace(' ', '.', $row->role?->name ?? '-');
+                        // Tahap yang terikat unit organisasi ditulis dengan namanya langsung:
+                        // section spesifik > area > department, mis. "Operation Control (Supervisor)"
+                        $unit = $row->matrixStep?->section?->name
+                            ?? ($row->matrixStep?->area ? str_replace("'", '', $row->matrixStep->area) : null)
+                            ?? $row->matrixStep?->department?->name;
+                        if ($unit) {
+                            $roleLabel = $unit.' ('.$roleLabel.')';
+                        } elseif (($row->role?->name ?? '') === 'Sect Head') {
+                            // Sect Head tanpa unit di step -> section pengaju, mis. "Finance & Treasury (Sect.Head)"
+                            $roleLabel = ($section?->name ?? 'Section').' ('.$roleLabel.')';
+                        } elseif (($row->role?->name ?? '') === 'Dept Head') {
+                            // Dept Head tanpa unit di step -> department pengaju, mis. "Finance & Accounting (Dept.Head)"
+                            $roleLabel = ($department?->name ?? 'Department').' (Dept.Head)';
+                        } elseif (($row->role?->name ?? '') === 'Div Head') {
+                            // Div Head -> divisi yang menaungi department pengaju, mis. "Division X (Div.Head)"
+                            $roleLabel = ($requesterDivision?->division_name ?? 'Division').' (Div.Head)';
+                        }
+                    @endphp
                     <tr>
-                        <td class="center">1</td>
-                        <td>{{ $requestedRole }}</td>
-                        <td>{{ $requestedBy }}</td>
-                        <td class="center">{{ $dateTime($requestedAt) }}</td>
+                        <td class="center">{{ $loop->iteration }}</td>
+                        <td>{{ $roleLabel }}</td>
+                        <td>{{ $row->user?->name ?? '-' }}</td>
+                        <td class="center">{{ $dateTime($row->acted_at) }}</td>
                         <td class="center">
-                            <span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; background-color: #DBEAFE; color: #1D4ED8;">Requested</span>
+                            <span style="display: inline; padding: 3px 6px; border-radius: 4px; font-weight: bold; background-color: {{ $statusBg }}; color: {{ $statusColor }};">{{ $statusLabel }}</span>
                         </td>
                     </tr>
-                @else
+                @empty
                     <tr><td colspan="5" class="center">-</td></tr>
-                @endif
+                @endforelse
             </tbody>
         </table>
     </div>

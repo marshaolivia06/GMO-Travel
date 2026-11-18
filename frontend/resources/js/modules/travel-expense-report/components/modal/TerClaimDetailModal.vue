@@ -2,13 +2,18 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { legRouteStatus } from '../../../annual-ticket/utils/routeStatus.js'
 import { getTravelExpenseReportPdf } from '../../services/travelExpenseReportService.js'
+import NoteModal from '../../../travel-order/components/modal/NoteModal.vue'
 import { useToastStore } from '../../../../stores/toast'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   report: { type: Object, default: null },
+  processing: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'process', 'revision'])
+
+// Tahap Finance (unit step milik department Finance & Accounting) -> hanya PDF, tanpa tab data
+const pdfOnly = computed(() => !!props.report?.stage_finance)
 
 const toast = useToastStore()
 const r = computed(() => props.report ?? {})
@@ -55,7 +60,7 @@ const fareRows = computed(() => (ticket.value.fare_references ?? []).map(referen
 }))
 const totalMaxFare = computed(() => fareRows.value.reduce((sum, row) => sum + row.subtotal, 0))
 
-// Tab Generate PDF - PDF di-fetch sebagai blob sekali per pembukaan modal
+// Tab Document - PDF di-fetch sebagai blob sekali per pembukaan modal
 const tab = ref('view')
 const pdfUrl = ref(null)
 const pdfLoading = ref(false)
@@ -77,14 +82,26 @@ const loadPdf = async () => {
 
 const openPdfNewTab = () => pdfUrl.value && window.open(pdfUrl.value, '_blank', 'noopener')
 
+// Aksi approver di dalam modal view - sama seperti module lain:
+// Revision -> modal remark (NoteModal) lalu konfirmasi, Review/Approve -> langsung konfirmasi
+const canProcess = computed(() => !!props.report?.can_process)
+const revisionMeta = { action: 'revision', title: 'Return for Revision', label: 'Remark', button: 'Revision', color: 'warning', requireEvidence: false }
+const noteDialog = ref(false)
+
+const requestProcess = () => emit('process', r.value.stage_action === 'check' ? 'check' : 'approve')
+
+const handleNoteSubmit = ({ text }) => emit('revision', text)
+
 watch(tab, value => { if (value === 'pdf') loadPdf() })
 
+// flush post: props.report ter-update dulu sebelum tab di-set saat modal dibuka
 watch(() => [props.modelValue, props.report?.id], ([open]) => {
   if (open) {
-    tab.value = 'view'
+    tab.value = pdfOnly.value ? 'pdf' : 'view'
     pdfLoading.value = false
     pdfAttempted.value = false
     pdfUrl.value = null
+    noteDialog.value = false
     return
   }
 
@@ -92,7 +109,7 @@ watch(() => [props.modelValue, props.report?.id], ([open]) => {
     URL.revokeObjectURL(pdfUrl.value)
     pdfUrl.value = null
   }
-})
+}, { flush: 'post' })
 
 onBeforeUnmount(() => {
   if (pdfUrl.value) URL.revokeObjectURL(pdfUrl.value)
@@ -108,8 +125,8 @@ onBeforeUnmount(() => {
       </div>
       <VDivider />
       <VTabs v-model="tab" color="primary" class="flex-shrink-0">
-        <VTab value="view">View</VTab>
-        <VTab value="pdf">Generate PDF</VTab>
+        <VTab v-if="!pdfOnly" value="view">View</VTab>
+        <VTab value="pdf">Document</VTab>
       </VTabs>
       <VDivider />
 
@@ -190,17 +207,22 @@ onBeforeUnmount(() => {
               </VTable>
             </VCard>
 
-            <VTable density="comfortable">
-              <thead>
-                <tr>
-                  <th>Direction</th>
-                  <th>Reference Route</th>
-                  <th>Fare per Traveler</th>
-                  <th>Travel Legs</th>
-                  <th>Subtotal</th>
-                  <th>Operator Reference</th>
-                </tr>
-              </thead>
+            <VCard rounded="lg" border elevation="0">
+              <div class="bg-grey-lighten-4 px-4 py-3">
+                <span class="text-subtitle-2 font-weight-bold">Fare Reference</span>
+              </div>
+              <VDivider />
+              <VTable density="comfortable">
+                <thead>
+                  <tr>
+                    <th>Direction</th>
+                    <th>Reference Route</th>
+                    <th>Fare per Traveler</th>
+                    <th>Travel Legs</th>
+                    <th>Subtotal</th>
+                    <th>Operator Reference</th>
+                  </tr>
+                </thead>
               <tbody>
                 <tr v-for="row in fareRows" :key="row.direction">
                   <td class="text-body-2">{{ row.direction }}</td>
@@ -221,7 +243,8 @@ onBeforeUnmount(() => {
                   <td />
                 </tr>
               </tfoot>
-            </VTable>
+              </VTable>
+            </VCard>
           </VCardText>
         </VCard>
       </VCardText>
@@ -232,6 +255,15 @@ onBeforeUnmount(() => {
         <iframe v-if="pdfUrl" :src="pdfUrl" title="Travel Expense Report PDF" height="750" class="d-block w-100 border-0" />
         <div v-else-if="!pdfLoading && pdfAttempted" class="pa-6 text-center text-medium-emphasis">PDF is not available.</div>
       </div>
+
+      <template v-if="canProcess">
+        <VDivider class="flex-shrink-0" />
+        <VCardActions class="px-4 pb-3 pt-2 justify-end ga-3 flex-shrink-0">
+          <VBtn variant="flat" color="warning" :disabled="processing" @click="noteDialog = true">Revision</VBtn>
+          <VBtn variant="flat" color="primary" :loading="processing" @click="requestProcess">{{ r.stage_action === 'check' ? 'Review' : 'Approve' }}</VBtn>
+        </VCardActions>
+        <NoteModal v-model="noteDialog" :meta="revisionMeta" @submit="handleNoteSubmit" />
+      </template>
     </VCard>
   </VDialog>
 </template>

@@ -79,7 +79,7 @@
                         $role = $step->role?->name ?? '-';
 
                         $organization = match ($role) {
-                            'Sect Head' => $department?->name,
+                            'Sect Head' => $section?->name,
                             'Dept Head' => $department?->name,
                             'Div Head' => $divisionNameByUser($step->user_id) ?? $division?->division_name,
                             default => null,

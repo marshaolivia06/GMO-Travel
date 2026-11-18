@@ -14,31 +14,80 @@ class TravelExpenseReportRepository
     // Status tiket yang sudah boleh dibuatkan TER (sudah lewat pemrosesan GMO)
     public const CLAIMABLE_TICKET_STATUSES = ['processed_by_gmo', 'partially_cancelled'];
 
+    public const EAGER_LOAD = [
+        'attachments',
+        'employee',
+        'annualTicket.legs',
+        'annualTicket.fareReferences',
+        'annualTicket.booking',
+        'annualTicket.employee.eligibleDestination',
+    ];
+
     public function allForEmployee(User $user): Collection
     {
-        return TravelExpenseReport::with([
-            'attachments',
-            'annualTicket.legs',
-            'annualTicket.fareReferences',
-            'annualTicket.booking',
-            'annualTicket.employee.eligibleDestination',
-        ])
-            ->where('employee_id', $user->id)
+        return $this->baseQuery()->where('employee_id', $user->id)->latest()->get();
+    }
+
+    // Admin melihat semua pengajuan; employee hanya miliknya; approver melihat yang pending di tahap role-nya
+    public function allVisibleFor(User $user): Collection
+    {
+        return $this->baseQuery()
+            ->when(! $user->hasRole('Admin'), fn ($query) => $query->where($this->visibilityScope($user)))
             ->latest()
             ->get();
     }
 
     public function findByIdForEmployee(User $user, int $id): TravelExpenseReport
     {
-        return TravelExpenseReport::with([
-            'attachments',
-            'annualTicket.legs',
-            'annualTicket.fareReferences',
-            'annualTicket.booking',
-            'annualTicket.employee.eligibleDestination',
-        ])
-            ->where('employee_id', $user->id)
+        return $this->baseQuery()->where('employee_id', $user->id)->findOrFail($id);
+    }
+
+    // Detail/history/pdf boleh diakses admin untuk TER semua employee
+    public function findByIdFor(User $user, int $id): TravelExpenseReport
+    {
+        return $this->baseQuery()
+            ->when(! $user->hasRole('Admin'), fn ($query) => $query->where($this->visibilityScope($user)))
             ->findOrFail($id);
+    }
+
+    private function visibilityScope(User $user): \Closure
+    {
+        return function ($query) use ($user) {
+            $resolver = app(\Modules\AuthorityMatrix\Services\MatrixStepApproverResolver::class);
+
+            $query->where('employee_id', $user->id)
+                ->orWhereHas('approvals', function ($approvals) use ($user, $resolver) {
+                    $approvals->where('status', 'pending')
+                        // Hanya tahap yang sedang berjalan - step pending lebih awal tidak dihitung
+                        ->whereNotExists(function ($sub) {
+                            $sub->select(DB::raw(1))
+                                ->from('travel_expense_report_approvals as prev')
+                                ->whereColumn('prev.travel_expense_report_id', 'travel_expense_report_approvals.travel_expense_report_id')
+                                ->where('prev.status', 'pending')
+                                ->whereColumn('prev.sequence', '<', 'travel_expense_report_approvals.sequence');
+                        })
+                        // Step matrix menentukan siapa approver-nya: approval lama (tanpa step) atau
+                        // step tanpa batasan -> pemilik role; step terbatas -> hanya user yang ditugaskan
+                        ->where(function ($stages) use ($user, $resolver) {
+                            $stages->where(function ($legacy) use ($user) {
+                                $legacy->whereNull('authority_matrix_step_id')
+                                    ->whereHas('role', fn ($roles) => $roles->whereIn('name', $user->getRoleNames()));
+                            })->orWhereIn('role_id', $resolver->unconstrainedRoleIdsFor($user))
+                                ->orWhereIn('authority_matrix_step_id', $resolver->stepIdsMatchingUser($user));
+                        });
+                });
+        };
+    }
+
+    private function baseQuery()
+    {
+        return TravelExpenseReport::with(self::EAGER_LOAD);
+    }
+
+    // Setelah aksi approval sukses, TER sudah bukan di tahap user - ambil tanpa scope untuk response
+    public function findById(int $id): TravelExpenseReport
+    {
+        return $this->baseQuery()->findOrFail($id);
     }
 
     public function findByAnnualTicketId(int $ticketId): ?TravelExpenseReport

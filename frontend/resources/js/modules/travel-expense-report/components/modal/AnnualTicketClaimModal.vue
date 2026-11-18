@@ -1,7 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '../../../../stores/auth.js'
+import { useToastStore } from '../../../../stores/toast'
 import { useConfirm } from '../../../../composables/useConfirm'
+import { deleteTravelExpenseReportAttachment } from '../../services/travelExpenseReportService.js'
 import { legRouteStatus } from '../../../annual-ticket/utils/routeStatus.js'
 
 const props = defineProps({
@@ -9,10 +11,12 @@ const props = defineProps({
   ticket: { type: Object, default: null },
   initial: { type: Object, default: null },
   processing: { type: Boolean, default: false },
+  reportId: { type: [Number, String], default: null },
 })
 const emit = defineEmits(['update:modelValue', 'close', 'submit', 'draft'])
 
 const { confirm } = useConfirm()
+const toast = useToastStore()
 
 const t = computed(() => props.ticket || {})
 const legs = computed(() => t.value.legs ?? [])
@@ -91,7 +95,9 @@ const accountNumber = computed(() => financeAccount.value.account_number || '-')
 const accountName = computed(() => financeAccount.value.account_name || '-')
 const paymentNote = computed(() => financeAccount.value.payment_note || [t.value.document_number, authStore.user?.name].filter(Boolean).join(' / ') || '-')
 const proofFile = ref(null)
+const proofRemoved = ref(false)
 
+// flush post: props.initial (data lama) ter-update dulu sebelum prefill diisi saat modal dibuka
 watch(() => props.modelValue, open => {
   if (open) {
     // Prefill dari draft TER yang sudah ada - file lampiran tidak bisa diprefill (keamanan browser)
@@ -100,8 +106,11 @@ watch(() => props.modelValue, open => {
     clearTimeout(actualErrorTimer)
     actualError.value = ''
     proofFile.value = null
+    proofRemoved.value = false
+    // Salinan lokal daftar file tersimpan agar bisa dihapus satu per satu saat revisi
+    storedAttachments.value = [...(props.initial?.attachments ?? [])]
   }
-})
+}, { flush: 'post' })
 
 const reimbursableAmount = computed(() => Math.min(Number(totalActual.value) || 0, totalMaxFare.value))
 
@@ -173,18 +182,41 @@ function setAttachments(event) {
 
 const removeAttachment = index => attachments.value.splice(index, 1)
 
+// Hapus lampiran lama yang sudah tersimpan di server (khusus draft / revisi)
+const storedAttachments = ref([])
+const removingStored = ref(false)
+
+async function removeStoredAttachment(file) {
+  if (!props.reportId || removingStored.value) return
+
+  // Langsung hapus tanpa konfirmasi & tanpa notifikasi - chip langsung hilang
+  removingStored.value = true
+  try {
+    await deleteTravelExpenseReportAttachment(props.reportId, file.id)
+    storedAttachments.value = storedAttachments.value.filter(item => item.id !== file.id)
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to remove the attachment.')
+  } finally {
+    removingStored.value = false
+  }
+}
+
 function setProofFile(event) {
   proofFile.value = event.target?.files?.[0] ?? null
+  proofRemoved.value = false
+}
+
+// Proof lama bisa dihapus saat revisi - wajib upload yang baru
+function removeStoredProof() {
+  proofFile.value = null
+  proofRemoved.value = true
 }
 
 const canSubmit = computed(() => {
   if (isDirectPayment.value) return attachments.value.length > 0 || storedAttachments.value.length > 0
-  // Draft excess yang sudah punya proof tersimpan boleh submit tanpa upload ulang
-  return !!proofFile.value || !!props.initial?.has_proof
+  // Draft excess yang sudah punya proof tersimpan boleh submit tanpa upload ulang - kecuali proof dihapus
+  return !!proofFile.value || (!!props.initial?.has_proof && !proofRemoved.value)
 })
-
-// File yang sudah tersimpan di draft TER (dari backend) - tetap tampil saat dibuka ulang
-const storedAttachments = computed(() => props.initial?.attachments ?? [])
 
 const isPdfFile = name => String(name ?? '').toLowerCase().endsWith('.pdf')
 
@@ -210,6 +242,7 @@ function payload(action) {
     data,
     attachments: [],
     proof_of_payment: proofFile.value,
+    remove_proof_of_payment: proofRemoved.value && !proofFile.value,
   }
 }
 
@@ -389,7 +422,7 @@ function close() {
                     </VChip>
                   </div>
                   <div v-if="storedAttachments.length" class="d-flex flex-wrap ga-1 mt-1">
-                    <VChip v-for="file in storedAttachments" :key="file.url" size="x-small" color="success" variant="tonal" class="cursor-pointer" @click="openStoredFile(file.url)">
+                    <VChip v-for="file in storedAttachments" :key="file.url" size="x-small" color="success" variant="tonal" class="cursor-pointer" closable :disabled="removingStored" @click="openStoredFile(file.url)" @click:close="removeStoredAttachment(file)">
                       <VIcon v-if="!isPdfFile(file.name)" icon="ri-check-line" size="x-small" start />{{ file.name }}
                     </VChip>
                   </div>
@@ -457,9 +490,10 @@ function close() {
                 <div class="d-flex align-center w-100" style="background:rgb(var(--v-theme-surface));border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:8px;padding:8px 10px;min-height:48px">
                   <input type="file" accept=".jpg,.jpeg,.png" class="w-100" style="font-size:13px;border:0;background:transparent;outline:none" @change="setProofFile">
                 </div>
-                <div v-if="!proofFile && initial?.has_proof" class="text-caption mt-1">
-                  <VChip size="x-small" color="success" variant="tonal"><VIcon icon="ri-check-line" size="x-small" start />Proof of payment already uploaded</VChip>
+                <div v-if="!proofFile && initial?.has_proof && !proofRemoved" class="text-caption mt-1">
+                  <VChip size="x-small" color="success" variant="tonal" closable @click:close="removeStoredProof"><VIcon icon="ri-check-line" size="x-small" start />Proof of payment already uploaded</VChip>
                 </div>
+                <div v-else-if="!proofFile && proofRemoved" class="text-caption text-error mt-1">Proof removed - please upload a new one.</div>
                 <div v-else-if="!proofFile" class="text-caption text-medium-emphasis mt-1">&nbsp;</div>
               </VCol>
             </VRow>

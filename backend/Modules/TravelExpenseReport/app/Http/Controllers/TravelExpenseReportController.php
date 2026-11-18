@@ -62,6 +62,7 @@ class TravelExpenseReportController extends Controller
             'attachments' => ['nullable', 'array', 'max:10'],
             'attachments.*' => ['file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'proof_of_payment' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'remove_proof_of_payment' => ['nullable', 'boolean'],
         ]);
 
         $report = $this->service->updateDraft(
@@ -70,6 +71,7 @@ class TravelExpenseReportController extends Controller
             $request->all(),
             $request->file('attachments', []),
             $request->file('proof_of_payment'),
+            $request->boolean('remove_proof_of_payment'),
         );
 
         return response()->json([
@@ -88,10 +90,49 @@ class TravelExpenseReportController extends Controller
         ]);
     }
 
+    public function check(Request $request, int $id): JsonResponse
+    {
+        $this->service->check($request->user(), $id, $request->input('note'));
+
+        return response()->json([
+            'message' => 'Travel Expense Report has been checked successfully.',
+            'data' => $this->service->findById($id),
+        ]);
+    }
+
+    public function approve(Request $request, int $id): JsonResponse
+    {
+        $this->service->approve($request->user(), $id, $request->input('note'));
+
+        return response()->json([
+            'message' => 'Travel Expense Report has been approved successfully.',
+            'data' => $this->service->findById($id),
+        ]);
+    }
+
+    public function revision(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['remark' => ['required', 'string']]);
+
+        $this->service->revision($request->user(), $id, $request->input('remark'));
+
+        return response()->json([
+            'message' => 'Travel Expense Report has been returned for revision.',
+            'data' => $this->service->findById($id),
+        ]);
+    }
+
     public function destroy(Request $request, int $id): Response|ResponseFactory
     {
         $this->service->deleteDraft($request->user(), $id);
 
         return response()->noContent();
+    }
+
+    public function deleteAttachment(Request $request, int $id, int $attachmentId): JsonResponse
+    {
+        $this->service->deleteAttachment($request->user(), $id, $attachmentId);
+
+        return response()->json(['message' => 'Attachment has been removed successfully.']);
     }
 }

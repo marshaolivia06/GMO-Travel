@@ -65,6 +65,12 @@ class ExternalFormRequestRepository
 
     public function historyFor(ExternalFormRequest $request): array
     {
+        // Konteks organisasi pengaju untuk label role gaya Travel Order: "Unit (Role)"
+        $section = \Modules\MasterManagement\Models\Section::with('department')->where('section_head_id', $request->employee_id)->first();
+        $department = $section?->department
+            ?? \Modules\MasterManagement\Models\Department::where('dept_head_id', $request->employee_id)->first();
+        $division = $department ? \Modules\MasterManagement\Models\MasterDivision::find($department->division_head_id) : null;
+
         return Activity::with('causer')
             ->where('log_name', self::LOG_NAME)
             ->where('subject_type', $request->getMorphClass())
@@ -72,19 +78,32 @@ class ExternalFormRequestRepository
             ->where('event', '!=', 'draft')
             ->orderBy('id')
             ->get()
-            ->map(fn (Activity $log) => [
-                'id' => $log->id,
-                'event' => $log->event,
-                'description' => $log->description,
-                'properties' => $log->properties->get('status') ? ['status' => $log->properties->get('status')] : [],
-                'role' => $log->properties->get('role') ?? '-',
-                'round' => $log->properties->get('round', 1),
-                'note' => $log->properties->get('note'),
-                'remark' => $log->properties->get('remark'),
-                'documents' => $log->properties->get('documents', []),
-                'causer' => $log->causer?->name,
-                'created_at' => $log->created_at,
-            ])
+            ->map(function (Activity $log) use ($section, $department, $division) {
+                $role = $log->properties->get('role');
+                $displayRole = $role ? str_replace(' ', '.', $role) : '-';
+
+                // Label role gaya Travel Order/PDF: Sect Head pakai section, Dept Head department, Div Head division
+                $organization = match (trim((string) $role)) {
+                    'Sect Head' => $section?->name,
+                    'Dept Head' => $department?->name,
+                    'Div Head' => $division?->division_name,
+                    default => null,
+                };
+
+                return [
+                    'id' => $log->id,
+                    'event' => $log->event,
+                    'description' => $log->description,
+                    'properties' => $log->properties->get('status') ? ['status' => $log->properties->get('status')] : [],
+                    'role' => $organization ? "{$organization} ({$displayRole})" : ($role ? $displayRole : '-'),
+                    'round' => $log->properties->get('round', 1),
+                    'note' => $log->properties->get('note'),
+                    'remark' => $log->properties->get('remark'),
+                    'documents' => $log->properties->get('documents', []),
+                    'causer' => $log->causer?->name,
+                    'created_at' => $log->created_at,
+                ];
+            })
             ->values()
             ->all();
     }

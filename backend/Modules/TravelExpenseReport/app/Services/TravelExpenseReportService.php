@@ -3,8 +3,12 @@
 namespace Modules\TravelExpenseReport\Services;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Modules\AnnualTicket\Models\AnnualTicket;
+use Modules\MasterManagement\Models\Department;
+use Modules\MasterManagement\Models\MasterDivision;
+use Modules\MasterManagement\Models\Section;
 use Modules\TravelExpenseReport\Models\TravelExpenseReport;
 use Modules\TravelExpenseReport\Repositories\TravelExpenseReportRepository;
 use Modules\UserManagement\Models\User;
@@ -14,22 +18,44 @@ class TravelExpenseReportService
 {
     public function __construct(
         private TravelExpenseReportRepository $repository,
+        private TravelExpenseReportApprovalService $approvalService,
     ) {}
 
     public function listFor(User $user)
     {
-        return $this->repository->allForEmployee($user);
+        return $this->repository->allVisibleFor($user)
+            ->each(fn (TravelExpenseReport $report) => $this->attachFlowAttributes($report, $user));
     }
 
     public function findFor(User $user, int $id): TravelExpenseReport
     {
-        return $this->repository->findByIdForEmployee($user, $id);
+        return $this->attachFlowAttributes($this->repository->findByIdFor($user, $id), $user);
     }
 
-    // Aturan claim sesuai kesepakatan flow:
-    // - Direct Payment (same/different route) -> Ticket Reimbursement (reimbursable)
-    // - Booked by Company + Same Route        -> tidak claimable
-    // - Booked by Company + Different Route   -> Excess Settlement (employee bayar selisih ke Finance)
+    // Ambil TER tanpa scope visibilitas - dipakai untuk response setelah aksi approval sukses
+    public function findById(int $id): TravelExpenseReport
+    {
+        return $this->repository->findById($id);
+    }
+
+    // Info tahap approval saat ini untuk tombol aksi approver di frontend
+    private function attachFlowAttributes(TravelExpenseReport $report, User $user): TravelExpenseReport
+    {
+        $stage = $this->approvalService->currentStage($report);
+        $step = $stage?->matrixStep;
+
+        $report->setAttribute('can_process', $this->approvalService->canProcess($report, $user));
+        $report->setAttribute('is_owner', $report->employee_id === $user->id);
+        $report->setAttribute('stage_action', $stage?->action_type);
+        $report->setAttribute('stage_role', $stage?->role?->name);
+        // Tahap Finance (unit step milik department Finance & Accounting: area/section/dept tsb)
+        // - dipakai frontend untuk membuka PDF langsung saat klik View
+        $unitDepartment = $step?->section?->department ?? $step?->department;
+        $report->setAttribute('stage_finance', $unitDepartment && $unitDepartment->name === 'Finance & Accounting');
+
+        return $report;
+    }
+
     public function create(User $user, array $data, array $attachmentFiles = [], $proofOfPayment = null): TravelExpenseReport
     {
         $ticket = $this->claimableTicketFor($user, (int) $data['annual_ticket_id']);
@@ -50,6 +76,8 @@ class TravelExpenseReportService
         ];
 
         if (($data['action'] ?? 'draft') === 'submit') {
+            $this->approvalService->assertMatrixFor($user);
+
             $payload = $this->applySubmission($ticket, $payload, $attachmentFiles, $proofOfPayment);
             $payload['status'] = TravelExpenseReport::STATUS_SUBMITTED;
             $payload['document_number'] = $this->repository->generateDocumentNumber();
@@ -59,18 +87,18 @@ class TravelExpenseReportService
         $report = $this->repository->create($user, $ticket, $payload, $attachmentFiles, $proofOfPayment);
 
         if ($report->status === TravelExpenseReport::STATUS_SUBMITTED) {
-            $this->logActivity($report, $user, 'submitted', 'Travel Expense Report submitted', ['role' => $this->submitterRoleName($user)]);
+            $this->startApprovalFlow($report);
         }
 
         return $report;
     }
 
-    // Update hanya untuk draft yang belum disubmit
-    public function updateDraft(User $user, int $id, array $data, array $attachmentFiles = [], $proofOfPayment = null): TravelExpenseReport
+    // Update hanya untuk draft / yang dikembalikan untuk revisi
+    public function updateDraft(User $user, int $id, array $data, array $attachmentFiles = [], $proofOfPayment = null, bool $removeProofOfPayment = false): TravelExpenseReport
     {
         $report = $this->repository->findByIdForEmployee($user, $id);
 
-        abort_unless($report->status === TravelExpenseReport::STATUS_DRAFT, 422, 'Only draft Travel Expense Reports can be updated.');
+        abort_unless(in_array($report->status, [TravelExpenseReport::STATUS_DRAFT, TravelExpenseReport::STATUS_REVISION_REQUIRED], true), 422, 'Only draft or revision-required Travel Expense Reports can be updated.');
 
         $ticket = $report->annualTicket()->with(['legs', 'fareReferences', 'booking'])->firstOrFail();
 
@@ -80,15 +108,41 @@ class TravelExpenseReportService
             ...($report->claim_type === TravelExpenseReport::CLAIM_TICKET_REIMBURSEMENT ? ['total_actual_amount' => $data['total_actual_amount'] ?? $report->total_actual_amount] : []),
         ];
 
+        // Mau ganti proof: file lama dihapus dari storage, column dikosongkan (file baru menggantikan via $proofOfPayment)
+        if ($removeProofOfPayment && ! $proofOfPayment && $report->proof_of_payment_path) {
+            Storage::disk('public')->delete($report->proof_of_payment_path);
+            $payload['proof_of_payment_path'] = null;
+        }
+
         return $this->repository->update($report, $payload, $attachmentFiles, $proofOfPayment);
     }
 
-    // Submit draft yang sudah ada: validasi kelengkapan lalu finalisasi nominal
+    // Hapus lampiran lama saat draft / revisi - file fisik ikut dihapus.
+    // Sudah terhapus sebelumnya (mis. klik ganda) -> dianggap sukses juga, tanpa error
+    public function deleteAttachment(User $user, int $id, int $attachmentId): void
+    {
+        $report = $this->repository->findByIdForEmployee($user, $id);
+
+        abort_unless(in_array($report->status, [TravelExpenseReport::STATUS_DRAFT, TravelExpenseReport::STATUS_REVISION_REQUIRED], true), 422, 'Only draft or revision-required Travel Expense Reports can be modified.');
+
+        $attachment = $report->attachments()->whereKey($attachmentId)->first();
+
+        if (! $attachment) {
+            return;
+        }
+
+        Storage::disk('public')->delete($attachment->file_path);
+        $attachment->delete();
+    }
+
+    // Submit draft (atau hasil revisi) yang sudah ada: validasi kelengkapan lalu finalisasi nominal
     public function submit(User $user, int $id): TravelExpenseReport
     {
         $report = $this->repository->findByIdForEmployee($user, $id);
 
-        abort_unless($report->status === TravelExpenseReport::STATUS_DRAFT, 422, 'This Travel Expense Report has already been submitted.');
+        abort_unless(in_array($report->status, [TravelExpenseReport::STATUS_DRAFT, TravelExpenseReport::STATUS_REVISION_REQUIRED], true), 422, 'This Travel Expense Report has already been submitted.');
+
+        $this->approvalService->assertMatrixFor($user);
 
         $ticket = $report->annualTicket()->with(['legs', 'fareReferences', 'booking'])->firstOrFail();
 
@@ -113,50 +167,124 @@ class TravelExpenseReportService
             'submitted_at' => now(),
         ]);
 
-        $this->logActivity($report, $user, 'submitted', 'Travel Expense Report submitted', ['role' => $this->submitterRoleName($user)]);
+        $this->startApprovalFlow($report);
 
         return $report;
     }
 
-    // Role asli submitter yang tampil di history log - sama seperti module lain (bukan label generik)
-    private function submitterRoleName(User $user): string
+    // Masukkan TER ke rantai approval sesuai authority matrix - matrix belum ada -> 422 dengan pesan jelas
+    private function startApprovalFlow(TravelExpenseReport $report): void
     {
-        return $user->roles->first()?->name ?? 'Employee';
+        try {
+            $this->approvalService->initFlow($report);
+        } catch (\RuntimeException $exception) {
+            abort(422, $exception->getMessage());
+        }
+    }
+
+    // TER tidak lagi di tahap user (sudah diproses/maju tahap) -> 422 dengan pesan jelas, bukan 404
+    private function reportForAction(User $user, int $id): TravelExpenseReport
+    {
+        try {
+            return $this->repository->findByIdFor($user, $id);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            abort(422, 'This Travel Expense Report is no longer waiting at your approval stage.');
+        }
+    }
+
+    public function check(User $user, int $id, ?string $note = null): void
+    {
+        $this->approvalService->check($this->reportForAction($user, $id), $user, $note);
+    }
+
+    public function approve(User $user, int $id, ?string $note = null): void
+    {
+        $this->approvalService->approve($this->reportForAction($user, $id), $user, $note);
+    }
+
+    public function revision(User $user, int $id, string $remark): void
+    {
+        $this->approvalService->revision($this->reportForAction($user, $id), $user, $remark);
     }
 
     public function historyById(int $id, User $user): array
     {
-        return $this->history($this->repository->findByIdForEmployee($user, $id));
+        return $this->history($this->repository->findByIdFor($user, $id));
     }
 
     public function history(TravelExpenseReport $report): array
     {
+        $approvals = $report->approvals()->with('matrixStep.section', 'matrixStep.department')->get()->keyBy('sequence');
+        [$section, $department, $division] = $this->requesterOrganization($report->employee_id);
+
         return Activity::with('causer')
             ->where('log_name', 'travel-expense-report')
             ->where('subject_type', $report->getMorphClass())
             ->where('subject_id', $report->id)
             ->orderBy('id')
             ->get()
-            ->map(fn ($log) => [
-                'id' => $log->id,
-                'event' => $log->event,
-                'description' => $log->description,
-                'round' => $log->properties->get('round', 1),
-                'role' => $log->properties->get('role'),
-                'note' => $log->properties->get('note'),
-                'remark' => $log->properties->get('remark'),
-                'causer' => $log->causer?->name,
-                'created_at' => $log->created_at,
-            ])
+            ->map(function ($log) use ($approvals, $section, $department, $division) {
+                $step = $approvals->get($log->properties->get('sequence'))?->matrixStep;
+
+                return [
+                    'id' => $log->id,
+                    'event' => $log->event,
+                    'description' => $log->description,
+                    'round' => $log->properties->get('round', 1),
+                    // Label role gaya Travel Order: "Unit (Role)" - unit dari step matrix, fallback org pengaju
+                    'role' => $this->historyRoleLabel(
+                        $log->properties->get('role'),
+                        $step?->section?->name ?? (filled($step?->area) ? $step->area : null) ?? $step?->department?->name,
+                        $section,
+                        $department,
+                        $division,
+                    ),
+                    'note' => $log->properties->get('note'),
+                    'remark' => $log->properties->get('remark'),
+                    'causer' => $log->causer?->name,
+                    'created_at' => $log->created_at,
+                ];
+            })
             ->values()
             ->all();
     }
 
+    // Konteks organisasi pengaju: section (jika sect head), department, division
+    private function requesterOrganization(int $employeeId): array
+    {
+        $section = Section::with('department')->where('section_head_id', $employeeId)->first();
+        $department = $section?->department
+            ?? Department::where('dept_head_id', $employeeId)->first()
+            ?? Department::where('dept_admin_id', $employeeId)->first();
+        $division = $department ? MasterDivision::find($department->division_head_id) : null;
+
+        return [$section, $department, $division];
+    }
+
+    // Label role gaya Travel Order/PDF: "Unit (Role)" - Sect Head pakai section, Dept Head department, Div Head division
+    private function historyRoleLabel(?string $role, ?string $unit, $section, $department, $division): string
+    {
+        $display = $role ? str_replace(' ', '.', $role) : '-';
+
+        $organization = $unit ?? match (trim((string) $role)) {
+            'Sect Head' => $section?->name,
+            'Dept Head' => $department?->name,
+            'Div Head' => $division?->division_name,
+            default => null,
+        };
+
+        return $organization ? "{$organization} ({$display})" : $display;
+    }
+
     public function pdf(int $id, User $user)
     {
-        $report = $this->repository->findByIdForEmployee($user, $id);
+        $report = $this->repository->findByIdFor($user, $id);
 
-        return Pdf::loadView('travelexpensereport::pdf.travel_expense_report', ['report' => $report])->setPaper('a4');
+        return Pdf::loadView('travelexpensereport::pdf.travel_expense_report', [
+            'report' => $report,
+            // Rantai approval putaran terakhir - mengisi tabel Reviewed & Approved By
+            'approvals' => $this->approvalService->latestRoundApprovals($report),
+        ])->setPaper('a4');
     }
 
     // Activity log TER - aktivitas tercatat mulai dari submit, submit membuka round baru

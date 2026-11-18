@@ -20,7 +20,8 @@
                         $role = $step->role instanceof \Spatie\Permission\Models\Role ? $step->role->name : $step->role;
 
                         $organization = match ($role) {
-                            'Sect Head' => $department?->name,
+                            // Sect Head memakai nama section pengaju, bukan department
+                            'Sect Head' => $section?->name,
                             'Dept Head' => $department?->name,
                             'Div Head' => $division?->division_name,
                             default => null,
