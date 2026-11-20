@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Modules\TravelOrder\Enums\ActivityCategory;
 use Modules\UserManagement\Models\User;
+use Modules\TravelOrder\Models\MasterRegion;
 
 class TravelOrderGroup extends Model
 {
@@ -16,6 +18,8 @@ class TravelOrderGroup extends Model
     protected $fillable = [
         'trip_name',
         'travel_region',
+        'region_id',
+        'activity_category',
         'travel_from',
         'travel_to',
         'departure_date',
@@ -32,11 +36,24 @@ class TravelOrderGroup extends Model
         'return_date' => 'date',
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
+        'activity_category' => ActivityCategory::class,
     ];
+
+    protected $appends = ['activity_category_label'];
+
+    public function getActivityCategoryLabelAttribute(): ?string
+    {
+        return $this->activity_category?->label();
+    }
 
     public function creator(): BelongsTo
     {
     return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function region(): BelongsTo
+    {
+        return $this->belongsTo(MasterRegion::class, 'region_id');
     }
 
     public function members(): HasMany

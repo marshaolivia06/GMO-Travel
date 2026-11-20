@@ -5,12 +5,15 @@ import { getDepartmentLock, getMasterRateLimits, getMasterRegions } from '../../
 import { getDepartmentOptions } from '../../../master-management/services/departmentService'
 import { useConfirm } from '../../../../composables/useConfirm'
 import { getMySection } from '../../../master-management/services/sectionService'
+import NoteModal from './NoteModal.vue'
 
-const emit = defineEmits(['cancel', 'submit', 'summary-change'])
+const emit = defineEmits(['cancel', 'submit', 'summary-change', 'approve', 'reject'])
 const props = defineProps({
   loading: { type: Boolean, default: false },
   initialData: { type: Object, default: null },
   group: { type: Object, default: null },
+  viewOnly: { type: Boolean, default: false },
+  canDecideAdvance: { type: Boolean, default: false },
 })
 const authStore = useAuthStore()
 const { confirm } = useConfirm()
@@ -19,6 +22,15 @@ const generalError = ref('')
 const reviewDialog = ref(false)
 const confirmInfo = ref(false)
 const acknowledgeTer = ref(false)
+const advanceNoteDialog = ref(false)
+const advanceNoteMeta = {
+  action: 'advance_request',
+  title: 'Request Travel Advance',
+  label: 'Request Remarks',
+  placeholder: 'Why is a travel advance needed for this trip?',
+  button: 'Request Travel Advance',
+  color: 'primary',
+}
 const departmentLocked = ref(false)
 const departmentOptions = ref([])
 const regionOptions = ref([])
@@ -47,7 +59,18 @@ const form = reactive({
 // ===== MASTER RATE (region, mata uang, limit) =====
 const selectedRegion = computed(() => regionOptions.value.find(item => item.id === form.regionId) || null)
 const regionGroup = computed(() => !selectedRegion.value ? '' : selectedRegion.value.code === 'DN' ? 'Domestic' : selectedRegion.value.code === 'LN-SG' ? 'Singapore' : 'Overseas')
-const showAdvance = computed(() => ['Singapore', 'Overseas'].includes(regionGroup.value))
+
+// ===== TRAVEL ADVANCE STATE (sama seperti form individu) =====
+const initialStatus = computed(() => props.initialData?.status || '')
+const isAwaitingAdvanceInput = computed(() => initialStatus.value === 'awaiting_input_travel_advance')
+const isAdvanceDeclined = computed(() => initialStatus.value === 'awaiting_submit_without_travel_advance')
+const regionChanged = computed(() => form.regionId != null && props.initialData?.region_id != null && form.regionId !== props.initialData.region_id)
+const isAdvanceOpen = computed(() => props.initialData?.advance_status === 'open' && !regionChanged.value)
+const isAdvanceFlowEdit = computed(() => isAwaitingAdvanceInput.value || isAdvanceDeclined.value)
+const advanceEditable = computed(() => regionGroup.value !== 'Domestic' || isAwaitingAdvanceInput.value || isAdvanceOpen.value)
+const showAdvance = computed(() => !!form.regionId)
+const showAdvanceRequest = computed(() => regionGroup.value === 'Domestic' && !isAdvanceFlowEdit.value && !isAdvanceOpen.value && !props.viewOnly)
+const formDisabled = computed(() => props.loading || props.viewOnly)
 const showCountry = computed(() => !!form.regionId)
 const lockCountry = computed(() => ['Domestic', 'Singapore'].includes(regionGroup.value))
 const advanceCurrency = computed(() => selectedRegion.value?.currency || '')
@@ -325,17 +348,7 @@ function validate(isSubmit = true) {
     valid = false
   }
 
-  if (showAdvance.value) {
-    if (!String(form.pocketMoney || '').trim()) {
-      errors.pocketMoney = 'This field is required.'
-      valid = false
-    }
-
-    if (!String(form.mealAllowance || '').trim()) {
-      errors.mealAllowance = 'This field is required.'
-      valid = false
-    }
-
+  if (showAdvance.value && advanceEditable.value) {
     if (mealExceeded.value) {
       errors.mealAllowance = `Maximum allowed is ${mealMax.value} ${advanceCurrency.value}.`
       valid = false
@@ -357,6 +370,7 @@ function getCurrency() {
 function buildPayload(status) {
   return {
     ...form,
+    advanceEditable: advanceEditable.value,
     request_type: 'business_trip',
     trip_type: 'group',
     travel_order_group_id: groupId.value,
@@ -368,6 +382,14 @@ function buildPayload(status) {
 function saveDraft() {
   if (props.loading) return
   emit('submit', buildPayload('draft'))
+}
+
+async function handleAdvanceRequestSubmit({ text }) {
+  advanceNoteDialog.value = false
+  if (props.loading) return
+  const confirmed = await confirm({ title: 'Request Travel Advance?', text: 'Are you sure you want to request a Travel Advance for this trip?', color: 'primary' })
+  if (!confirmed) return
+  emit('submit', { ...buildPayload('awaiting_gmo_open_travel_advance'), advance_open_remarks: text })
 }
 
 function submitForm() {
@@ -400,7 +422,11 @@ function cancel() {
 }
 
 watch(() => props.initialData, data => {
-  if (data) fillInitialData(data)
+  if (data) {
+    fillInitialData(data)
+    clearTimeout(limitTimer)
+    limitTimer = setTimeout(loadRateLimits, 400)
+  }
 }, { immediate: true })
 
 // data group menimpa data draft supaya field terkunci selalu sesuai group
@@ -505,20 +531,20 @@ onMounted(() => {
 
           <div class="text-subtitle-2 font-weight-bold mb-4">Travel Order Information</div>
           <VRow>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">1. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter Travel From" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || locked" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">2. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter Travel To" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || locked" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">3. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading || locked" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">4. Departure Time</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">5. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading || locked" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">6. Return Time</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="loading" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
-            <VCol cols="12" md="6"><div class="text-caption mb-1">7. Travelling Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter Travelling Purpose" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading || locked" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
-            <VCol cols="12" md="6"><div class="text-caption mb-1">8. Remarks </div><VTextarea v-model="form.remarks" placeholder="Enter Remarks (Optional)" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="loading" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">1. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter Travel From" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">2. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter Travel To" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">3. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">4. Departure Time</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="formDisabled" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">5. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">6. Return Time</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="formDisabled" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
+            <VCol cols="12" md="6"><div class="text-caption mb-1">7. Travelling Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter Travelling Purpose" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
+            <VCol cols="12" md="6"><div class="text-caption mb-1">8. Remarks </div><VTextarea v-model="form.remarks" placeholder="Enter Remarks (Optional)" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="formDisabled" /></VCol>
           </VRow>
 
           <VRow>
             <VCol cols="12" md="3">
               <div class="text-caption mb-1">9. Travel Region</div>
-              <VSelect :model-value="form.regionId" :items="regionOptions" item-title="label" item-value="id" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || regionLocked" :error-messages="errors.regionId ? [errors.regionId] : []" @update:model-value="selectRegion">
+              <VSelect :model-value="form.regionId" :items="regionOptions" item-title="label" item-value="id" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || regionLocked" :error-messages="errors.regionId ? [errors.regionId] : []" @update:model-value="selectRegion">
                 <template #selection="{ item }"><span v-if="form.regionId">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
                 <template #item="{ props: itemProps, item }">
                   <VListItem v-bind="itemProps" :title="item.title" :subtitle="item.raw.subtitle" />
@@ -528,7 +554,7 @@ onMounted(() => {
 
             <VCol v-if="showCountry" cols="12" md="3">
               <div class="text-caption mb-1">Country</div>
-              <VTextField v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || lockCountry" :error-messages="errors.country ? [errors.country] : []" />
+              <VTextField v-model="form.country" placeholder="Input country" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || lockCountry" :error-messages="errors.country ? [errors.country] : []" />
             </VCol>
           </VRow>
 
@@ -547,8 +573,8 @@ onMounted(() => {
                 </VCardItem>
                 <VCardText>
                   <VRow>
-                    <VCol cols="6"><div class="text-caption mb-1">Ticket Type</div><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
-                    <VCol cols="6"><div class="text-caption mb-1">Arrangement</div><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
+                    <VCol cols="6"><div class="text-caption mb-1">Ticket Type</div><VSelect v-model="form.ferryTicketType" :items="ferryTicketTypes" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled" :error-messages="errors.ferryTicketType ? [errors.ferryTicketType] : []"><template #selection="{ item }"><span v-if="form.ferryTicketType">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select ticket type</span></template></VSelect></VCol>
+                    <VCol cols="6"><div class="text-caption mb-1">Arrangement</div><VSelect v-model="form.ferryArrangement" :items="ferryArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled" :error-messages="errors.ferryArrangement ? [errors.ferryArrangement] : []"><template #selection="{ item }"><span v-if="form.ferryArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect></VCol>
                   </VRow>
                 </VCardText>
               </VCard>
@@ -563,7 +589,7 @@ onMounted(() => {
                 </VCardItem>
                 <VCardText>
                   <div class="text-caption mb-1">Arrangement</div>
-                  <VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect>
+                  <VSelect v-model="form.accommodationArrangement" :items="accommodationArrangements" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled" :error-messages="errors.accommodationArrangement ? [errors.accommodationArrangement] : []"><template #selection="{ item }"><span v-if="form.accommodationArrangement">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select arrangement</span></template></VSelect>
                 </VCardText>
               </VCard>
             </VCol>
@@ -571,30 +597,40 @@ onMounted(() => {
             <VCol v-if="showAdvance" cols="12" md="4">
               <VCard rounded="lg" elevation="2" color="grey-lighten-5" class="h-100">
                 <VCardItem>
-                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">Travel Advance <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip></VCardTitle>
-                  <div class="text-caption text-medium-emphasis mt-1">Optional advance based on travel region.</div>
+                  <VCardTitle class="text-subtitle-2 font-weight-bold pa-0">
+                    Travel Advance
+                    <VTooltip text="Travel Advance limit is calculated based on travel duration and applicable policy."><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="16" class="ms-1 text-medium-emphasis" /></template></VTooltip>
+                    <VChip v-if="showAdvanceRequest" variant="tonal" color="warning" size="x-small" class="ms-2" prepend-icon="ri-lock-line">Locked</VChip>
+                    <VChip v-else-if="isAwaitingAdvanceInput || isAdvanceOpen" variant="tonal" color="success" size="x-small" class="ms-2" prepend-icon="ri-lock-unlock-line">Open</VChip>
+                  </VCardTitle>
+                  <div class="text-caption text-medium-emphasis mt-1">{{ regionGroup === 'Domestic' ? 'Travel Advance for Domestic requires GMO approval.' : 'Optional advance based on travel region.' }}</div>
                 </VCardItem>
                 <VCardText>
-                  <VAlert type="info" variant="tonal" density="compact" class="mb-4"><strong>{{ selectedRegionLabel }} policy:</strong> Travel Advance is requested in {{ advanceCurrency }} and follows your grade.</VAlert>
+                  <VBtn v-if="showAdvanceRequest" size="small" variant="tonal" color="primary" class="mb-3" :disabled="formDisabled" @click="advanceNoteDialog = true">Request Travel Advance</VBtn>
+
+                  <VAlert v-if="isAdvanceDeclined" type="warning" variant="tonal" density="compact" class="mb-4">Your Travel Advance request was <strong>declined by GMO</strong>. Please continue without a Travel Advance.</VAlert>
+                  <VAlert v-else-if="isAwaitingAdvanceInput || isAdvanceOpen" type="success" variant="tonal" density="compact" class="mb-4">GMO <strong>approved</strong> your Travel Advance request. Please {{ isAwaitingAdvanceInput ? 'fill in' : 'review or edit' }} the amounts below.</VAlert>
+                  <VAlert v-else-if="showAdvanceRequest" type="info" variant="tonal" density="compact" class="mb-4">Travel Advance is <strong>locked</strong> for Domestic trips. Use <strong>Request Travel Advance</strong> above to ask GMO for access.</VAlert>
+                  <VAlert v-else type="info" variant="tonal" density="compact" class="mb-4"><strong>{{ selectedRegionLabel }} policy:</strong> Travel Advance is requested in {{ advanceCurrency }} and follows your grade.</VAlert>
 
                   <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
 
-                  <div class="d-flex align-center text-caption mb-1">
+                  <div class="d-flex align-center text-caption mb-2">
                     <span>Meal Allowance</span>
                     <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ mealHint }}</span></VTooltip>
                   </div>
                   <VRow class="align-center">
                     <VCol cols="4" class="pa-1"><VSelect :model-value="advanceCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-                    <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, advanceCurrency)" /></VCol>
+                    <VCol cols="8" class="pa-1"><VTextField v-model="mealAllowanceDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || !travelDays || !advanceEditable" :error-messages="errors.mealAllowance ? [errors.mealAllowance] : []" class="text-right-input" @beforeinput="blockOverMax($event, mealMax, advanceCurrency)" /></VCol>
                   </VRow>
 
-                  <div class="d-flex align-center text-caption mb-1 mt-4">
+                  <div class="d-flex align-center text-caption mb-2 mt-5">
                     <span>Pocket Money</span>
                     <VTooltip location="top"><template #activator="{ props }"><VIcon v-bind="props" icon="ri-information-line" size="15" class="ms-1 text-medium-emphasis" /></template><span>{{ pocketHint }}</span></VTooltip>
                   </div>
                   <VRow class="align-center">
                     <VCol cols="4" class="pa-1"><VSelect :model-value="advanceCurrency" :items="advanceCurrencyItems" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-                    <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="loading || !travelDays || pocketMax === 0" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, advanceCurrency)" /></VCol>
+                    <VCol cols="8" class="pa-1"><VTextField v-model="pocketMoneyDisplay" type="text" inputmode="decimal" :placeholder="pocketMax === 0 ? '-' : travelDays ? '0' : 'Fill travel dates first'" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || !travelDays || !advanceEditable || pocketMax === 0" :error-messages="errors.pocketMoney ? [errors.pocketMoney] : []" class="text-right-input" @beforeinput="blockOverMax($event, pocketMax, advanceCurrency)" /></VCol>
                   </VRow>
                 </VCardText>
               </VCard>
@@ -603,10 +639,14 @@ onMounted(() => {
         </VCardText>
 
         <VDivider />
-        <VCardActions class="pa-4 justify-end">
+        <VCardActions v-if="!canDecideAdvance" class="pa-4 justify-end">
           <VBtn variant="text" :disabled="loading" @click="cancel">Cancel</VBtn>
           <VBtn type="button" variant="flat" color="primary" :loading="props.loading" :disabled="props.loading" @click="saveDraft">Draft</VBtn>
           <VBtn type="submit" color="primary" variant="flat" :disabled="props.loading || mealExceeded || pocketExceeded">Continue</VBtn>
+        </VCardActions>
+        <VCardActions v-else class="pa-4 justify-end">
+          <VBtn color="error" variant="flat" :disabled="props.loading" @click="emit('reject')">Reject</VBtn>
+          <VBtn color="primary" variant="flat" :disabled="props.loading" @click="emit('approve')">Approve</VBtn>
         </VCardActions>
       </VForm>
     </VCard>
@@ -684,8 +724,13 @@ onMounted(() => {
               <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">
                 <VCardText class="pa-3 text-high-emphasis">
                   <div class="text-caption text-medium-emphasis">Travel Advance</div>
-                  <div class="text-body-2 font-weight-bold mt-1">Meal: {{ mealAllowanceDisplay || '-' }} {{ advanceCurrency }}</div>
-                  <div class="text-body-2 font-weight-bold">Pocket: {{ pocketMoneyDisplay || '-' }} {{ advanceCurrency }}</div>
+                  <template v-if="advanceEditable">
+                    <div class="text-body-2 font-weight-bold mt-1">Meal: {{ mealAllowanceDisplay || '-' }} {{ advanceCurrency }}</div>
+                    <div class="text-body-2 font-weight-bold">Pocket: {{ pocketMoneyDisplay || '-' }} {{ advanceCurrency }}</div>
+                  </template>
+                  <template v-else>
+                    <VChip variant="tonal" color="warning" size="small" class="mt-2" prepend-icon="ri-lock-line">{{ isAdvanceDeclined ? 'Declined by GMO' : 'Locked - GMO approval required' }}</VChip>
+                  </template>
                 </VCardText>
               </VCard>
             </VCol>
@@ -708,6 +753,8 @@ onMounted(() => {
         </VCardActions>
       </VCard>
     </div>
+
+    <NoteModal v-model="advanceNoteDialog" :meta="advanceNoteMeta" @submit="handleAdvanceRequestSubmit" />
   </div>
 </template>
 

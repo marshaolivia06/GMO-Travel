@@ -1,20 +1,47 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useConfirm } from '../../../../composables/useConfirm'
+import { getMasterRegions } from '../../../travel-order/services/travelOrderService'
 
-const emit = defineEmits(['cancel', 'submit', 'back'])
-const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null }, memberOptions: { type: Array, default: () => [] } })
+const emit = defineEmits(['cancel', 'submit'])
+const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null }, memberOptions: { type: Array, default: () => [] }, activityCategoryOptions: { type: Array, default: () => [] } })
 const { confirm } = useConfirm()
-const regionOptions = ['Domestic', 'Singapore', 'Overseas']
-const requiredFields = ['tripName', 'travelRegion', 'travelFrom', 'travelTo', 'departureDate', 'returnDate']
+const masterRegions = ref([])
+let fallbackRegionCategory = ''
+
+function categoryOf(item) {
+  return item.code === 'DN' ? 'Domestic' : item.code === 'LN-SG' ? 'Singapore' : 'Overseas'
+}
+
+async function loadRegions() {
+  try {
+    const response = await getMasterRegions()
+    const regions = Array.isArray(response?.data?.data) ? response.data.data
+      : Array.isArray(response?.data) ? response.data
+        : Array.isArray(response) ? response : []
+    const duplicatedIds = regions.filter(item => regions.some(other => other.id !== item.id && other.name === item.name)).map(item => item.id)
+    masterRegions.value = regions.map(item => ({
+      ...item,
+      label: duplicatedIds.includes(item.id) ? `${item.name} — ${item.coverage}` : item.name,
+      subtitle: `${item.coverage} · ${item.currency}`,
+    }))
+    if (!form.regionId && fallbackRegionCategory) {
+      form.regionId = masterRegions.value.find(item => categoryOf(item) === fallbackRegionCategory)?.id ?? null
+    }
+  } catch {
+    masterRegions.value = []
+  }
+}
+
+const requiredFields = ['tripName', 'regionId', 'activityCategory', 'travelFrom', 'travelTo', 'departureDate', 'returnDate']
 const selectedMemberIds = ref([])
 const generalError = ref('')
-const errors = reactive({ tripName: '', travelRegion: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', members: '' })
-const form = reactive({ tripName: '', travelRegion: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', purpose: '' })
+const errors = reactive({ tripName: '', regionId: '', activityCategory: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', members: '' })
+const form = reactive({ tripName: '', regionId: null, activityCategory: '', travelFrom: '', travelTo: '', departureDate: '', returnDate: '', purpose: '' })
 
 const memberItems = computed(() => props.memberOptions.map(user => ({ ...user, id: user.id, name: user.name || user.full_name || '', departmentName: user.department?.name || user.department_name || '-' })))
 const selectedMembers = computed(() => memberItems.value.filter(user => selectedMemberIds.value.some(id => String(id) === String(user.id))))
-const canCreate = computed(() => requiredFields.every(key => !!String(form[key]).trim()) && form.returnDate >= form.departureDate && selectedMemberIds.value.length >= 2 && !props.loading)
+const canCreate = computed(() => requiredFields.every(key => !!String(form[key] ?? '').trim()) && form.returnDate >= form.departureDate && selectedMemberIds.value.length >= 2 && !props.loading)
 const lockedMemberIds = computed(() => (props.initialData?.members || [])
     .filter(member => member.travel_order && member.travel_order.status !== 'draft')
     .map(member => String(member.user_id ?? member.user?.id ?? member.id)))
@@ -32,7 +59,11 @@ function normalizeDate(value) {
 
 function fillInitialData(data) {
     if (!data) return
-    Object.assign(form, { tripName: data.trip_name || data.tripName || '', travelRegion: data.travel_region || data.travelRegion || '', travelFrom: data.travel_from || data.travelFrom || '', travelTo: data.travel_to || data.travelTo || '', departureDate: normalizeDate(data.departure_date || data.departureDate), returnDate: normalizeDate(data.return_date || data.returnDate || data.arrival_date || data.arrivalDate), purpose: data.purpose || '' })
+    Object.assign(form, { tripName: data.trip_name || data.tripName || '', regionId: data.region_id ?? data.region?.id ?? null, activityCategory: data.activity_category || data.activityCategory || '', travelFrom: data.travel_from || data.travelFrom || '', travelTo: data.travel_to || data.travelTo || '', departureDate: normalizeDate(data.departure_date || data.departureDate), returnDate: normalizeDate(data.return_date || data.returnDate || data.arrival_date || data.arrivalDate), purpose: data.purpose || '' })
+    fallbackRegionCategory = String(data.travel_region || data.travelRegion || '')
+    if (!form.regionId && fallbackRegionCategory) {
+        form.regionId = masterRegions.value.find(item => categoryOf(item) === fallbackRegionCategory)?.id ?? null
+    }
     selectedMemberIds.value = (data.members || data.group_members || []).map(member => member.user_id ?? member.user?.id ?? member.id).filter(id => id != null)
 }
 
@@ -57,14 +88,14 @@ function clearErrors() { Object.keys(errors).forEach(key => { errors[key] = '' }
 function validate() {
     clearErrors()
     let valid = true
-    for (const key of requiredFields) if (!String(form[key]).trim()) { errors[key] = 'This field is required.'; valid = false }
+    for (const key of requiredFields) if (!String(form[key] ?? '').trim()) { errors[key] = 'This field is required.'; valid = false }
     if (form.departureDate && form.returnDate && form.returnDate < form.departureDate) { errors.returnDate = 'Return date cannot be before departure date.'; valid = false }
     if (selectedMemberIds.value.length < 2) { errors.members = 'Select at least two group members.'; valid = false }
     return valid
 }
 
 function getPayload() {
-    return { trip_name: form.tripName.trim(), travel_region: form.travelRegion, travel_from: form.travelFrom.trim(), travel_to: form.travelTo.trim(), departure_date: form.departureDate, return_date: form.returnDate, purpose: form.purpose.trim(), members: selectedMemberIds.value, request_type: 'business_trip', trip_type: 'group', status: props.initialData?.status || 'open' }
+    return { trip_name: form.tripName.trim(), region_id: form.regionId, activity_category: form.activityCategory, travel_from: form.travelFrom.trim(), travel_to: form.travelTo.trim(), departure_date: form.departureDate, return_date: form.returnDate, purpose: form.purpose.trim(), members: selectedMemberIds.value, request_type: 'business_trip', trip_type: 'group', status: props.initialData?.status || 'open' }
 }
 
 async function createGroup() {
@@ -77,15 +108,14 @@ async function createGroup() {
 function cancel() { if (!props.loading) emit('cancel') }
 
 watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { immediate: true })
+
+onMounted(() => { loadRegions() })
 </script>
 
 <template>
   <VCard rounded="lg" elevation="1">
     <VCardTitle class="d-flex align-center justify-space-between pa-5">
-      <div class="d-flex align-center ga-3">
-        <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" :disabled="loading" @click="emit('back')" />
-        <div class="text-h6 font-weight-bold">{{ initialData ? 'Edit Group Trip' : 'Create Group Trip' }}</div>
-      </div>
+      <div class="text-h6 font-weight-bold">{{ initialData ? 'Edit Group Trip' : 'Create Group Trip' }}</div>
       <VBtn icon="ri-close-line" variant="text" :disabled="loading" @click="cancel" />
     </VCardTitle>
     <VDivider />
@@ -94,15 +124,19 @@ watch(() => props.initialData, data => { if (data) fillInitialData(data) }, { im
         <div class="text-subtitle-2 font-weight-bold mb-4">Group Trip Information</div>
         <VAlert v-if="generalError" type="error" variant="tonal" density="compact" class="mb-4">{{ generalError }}</VAlert>
         <VRow>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">1. Trip Name</div><VTextField v-model="form.tripName" placeholder="Enter trip name" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.tripName ? [errors.tripName] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">2. Travel Region</div><VSelect v-model="form.travelRegion" :items="regionOptions" placeholder="Select travel region" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelRegion ? [errors.travelRegion] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">3. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter travel from" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">4. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter travel to" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">5. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" bg-color="white" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
-          <VCol cols="12" md="6"><div class="text-caption mb-1">6. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" bg-color="white" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-          <VCol cols="12"><div class="text-caption mb-1">7. Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" bg-color="white" rows="1" auto-grow hide-details="auto" :disabled="loading" /></VCol>
+          <VCol cols="12"><div class="text-caption mb-1">1. Group Trip Name</div><VTextField v-model="form.tripName" placeholder="Enter group trip name" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.tripName ? [errors.tripName] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">2. Travel Region</div><VSelect v-model="form.regionId" :items="masterRegions" item-title="label" item-value="id" placeholder="Select travel region" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" no-data-text="No travel region found" :disabled="loading" :error-messages="errors.regionId ? [errors.regionId] : []">
+            <template #selection="{ item }"><span v-if="form.regionId">{{ item.title }}</span><span v-else class="text-medium-emphasis" style="font-size:13px">Select travel region</span></template>
+            <template #item="{ props: itemProps, item }"><VListItem v-bind="itemProps" :title="item.title" :subtitle="item.raw.subtitle" /></template>
+          </VSelect></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">3. Activity Category</div><VSelect v-model="form.activityCategory" :items="activityCategoryOptions" item-title="display_label" item-value="code" placeholder="Select activity category" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" no-data-text="No activity category found" :disabled="loading" :error-messages="errors.activityCategory ? [errors.activityCategory] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">4. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter travel from" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">5. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter travel to" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" :disabled="loading" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">6. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" bg-color="white" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
+          <VCol cols="12" md="6"><div class="text-caption mb-1">7. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" bg-color="white" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="loading" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
+          <VCol cols="12"><div class="text-caption mb-1">8. Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter purpose" variant="outlined" density="comfortable" bg-color="white" rows="1" auto-grow hide-details="auto" :disabled="loading" /></VCol>
           <VCol cols="12">
-            <div class="text-caption mb-1">8. Group Member</div>
+            <div class="text-caption mb-1">9. Group Member</div>
             <VAutocomplete :model-value="selectedMemberIds" :items="memberItems" item-title="name" item-value="id" multiple chips closable-chips :custom-filter="filterMember" placeholder="Search by employee name or department" variant="outlined" density="comfortable" bg-color="white" hide-details="auto" no-data-text="No employee found" :disabled="loading" :error-messages="errors.members ? [errors.members] : []" @update:model-value="updateMembers">
   <template #chip="{ item }">
     <VChip :key="item.value" size="small" :closable="!isLocked(item.value)" :disabled="loading" class="mr-1" @click:close="updateMembers(selectedMemberIds.filter(id => id !== item.value))">

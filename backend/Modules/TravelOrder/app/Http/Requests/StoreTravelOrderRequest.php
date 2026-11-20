@@ -47,6 +47,7 @@ class StoreTravelOrderRequest extends FormRequest
             'meal_allowance' => ['nullable', 'numeric', 'min:0'],
             'pocket_money' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['nullable', Rule::in($allowedCurrencies)],
+            'advance_open_remarks' => [Rule::requiredIf($isAdvanceOpenRequest), 'nullable', 'string', 'max:1000'],
         ];
     }
 }

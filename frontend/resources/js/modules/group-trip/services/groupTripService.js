@@ -4,7 +4,8 @@ const GROUP_BASE = '/v1/travel-order-groups'
 
 const toGroupPayload = payload => ({
   trip_name: payload.trip_name,
-  travel_region: payload.travel_region,
+  region_id: payload.region_id,
+  activity_category: payload.activity_category,
   travel_from: payload.travel_from,
   travel_to: payload.travel_to,
   departure_date: payload.departure_date,
@@ -24,3 +25,4 @@ export const addTravelOrderGroupMembers = (id, userIds) => http.post(`${GROUP_BA
 export const removeTravelOrderGroupMember = (id, userId) => http.delete(`${GROUP_BASE}/${id}/members/${userId}`).then(res => res.data)
 export const getMyTravelOrderGroups = () => http.get(`${GROUP_BASE}/my`).then(res => res.data)
 export const getGroupTripUsers = () => http.get('/v1/travel-orders/group-trip/users').then(res => res.data)
+export const getActivityCategories = () => http.get(`${GROUP_BASE}/activity-categories`).then(res => res.data)

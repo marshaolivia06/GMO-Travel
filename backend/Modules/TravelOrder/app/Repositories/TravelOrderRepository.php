@@ -17,6 +17,7 @@ class TravelOrderRepository
             'user:id,name,email',
             'department:id,name',
             'advance',
+            'currentApproval.role:id,name',
         ])
             
 ->when(

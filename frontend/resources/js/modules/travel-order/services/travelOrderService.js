@@ -14,6 +14,7 @@ const toPayload = form => {
     region_id: form.regionId || undefined, country: form.country,
     ticket_type: form.ferryTicketType, ticket_arrangement: form.ferryArrangement, accommodation_arrangement: form.accommodationArrangement,
     meal_allowance: hasAdvance ? form.mealAllowance : null, pocket_money: hasAdvance ? form.pocketMoney : null, currency: hasAdvance ? form.currency : null,
+    advance_open_remarks: form.advance_open_remarks,
   }
 
   return payload

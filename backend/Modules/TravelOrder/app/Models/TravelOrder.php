@@ -96,6 +96,19 @@ class TravelOrder extends Model
     {
     return $this->hasMany(TravelOrderApproval::class)->orderBy('sequence');
     }
+
+    public function currentApproval(): HasOne
+    {
+        return $this->hasOne(TravelOrderApproval::class)->where('status', 'pending')->orderBy('sequence');
+    }
+
+    protected $appends = ['current_stage_role'];
+
+    public function getCurrentStageRoleAttribute(): ?string
+    {
+        return $this->currentApproval?->role?->name;
+    }
+
     public function emails(): HasMany
     {
     return $this->hasMany(TravelOrderEmail::class, 'travel_order_id')->latest();

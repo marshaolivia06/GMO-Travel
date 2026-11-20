@@ -74,6 +74,11 @@ class TravelOrderGroupController extends Controller
         return response()->json(['message' => 'Member has been removed successfully.', 'data' => $group]);
     }
 
+    public function activityCategories(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->activityCategories()]);
+    }
+
     public function users(): JsonResponse
     {
         $users = User::query()

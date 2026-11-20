@@ -5,6 +5,7 @@ import { getDepartmentLock, getMasterRateLimits, getMasterRegions } from '../../
 import { getDepartmentOptions } from '../../../master-management/services/departmentService'
 import { useConfirm } from '../../../../composables/useConfirm'
 import { getMySection } from '../../../master-management/services/sectionService'
+import NoteModal from './NoteModal.vue'
 
 const emit = defineEmits(['cancel', 'submit', 'summary-change', 'approve', 'reject'])
 const props = defineProps({ loading: { type: Boolean, default: false }, initialData: { type: Object, default: null }, viewOnly: { type: Boolean, default: false }, canDecideAdvance: { type: Boolean, default: false } })
@@ -16,6 +17,15 @@ const generalError = ref('')
 const reviewDialog = ref(false)
 const confirmInfo = ref(false)
 const acknowledgeTer = ref(false)
+const advanceNoteDialog = ref(false)
+const advanceNoteMeta = {
+  action: 'advance_request',
+  title: 'Request Travel Advance',
+  label: 'Request Remarks',
+  placeholder: 'Why is a travel advance needed for this trip?',
+  button: 'Request Travel Advance',
+  color: 'primary',
+}
 const departmentLocked = ref(false)
 const departmentOptions = ref([])
 const regionOptions = ref([])
@@ -252,11 +262,12 @@ function saveDraft() {
   emit('submit', buildPayload('draft'))
 }
 
-async function requestOpenAdvance() {
+async function handleAdvanceRequestSubmit({ text }) {
+  advanceNoteDialog.value = false
   if (props.loading) return
-  const confirmed = await confirm({ title: 'Request Open Travel Advance?', text: 'This Travel Order will be sent to GMO to review your Travel Advance request and cannot be edited until it is reviewed.', color: 'primary' })
+  const confirmed = await confirm({ title: 'Request Travel Advance?', text: 'Are you sure you want to request a Travel Advance for this trip?', color: 'primary' })
   if (!confirmed) return
-  emit('submit', buildPayload('awaiting_gmo_open_travel_advance'))
+  emit('submit', { ...buildPayload('awaiting_gmo_open_travel_advance'), advance_open_remarks: text })
 }
 
 function submitForm() {
@@ -400,11 +411,11 @@ onMounted(() => {
                   <div class="text-caption text-medium-emphasis mt-1">{{ regionGroup === 'Domestic' ? 'Travel Advance for Domestic requires GMO approval.' : 'Optional advance based on travel region.' }}</div>
                 </VCardItem>
                 <VCardText>
-                  <VBtn v-if="showAdvanceRequest" size="small" variant="tonal" color="primary" class="mb-3" :disabled="isDisabled" @click="requestOpenAdvance">Request for Open Travel Advance</VBtn>
+                  <VBtn v-if="showAdvanceRequest" size="small" variant="tonal" color="primary" class="mb-3" :disabled="isDisabled" @click="advanceNoteDialog = true">Request Travel Advance</VBtn>
 
                   <VAlert v-if="isAdvanceDeclined" type="warning" variant="tonal" density="compact" class="mb-4">Your Travel Advance request was <strong>declined by GMO</strong>. Please continue without a Travel Advance.</VAlert>
                   <VAlert v-else-if="isAwaitingAdvanceInput || isAdvanceOpen" type="success" variant="tonal" density="compact" class="mb-4">GMO <strong>approved</strong> your Travel Advance request. Please {{ isAwaitingAdvanceInput ? 'fill in' : 'review or edit' }} the amounts below.</VAlert>
-                  <VAlert v-else-if="showAdvanceRequest" type="info" variant="tonal" density="compact" class="mb-4">Travel Advance is <strong>locked</strong> for Domestic trips. Use <strong>Request for Open Travel Advance</strong> above to ask GMO for access.</VAlert>
+                  <VAlert v-else-if="showAdvanceRequest" type="info" variant="tonal" density="compact" class="mb-4">Travel Advance is <strong>locked</strong> for Domestic trips. Use <strong>Request Travel Advance</strong> above to ask GMO for access.</VAlert>
                   <VAlert v-else type="info" variant="tonal" density="compact" class="mb-4"><strong>{{ selectedRegionLabel }} policy:</strong> Optional Travel Advance, requested in {{ advanceCurrency }} and follows your grade.</VAlert>
 
                   <VProgressLinear v-if="loadingTravelAdvanceLimit" indeterminate color="primary" class="mb-4" />
@@ -522,6 +533,8 @@ onMounted(() => {
         </VCardActions>
       </VCard>
     </div>
+
+    <NoteModal v-model="advanceNoteDialog" :meta="advanceNoteMeta" @submit="handleAdvanceRequestSubmit" />
   </div>
 </template>
 

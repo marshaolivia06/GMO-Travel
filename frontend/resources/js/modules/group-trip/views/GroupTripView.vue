@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import GroupTripForm from '../components/modal/GroupTripForm.vue'
 import GroupTripDetailModal from '../components/modal/GroupTripDetailModal.vue'
-import { getGroupTripUsers, getTravelOrderGroup, getTravelOrderGroups, createTravelOrderGroup, updateTravelOrderGroup, deleteTravelOrderGroup } from '../services/groupTripService'
+import { getActivityCategories, getGroupTripUsers, getTravelOrderGroup, getTravelOrderGroups, createTravelOrderGroup, updateTravelOrderGroup, deleteTravelOrderGroup } from '../services/groupTripService'
 import { useConfirm } from '../../../composables/useConfirm'
 import { useToastStore } from '../../../stores/toast'
 
@@ -12,6 +12,13 @@ const { confirm } = useConfirm()
 const groups = ref([])
 const loading = ref(false)
 const search = ref('')
+const statusFilter = ref('all')
+
+const statusCards = computed(() => [
+  { value: 'all', title: 'Total', icon: 'ri-stack-line', color: 'primary', count: groups.value.length },
+  { value: 'open', title: 'Open', icon: 'ri-lock-unlock-line', color: 'warning', count: groups.value.filter(group => group.status === 'open').length },
+  { value: 'closed', title: 'Closed', icon: 'ri-lock-line', color: 'error', count: groups.value.filter(group => group.status === 'closed').length },
+])
 
 const formDialog = ref(false)
 const submitting = ref(false)
@@ -22,6 +29,7 @@ const detailDialog = ref(false)
 const detailLoading = ref(false)
 const selectedGroup = ref(null)
 const memberOptions = ref([])
+const activityCategoryOptions = ref([])
 
 const showMessage = (text, type = 'success') => toast[type]?.(text)
 const errorText = (error, fallback) => error?.response?.data?.errors ? Object.values(error.response.data.errors).flat()[0] : error?.response?.data?.message || fallback
@@ -34,6 +42,7 @@ const headers = [
   col('ACTION', 'action', { align: 'center', width: 180 }),
   col('STATUS', 'status', { align: 'center' }),
   col('TRIP NAME', 'trip_name'),
+  col('ACTIVITY CATEGORY', 'activity_category_label', { align: 'center' }),
   col('ROUTE', 'route', { align: 'center' }),
   col('TRAVEL REGION', 'travel_region', { align: 'center' }),
   col('PERIOD', 'period', { align: 'center' }),
@@ -68,7 +77,7 @@ function groupSubtitle(group) {
 
 const rows = computed(() => {
   const query = search.value.trim().toLowerCase()
-  return groups.value.filter(group => !query || `${group.trip_name || ''} ${group.travel_from || ''} ${group.travel_to || ''}`.toLowerCase().includes(query))
+  return groups.value.filter(group => (statusFilter.value === 'all' || group.status === statusFilter.value) && (!query || `${group.trip_name || ''} ${group.travel_from || ''} ${group.travel_to || ''}`.toLowerCase().includes(query)))
 })
 
 async function loadGroups() {
@@ -91,6 +100,16 @@ async function loadMemberOptions() {
   } catch (error) {
     console.error('Failed to load Group Trip users:', error)
     memberOptions.value = []
+  }
+}
+
+async function loadActivityCategoryOptions() {
+  try {
+    const response = await getActivityCategories()
+    activityCategoryOptions.value = Array.isArray(response) ? response : response.data ?? []
+  } catch (error) {
+    console.error('Failed to load Activity Categories:', error)
+    activityCategoryOptions.value = []
   }
 }
 
@@ -163,12 +182,26 @@ async function removeGroup(group) {
 
 watch(formDialog, open => { if (!open) editingGroup.value = null })
 
-onMounted(() => { loadGroups(); loadMemberOptions() })
+onMounted(() => { loadGroups(); loadMemberOptions(); loadActivityCategoryOptions() })
 </script>
 
 <template>
   <div>
     <BrandCard>
+      <template #stats>
+        <VRow dense>
+          <VCol v-for="card in statusCards" :key="card.value" cols="6" sm="4">
+            <VCard :variant="statusFilter === card.value ? 'tonal' : 'outlined'" :color="statusFilter === card.value ? card.color : undefined" class="pa-3 d-flex align-center cursor-pointer stat-tile h-100" style="gap: 12px" @click="statusFilter = card.value">
+              <VAvatar :color="card.color" variant="tonal" rounded="lg" size="40"><VIcon :icon="card.icon" size="20" /></VAvatar>
+              <div>
+                <div class="text-h6 font-weight-bold">{{ card.count }}</div>
+                <div class="text-caption text-medium-emphasis">{{ card.title }}</div>
+              </div>
+            </VCard>
+          </VCol>
+        </VRow>
+      </template>
+
       <template #action>
         <VBtn variant="flat" color="primary" prepend-icon="ri-add-line" @click="openCreate">Create Group Trip</VBtn>
       </template>
@@ -186,6 +219,7 @@ onMounted(() => { loadGroups(); loadMemberOptions() })
           </VBtnGroup>
         </template>
         <template #item.trip_name="{ item }"><div class="font-weight-bold text-body-1">{{ item.trip_name }}</div><div class="text-caption text-medium-emphasis">{{ groupSubtitle(item) }}</div></template>
+        <template #item.activity_category_label="{ item }"><span class="text-body-1 text-no-wrap">{{ item.activity_category_label || '-' }}</span></template>
         <template #item.route="{ item }"><span class="text-body-1 text-no-wrap">{{ item.travel_from }} - {{ item.travel_to }}</span></template>
         <template #item.travel_region="{ item }"><VChip variant="tonal" :color="regionColor(item.travel_region)" class="text-no-wrap">{{ item.travel_region }}</VChip></template>
         <template #item.period="{ item }"><span class="text-body-1 text-no-wrap">{{ formatDate(item.departure_date) }} - {{ formatDate(item.return_date) }}</span></template>
@@ -200,7 +234,7 @@ onMounted(() => { loadGroups(); loadMemberOptions() })
     </BrandCard>
 
     <VDialog v-model="formDialog" max-width="1000" scrollable>
-      <GroupTripForm v-if="formDialog" :loading="submitting" :member-options="memberOptions" :initial-data="editingGroup" @cancel="formDialog = false" @back="formDialog = false" @submit="submitGroup" />
+      <GroupTripForm v-if="formDialog" :loading="submitting" :member-options="memberOptions" :activity-category-options="activityCategoryOptions" :initial-data="editingGroup" @cancel="formDialog = false" @submit="submitGroup" />
     </VDialog>
     <GroupTripDetailModal v-model="detailDialog" :group="selectedGroup" :loading="detailLoading" :member-options="memberOptions" />
   </div>

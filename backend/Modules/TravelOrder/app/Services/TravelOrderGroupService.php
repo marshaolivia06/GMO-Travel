@@ -5,7 +5,8 @@ namespace Modules\TravelOrder\Services;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Modules\TravelOrder\Models\TravelOrderGroup;
+use Modules\TravelOrder\Enums\ActivityCategory;
+use Modules\TravelOrder\Models\{MasterRegion, TravelOrderGroup};
 use Modules\TravelOrder\Repositories\TravelOrderGroupRepository;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -28,6 +29,11 @@ class TravelOrderGroupService
     return $this->repository->myGroups($userId);
     }
 
+    public function activityCategories(): array
+    {
+        return ActivityCategory::options();
+    }
+
     public function create(array $data): TravelOrderGroup
     {
         $memberIds = array_values(array_unique($data['members'] ?? []));
@@ -37,6 +43,7 @@ class TravelOrderGroupService
         $data['created_by'] = auth()->id();
         $data['status'] = 'open';
         $data['opened_at'] = now();
+        $data['travel_region'] = $this->resolveTravelRegion($data['region_id']);
 
         return DB::transaction(function () use ($data, $memberIds) {
             $group = $this->repository->create($data);
@@ -53,6 +60,8 @@ class TravelOrderGroupService
         $memberIds = isset($data['members']) ? array_values(array_unique($data['members'])) : null;
         unset($data['members'], $data['departments'], $data['status'], $data['created_by'], $data['opened_at'], $data['closed_at']);
         if ($memberIds !== null && count($memberIds) < 2) throw ValidationException::withMessages(['members' => 'A group must have at least 2 members.']);
+
+        if (isset($data['region_id'])) $data['travel_region'] = $this->resolveTravelRegion($data['region_id']);
 
         return DB::transaction(function () use ($group, $data, $memberIds) {
             $this->repository->update($group, $data);
@@ -110,6 +119,17 @@ class TravelOrderGroupService
     protected function ensureStatus(TravelOrderGroup $group, array $allowed, string $message): void
     {
         if (!in_array($group->status, $allowed, true)) throw ValidationException::withMessages(['status' => $message]);
+    }
+
+    protected function resolveTravelRegion(int $regionId): string
+    {
+        $region = MasterRegion::find($regionId);
+
+        return match ($region?->code) {
+            'DN' => 'Domestic',
+            'LN-SG' => 'Singapore',
+            default => 'Overseas',
+        };
     }
 
     protected function ensureMembersCanBeRemoved(TravelOrderGroup $group, $userIds): void

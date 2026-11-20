@@ -38,7 +38,7 @@ const emit = defineEmits(['update:modelValue', 'back', 'summary-back', 'close', 
 
       <VCardText class="pa-6">
         <IndividualTripForm v-if="type === 'individual'" ref="activeForm" :loading="loading" :initial-data="initialData" :view-only="viewOnly" :can-decide-advance="canDecideAdvance" @cancel="emit('close')" @submit="emit('submit', $event)" @summary-change="isSummary = $event" @approve="emit('approve')" @reject="emit('reject')" />
-        <GroupTripOrderForm v-else-if="type === 'group'" ref="activeForm" :loading="loading" :initial-data="initialData" :group="group" @cancel="emit('close')" @submit="emit('submit', $event)" @summary-change="isSummary = $event" />
+        <GroupTripOrderForm v-else-if="type === 'group'" ref="activeForm" :loading="loading" :initial-data="initialData" :group="group" :view-only="viewOnly" :can-decide-advance="canDecideAdvance" @cancel="emit('close')" @submit="emit('submit', $event)" @summary-change="isSummary = $event" @approve="emit('approve')" @reject="emit('reject')" />
       </VCardText>
     </VCard>
   </VDialog>

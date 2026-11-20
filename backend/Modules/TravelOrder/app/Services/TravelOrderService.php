@@ -8,7 +8,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\{DB, Mail, Storage};
 use Modules\MasterManagement\Models\{Department, MasterDivision, Section};
-use Modules\TravelOrder\Emails\TravelOrderDeclinedMail;
+use Modules\TravelOrder\Emails\{TravelOrderAdvanceOpenRequestMail, TravelOrderDeclinedMail};
 use Modules\TravelOrder\Models\{MasterRegion, TravelOrder, TravelOrderGroup};
 use Illuminate\Database\Eloquent\Collection;
 use Modules\TravelOrder\Repositories\{TravelOrderAdvanceRepository, TravelOrderGroupRepository, TravelOrderRepository};
@@ -305,7 +305,8 @@ public function create(array $data, User $user): TravelOrder
             'currency' => $data['currency'] ?? null,
         ];
 
-        unset($data['meal_allowance'], $data['pocket_money'], $data['currency'], $data['members']);
+        $advanceOpenRemarks = $data['advance_open_remarks'] ?? null;
+        unset($data['meal_allowance'], $data['pocket_money'], $data['currency'], $data['members'], $data['advance_open_remarks']);
 
         $travelOrder = $this->repository->create($data);
 
@@ -313,7 +314,9 @@ public function create(array $data, User $user): TravelOrder
         $this->advanceRepository->create($advanceData);
 
         if ($isAdvanceOpenRequest) {
-            $this->approvalService->logGmoActivity($travelOrder, $user, 'advance_open_requested', 'Travel Advance open request sent to Admin-GMO', ['role' => $user->getRoleNames()->first()]);
+            $this->approvalService->logGmoActivity($travelOrder, $user, 'advance_open_requested', 'Travel Advance open request sent to Admin-GMO', ['role' => $user->getRoleNames()->first(), 'remark' => $advanceOpenRemarks]);
+
+            $this->notifyAdvanceOpenRequest($travelOrder, $advanceOpenRemarks);
         }
 
         if (($data['status'] ?? 'draft') === 'submitted') {
@@ -385,10 +388,11 @@ if ($isAdvanceFlow) {
             abort_if(!$validation['valid'], 422, $validation['message']);
         }
 
-        return DB::transaction(function () use ($travelOrder, $data, $departmentId, $tripType, $status) {
+        return DB::transaction(function () use ($travelOrder, $data, $departmentId, $tripType, $status, $user) {
             $advanceData = ['meal_allowance' => $data['meal_allowance'] ?? null, 'pocket_money' => $data['pocket_money'] ?? null, 'currency' => $data['currency'] ?? null];
 
-            unset($data['meal_allowance'], $data['pocket_money'], $data['currency'], $data['members'], $data['user_id'], $data['created_by'], $data['order_number']);
+            $advanceOpenRemarks = $data['advance_open_remarks'] ?? null;
+            unset($data['meal_allowance'], $data['pocket_money'], $data['currency'], $data['members'], $data['user_id'], $data['created_by'], $data['order_number'], $data['advance_open_remarks']);
 
             $data['trip_type'] = $tripType;
             $data['department_id'] = $departmentId;
@@ -405,7 +409,9 @@ if ($isAdvanceFlow) {
             }
 
             if ($status === 'awaiting_gmo_open_travel_advance') {
-                $this->approvalService->logGmoActivity($travelOrder, $user, 'advance_open_requested', 'Travel Advance open request sent to Admin-GMO', ['role' => $user->getRoleNames()->first()]);
+                $this->approvalService->logGmoActivity($travelOrder, $user, 'advance_open_requested', 'Travel Advance open request sent to Admin-GMO', ['role' => $user->getRoleNames()->first(), 'remark' => $advanceOpenRemarks]);
+
+                $this->notifyAdvanceOpenRequest($travelOrder, $advanceOpenRemarks);
             }
 
             if ($status === 'submitted') {
@@ -438,8 +444,26 @@ if ($isAdvanceFlow) {
         return $this->find($id, $user);
     }
 
+    private function notifyAdvanceOpenRequest(TravelOrder $travelOrder, ?string $remarks): void
+    {
+        DB::afterCommit(function () use ($travelOrder, $remarks) {
+            $recipients = User::query()
+                ->whereHas('roles', fn ($query) => $query->where('name', 'Admin-GMO'))
+                ->where('status', 1)
+                ->pluck('email')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (!$recipients) return;
+
+            Mail::to($recipients)->queue(new TravelOrderAdvanceOpenRequestMail($travelOrder, (string) $remarks));
+        });
+    }
+
     private function applyRegion(array $data): array
-{
+    {
     if (empty($data['region_id'])) return $data;
 
     $region = MasterRegion::findOrFail($data['region_id']);

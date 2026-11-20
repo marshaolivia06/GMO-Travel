@@ -144,20 +144,20 @@ function travelOrderStatus(member) {
                   <div class="text-body-2 font-weight-bold">{{ valueOrDash(group.trip_name) }}</div>
                 </VCol>
                 <VCol cols="12" sm="6" class="pa-3 border-b border-e-sm">
+                  <div class="text-caption text-medium-emphasis mb-1">Travel Region</div>
+                  <VChip size="small" variant="tonal" :color="regionColor(group.travel_region)">{{ valueOrDash(group.travel_region) }}</VChip>
+                </VCol>
+                <VCol cols="12" sm="6" class="pa-3 border-b">
+                  <div class="text-caption text-medium-emphasis mb-1">Activity Category</div>
+                  <div class="text-body-2 font-weight-bold">{{ valueOrDash(group.activity_category_label) }}</div>
+                </VCol>
+                <VCol cols="12" sm="6" class="pa-3 border-b border-e-sm">
                   <div class="text-caption text-medium-emphasis mb-1">Travel From</div>
                   <div class="text-body-2 font-weight-bold">{{ valueOrDash(group.travel_from) }}</div>
                 </VCol>
                 <VCol cols="12" sm="6" class="pa-3 border-b">
                   <div class="text-caption text-medium-emphasis mb-1">Travel To</div>
                   <div class="text-body-2 font-weight-bold">{{ valueOrDash(group.travel_to) }}</div>
-                </VCol>
-                <VCol cols="12" sm="6" class="pa-3 border-b border-e-sm">
-                  <div class="text-caption text-medium-emphasis mb-1">Group Trip Status</div>
-                  <VChip size="small" variant="tonal" :color="statusColor" class="text-capitalize">{{ valueOrDash(group.status) }}</VChip>
-                </VCol>
-                <VCol cols="12" sm="6" class="pa-3 border-b">
-                  <div class="text-caption text-medium-emphasis mb-1">Travel Region</div>
-                  <VChip size="small" variant="tonal" :color="regionColor(group.travel_region)">{{ valueOrDash(group.travel_region) }}</VChip>
                 </VCol>
                 <VCol cols="12" sm="6" class="pa-3 border-b border-e-sm">
                   <div class="text-caption text-medium-emphasis mb-1">Departure Date</div>
@@ -168,13 +168,17 @@ function travelOrderStatus(member) {
                   <div class="text-body-2 font-weight-bold">{{ formatDate(group.return_date) }}</div>
                 </VCol>
                 <VCol cols="12" sm="6" class="pa-3 border-b border-e-sm">
+                  <div class="text-caption text-medium-emphasis mb-1">Group Trip Status</div>
+                  <VChip size="small" variant="tonal" :color="statusColor" class="text-capitalize">{{ valueOrDash(group.status) }}</VChip>
+                </VCol>
+                <VCol cols="12" sm="6" class="pa-3 border-b">
                   <div class="text-caption text-medium-emphasis mb-2">Department Participants</div>
                   <div class="d-flex flex-wrap ga-2">
                     <VChip v-for="name in participantDepartments" :key="name" size="small" variant="tonal" color="secondary">{{ name }}</VChip>
                     <span v-if="!participantDepartments.length" class="text-body-2">-</span>
                   </div>
                 </VCol>
-                <VCol cols="12" sm="6" class="pa-3 border-b">
+                <VCol cols="12" class="pa-3 border-b">
                   <div class="text-caption text-medium-emphasis mb-1">Trip Purpose</div>
                   <div class="text-body-2 font-weight-bold" style="white-space: pre-wrap; overflow-wrap: anywhere">{{ valueOrDash(group.purpose) }}</div>
                 </VCol>

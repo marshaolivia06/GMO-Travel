@@ -195,7 +195,9 @@ function resolveArrangement(order) {
 
 function normalize(order) {
   const organization = order.requester_role === 'Div Head' ? order.requester_division_name || '-' : order.department?.name || order.department_name || '-'
-  return { raw: order, id: order.id, type: typeLabel[order.trip_type] || 'Business Trip - Individual', subject: order.subject || order.user?.name || '-', department: organization, period: `${formatDate(order.departure_date)} – ${formatDate(order.return_date)}`, arrangement: resolveArrangement(order), status: toStatusLabel(order.status) }
+  const baseStatus = toStatusLabel(order.status)
+  const status = order.status === 'awaiting_approval' && order.current_stage_role ? `${baseStatus} - ${order.current_stage_role}` : baseStatus
+  return { raw: order, id: order.id, type: typeLabel[order.trip_type] || 'Business Trip - Individual', subject: order.subject || order.user?.name || '-', department: organization, period: `${formatDate(order.departure_date)} – ${formatDate(order.return_date)}`, arrangement: resolveArrangement(order), status }
 }
 
 const canApprove = computed(() => selected.value?.can_approve === true)
@@ -309,27 +311,22 @@ function revokePdf() {
 
 watch(detailDialog, open => { if (open) return; revokePdf(); pdfFromGmoHistory.value = false })
 
+async function resolveOrderGroup(order) {
+  if (order.trip_type !== 'group') return null
+  const groupId = order.travel_order_group_id ?? order.group?.id
+  if (!groupId) return null
+  if (order.group?.members) return order.group
+  const groupResponse = await getTravelOrderGroup(groupId)
+  return groupResponse?.data?.data ?? groupResponse?.data ?? groupResponse
+}
+
 async function continueDraft(row) {
   if (editingDraftId.value !== null) return
   editingDraftId.value = row.id
   try {
     const response = await getTravelOrder(row.id)
     const order = response?.data?.data ?? response?.data ?? response
-    if (order.trip_type === 'group') {
-      const groupId = order.travel_order_group_id ?? order.group?.id
-      if (groupId) {
-        if (order.group?.members) {
-          orderGroup.value = order.group
-        } else {
-          const groupResponse = await getTravelOrderGroup(groupId)
-          orderGroup.value = groupResponse?.data?.data ?? groupResponse?.data ?? groupResponse
-        }
-      } else {
-        orderGroup.value = null
-      }
-    } else {
-      orderGroup.value = null
-    }
+    orderGroup.value = await resolveOrderGroup(order)
     selected.value = order
     dialogType.value = order.trip_type || 'individual'
     editingDraft.value = true
@@ -349,9 +346,9 @@ async function viewRequest(row) {
   try {
     const response = await getTravelOrder(row.id)
     const order = response?.data?.data ?? response?.data ?? response
-    orderGroup.value = null
+    orderGroup.value = await resolveOrderGroup(order)
     selected.value = order
-    dialogType.value = 'individual'
+    dialogType.value = order.trip_type || 'individual'
     editingDraft.value = false
     viewingOrder.value = true
     dialog.value = true
