@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/auth'
 
 export function canSeeAnnualTicket(auth = useAuthStore()) {
-  return auth.user?.annual_ticket_eligible === true
+  return auth.can('annual-ticket.eligible')
     || auth.can('annual-ticket.approve')
 }
