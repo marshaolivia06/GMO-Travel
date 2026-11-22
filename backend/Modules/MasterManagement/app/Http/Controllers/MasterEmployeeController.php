@@ -18,7 +18,7 @@ class MasterEmployeeController extends Controller
         $rows = User::query()
             ->with(['employee.eligibleDestination:id,city_name,country', 'roles:id,name'])
             ->where('status', 1)
-            ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'admin'))
+            ->whereDoesntHave('roles', fn ($query) => $query->whereIn('name', ['admin', 'super-admin']))
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
