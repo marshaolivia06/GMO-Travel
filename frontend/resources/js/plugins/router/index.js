@@ -15,25 +15,25 @@ export default function (app) {
   app.use(router)
 
   if (!guardInstalled) {
-    router.beforeEach(async (to, from, next) => {
+    router.beforeEach(async to => {
       const auth = useAuthStore()
 
       if (!auth.user && auth.token)
         await auth.fetchUser()
 
       if (to.meta.requiresAuth && !auth.isAuthenticated)
-        return next({ name: 'login' })
+        return { name: 'login' }
 
       if (to.meta.guestOnly && auth.isAuthenticated)
-        return next('/')
+        return '/'
 
       if (to.meta.permission && !auth.can(to.meta.permission))
-        return next({ name: 'Forbidden' })
+        return { name: 'Forbidden' }
 
       if (to.meta.check && !to.meta.check(auth))
-        return next({ name: 'Forbidden' })
+        return { name: 'Forbidden' }
 
-      next()
+      return true
     })
 
     router.afterEach(to => {
