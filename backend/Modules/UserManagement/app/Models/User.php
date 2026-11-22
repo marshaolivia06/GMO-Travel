@@ -39,6 +39,16 @@ class User extends Authenticatable
         ];
     }
 
+    protected static function booted(): void
+    {
+        // User dinonaktifkan -> cabut semua token agar sesi yang sedang aktif langsung putus
+        static::updated(function (User $user) {
+            if ($user->wasChanged('status') && ! $user->status) {
+                $user->tokens()->delete();
+            }
+        });
+    }
+
     public function getDefaultGuardName(): string
     {
         return 'web';

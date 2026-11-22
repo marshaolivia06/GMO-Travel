@@ -5,60 +5,36 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
+    public function __construct(private AuthService $authService)
+    {
+    }
+
     public function login(LoginRequest $request): JsonResponse
     {
-        if (! Auth::attempt($request->only('email', 'password'))) {
-            return response()->json([
-                'message' => 'Invalid email or password.',
-            ], 401);
-        }
-
-        $user = Auth::user();
-        $token = $user->createToken('frontend')->plainTextToken;
+        $result = $this->authService->login($request->validated());
 
         return response()->json([
             'message' => 'Login successful.',
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'grade' => $user->employee?->grade,
-                'annual_ticket_eligible' => (bool) ($user->employee?->annual_ticket_eligible ?? false),
-                'roles' => $user->getRoleNames(),
-                'permissions' => $user->getAllPermissions()->pluck('name'),
-            ],
+            'token' => $result['token'],
+            'token_type' => 'Bearer',
+            'user' => $result['user'],
         ]);
     }
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('roles', 'permissions');
-
-        return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'grade' => $user->employee?->grade,
-            'annual_ticket_eligible' => (bool) ($user->employee?->annual_ticket_eligible ?? false),
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
+        return response()->json($this->authService->userPayload($request->user()));
     }
 
     public function logout(Request $request): JsonResponse
     {
-        // Request stateful (SPA) memakai session/TransientToken tanpa baris DB;
-        // hanya token API (Bearer) yang perlu dihapus dari tabel
-        if ($request->user()->currentAccessToken() instanceof \Laravel\Sanctum\PersonalAccessToken) {
-            $request->user()->currentAccessToken()->delete();
-        }
+        $this->authService->logout($request->user());
 
         return response()->json([
             'message' => 'Logout successful.',
