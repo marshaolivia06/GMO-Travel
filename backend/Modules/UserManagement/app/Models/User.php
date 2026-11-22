@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace Modules\UserManagement\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Modules\MasterManagement\Models\Department;
 use Modules\MasterManagement\Models\MasterEmployee;
 use Spatie\Permission\Traits\HasRoles;
 use Modules\AnnualTicket\Models\MasterDestination;
@@ -39,11 +37,6 @@ class User extends Authenticatable
             'password' => 'hashed',
             'status' => 'boolean',
         ];
-    }
-
-    public function department(): BelongsTo
-    {
-        return $this->belongsTo(Department::class);
     }
 
     public function getDefaultGuardName(): string

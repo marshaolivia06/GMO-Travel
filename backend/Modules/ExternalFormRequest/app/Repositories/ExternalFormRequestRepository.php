@@ -461,7 +461,7 @@ class ExternalFormRequestRepository
     {
         $section = Section::with('department')->where('section_head_id', $form->employee_id)->first();
 
-        $department = $section?->department ?? Department::find($form->employee?->department_id) ?? Department::where('dept_head_id', $form->employee_id)->first();
+        $department = $section?->department ?? Department::where('dept_head_id', $form->employee_id)->first();
 
         $divisionHead = $department?->divisionHead ? User::find($department->divisionHead->division_head_id) : null;
 
