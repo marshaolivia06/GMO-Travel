@@ -4,25 +4,37 @@ declare(strict_types=1);
 
 namespace Modules\UserManagement\Repositories;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Modules\MasterManagement\Models\MasterEmployee;
 
 class PermissionRepository
 {
-    public function getAll(): Collection
+    public const SYSTEM_MODULES = [
+        MasterEmployee::ANNUAL_TICKET_PERMISSION_MODULE,
+    ];
+
+    private function manageable(): Builder
     {
         return DB::table('permissions')
             ->where('guard_name', 'web')
             ->where('status', 1)
+            ->where(fn (Builder $query) => $query
+                ->whereNull('module')
+                ->orWhereNotIn('module', self::SYSTEM_MODULES));
+    }
+
+    public function getAll(): Collection
+    {
+        return $this->manageable()
             ->orderByDesc('created_at')
             ->get();
     }
 
     public function findById(int $id)
     {
-        $permission = DB::table('permissions')
-            ->where('guard_name', 'web')
-            ->where('status', 1)
+        $permission = $this->manageable()
             ->where('id', $id)
             ->first();
 
@@ -35,10 +47,8 @@ class PermissionRepository
 
     public function getByModule(string $module): Collection
     {
-        return DB::table('permissions')
+        return $this->manageable()
             ->where('module', $module)
-            ->where('guard_name', 'web')
-            ->where('status', 1)
             ->get();
     }
 
@@ -60,6 +70,8 @@ class PermissionRepository
 
     public function update(int $id, array $data)
     {
+        $this->findById($id);
+
         DB::table('permissions')
             ->where('id', $id)
             ->update(array_merge($data, [
@@ -78,10 +90,8 @@ class PermissionRepository
 
     public function delete(int $id): bool
     {
-        return DB::table('permissions')
+        return $this->manageable()
             ->where('id', $id)
-            ->where('guard_name', 'web')
-            ->where('status', 1)
             ->update([
                 'status' => 0,
             ]) > 0;
@@ -95,6 +105,12 @@ class PermissionRepository
     $actions = array_values(
         array_unique($data['actions'])
     );
+
+    if (in_array($oldModule, self::SYSTEM_MODULES, true)) {
+        return [
+            'message' => 'Permission not found.',
+        ];
+    }
 
     return DB::transaction(function () use (
         $oldModule,

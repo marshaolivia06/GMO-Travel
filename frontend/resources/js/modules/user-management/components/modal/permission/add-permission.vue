@@ -65,6 +65,11 @@ async function handleSubmit() {
     return
   }
 
+  if (!/^[A-Za-z0-9]+([ -][A-Za-z0-9]+)*$/.test(form.value.module)) {
+    moduleError.value = 'Module may only contain letters, numbers, spaces, or "-" (no dots). Select actions with the checkboxes.'
+    return
+  }
+
   if (!form.value.actions.length) {
     actionsError.value = 'Please select at least one action.'
     return

@@ -33,16 +33,10 @@ class PermissionController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'module' => $this->moduleRules(),
             'name' => [
-                'required',
-                'string',
-                'max:255',
+                ...$this->nameRules($request),
                 'unique:permissions,name',
-            ],
-            'module' => [
-                'required',
-                'string',
-                'max:255',
             ],
         ]);
 
@@ -67,11 +61,7 @@ class PermissionController extends Controller
                 'string',
                 'max:255',
             ],
-            'module' => [
-                'required',
-                'string',
-                'max:255',
-            ],
+            'module' => $this->moduleRules(),
             'actions' => [
                 'required',
                 'array',
@@ -94,16 +84,10 @@ class PermissionController extends Controller
         int $id
     ): JsonResponse {
         $validated = $request->validate([
+            'module' => $this->moduleRules(),
             'name' => [
-                'required',
-                'string',
-                'max:255',
+                ...$this->nameRules($request),
                 'unique:permissions,name,' . $id,
-            ],
-            'module' => [
-                'required',
-                'string',
-                'max:255',
             ],
         ]);
 
@@ -124,11 +108,51 @@ class PermissionController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
+        // 404 untuk permission yang tidak ada / dikelola sistem
+        $this->permissionRepository->findById($id);
+
         $this->permissionRepository->detachRoles($id);
         $this->permissionRepository->delete($id);
 
         return response()->json([
             'message' => 'Permission deleted successfully.',
         ]);
+    }
+
+    private function moduleRules(): array
+    {
+        return [
+            'required',
+            'string',
+            'max:100',
+            'regex:/^[A-Za-z0-9]+([ -][A-Za-z0-9]+)*$/',
+            function (string $attribute, mixed $value, \Closure $fail) {
+                if (in_array(self::moduleSlug((string) $value), PermissionRepository::SYSTEM_MODULES, true)) {
+                    $fail('This module name is reserved by the system.');
+                }
+            },
+        ];
+    }
+
+    private function nameRules(Request $request): array
+    {
+        return [
+            'required',
+            'string',
+            'max:255',
+            'regex:/^[a-z0-9]+(-[a-z0-9]+)*\.(view|create|update|delete|approve)$/',
+            function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                $prefix = self::moduleSlug((string) $request->input('module')) . '.';
+
+                if (! str_starts_with((string) $value, $prefix)) {
+                    $fail("The permission name must start with \"{$prefix}\".");
+                }
+            },
+        ];
+    }
+
+    private static function moduleSlug(string $module): string
+    {
+        return strtolower((string) preg_replace('/\s+/', '-', trim($module)));
     }
 }
