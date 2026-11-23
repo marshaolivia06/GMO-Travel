@@ -32,9 +32,7 @@ watch(() => props.modelValue, open => { if (open) search.value = '' })
     <VCard rounded="lg">
         <VCardItem class="px-4 py-3">
   <template #prepend>
-    <VBtn icon variant="flat" color="#E8ECF4" :size="32" rounded="circle" @click="emit('back')">
-      <VIcon icon="ri-arrow-left-line" :size="16" class="text-blue-darken-3" />
-    </VBtn>
+    <VBtn icon="ri-arrow-left-line" variant="tonal" color="primary" size="small" @click="emit('back')" />
   </template>
   <div>
     <VCardTitle class="pa-0 text-subtitle-1 font-weight-bold">Select Group Trip</VCardTitle>

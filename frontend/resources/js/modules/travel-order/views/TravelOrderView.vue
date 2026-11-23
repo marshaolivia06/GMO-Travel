@@ -99,6 +99,7 @@ function selectGroup(group) {
   dialog.value = true
 }
 
+const gmoOwnStatuses = ['awaiting_approval', 'draft', 'revision_required', 'awaiting_input_travel_advance']
 const gmoAwaitingStatuses = ['awaiting_gmo_open_travel_advance', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance']
 const gmoHistoryStatuses = ['processed_by_gmo', 'cancelled']
 const statusLabel = { awaiting_approval: 'Awaiting Approval', revision_required: 'Revision Required', draft: 'Draft', cancelled: 'Cancelled', rejected: 'Rejected', revision: 'Revision Required', awaiting_gmo_open_travel_advance: 'Awaiting Review Open Travel Advance - GMO', awaiting_input_travel_advance: 'Awaiting Input Travel Advance', awaiting_submit_without_travel_advance: 'Awaiting Submit Without Travel Advance', awaiting_gmo_processing: 'Awaiting GMO Processing', awaiting_gmo_booking_document_issuance: 'Awaiting GMO Booking & Document Issuance', processed_by_gmo: 'Processed by GMO' }
@@ -113,6 +114,7 @@ const statusMeta = {
   awaiting_gmo_booking_document_issuance: { color: 'info', icon: 'ri-ticket-2-line' },
   processed_by_gmo: { color: 'success', icon: 'ri-checkbox-circle-line' },
   cancelled: { color: 'error', icon: 'ri-forbid-line' },
+  rejected: { color: 'error', icon: 'ri-forbid-line' },
 }
 const statusKey = status => (status === 'revision' ? 'revision_required' : status)
 const typeColor = { 'Business Trip - Individual': 'primary', 'Business Trip - Group Trip': 'info' }
@@ -203,10 +205,16 @@ function normalize(order) {
 const canApprove = computed(() => selected.value?.can_approve === true)
 const canDecide = computed(() => detailMode.value === 'review' && canApprove.value)
 const rows = computed(() => orders.value.map(normalize))
-const scopedRows = computed(() => isAdminGmo.value ? rows.value.filter(row => [...gmoAwaitingStatuses, ...gmoHistoryStatuses].includes(row.raw.status)) : rows.value)
+const scopedRows = computed(() => {
+  if (!isAdminGmo.value) return rows.value
+
+  const myId = Number(authStore.user?.id)
+
+  return rows.value.filter(row => [...gmoAwaitingStatuses, ...gmoHistoryStatuses].includes(row.raw.status) || Number(row.raw.user_id ?? row.raw.user?.id) === myId)
+})
 
 const statusTabs = computed(() => {
-  const statuses = isAdminGmo.value ? [...gmoAwaitingStatuses, ...gmoHistoryStatuses] : Object.keys(statusMeta)
+  const statuses = isAdminGmo.value ? [...gmoOwnStatuses, ...gmoAwaitingStatuses, ...gmoHistoryStatuses] : Object.keys(statusMeta)
   const countOf = status => scopedRows.value.filter(row => statusKey(row.raw.status) === status).length
   return [
     { value: 'all', title: 'Total', icon: 'ri-stack-line', color: 'primary', count: scopedRows.value.length },
@@ -792,7 +800,8 @@ onMounted(() => {
             <template v-if="isAdminGmo">
               <template v-if="item.raw.status === 'awaiting_gmo_open_travel_advance'"><VBtn color="blue-grey-darken-1" :loading="editingDraftId === item.id" @click="viewRequest(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View</VTooltip></VBtn></template>
               <template v-else-if="gmoAwaitingStatuses.includes(item.raw.status)"><VBtn color="blue-grey-darken-1" :loading="processingOrderId === item.id" @click="openProcess(item)"><VIcon icon="ri-task-line" /><VTooltip activator="parent" location="top">Process</VTooltip></VBtn></template>
-              <template v-else><VBtn color="blue-grey-darken-1" :loading="gmoHistoryLoading && gmoHistoryOrder?.id === item.id" @click="openGmoHistory(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View History</VTooltip></VBtn></template>
+              <template v-else-if="gmoHistoryStatuses.includes(item.raw.status)"><VBtn color="blue-grey-darken-1" :loading="gmoHistoryLoading && gmoHistoryOrder?.id === item.id" @click="openGmoHistory(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View History</VTooltip></VBtn></template>
+              <template v-else-if="!['draft', 'revision_required', 'awaiting_input_travel_advance', 'awaiting_submit_without_travel_advance'].includes(item.raw.status)"><VBtn color="blue-grey-darken-1" @click="openDetail(item)"><VIcon icon="ri-eye-line" /><VTooltip activator="parent" location="top">View PDF</VTooltip></VBtn></template>
               <VBtn color="blue-grey-darken-1" @click="openHistory(item)"><VIcon icon="ri-history-line" /><VTooltip activator="parent" location="top">History Log</VTooltip></VBtn>
             </template>
             <template v-else-if="item.raw.can_approve === true">

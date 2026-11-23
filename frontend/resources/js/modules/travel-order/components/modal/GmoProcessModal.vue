@@ -147,14 +147,14 @@ watch(bookingCurrencyItems, items => { if (!savedBooking.value) { bookingItems.t
             <VCardText class="pa-4">
               <VRow dense>
                 <VCol cols="12" md="6">
-                  <div class="text-body-2 font-weight-medium mb-2">Departure</div>
+                  <div class="text-body-2 font-weight-medium mb-2">Departure Date / Estimated Departure Time (ETD)</div>
                   <div class="d-flex ga-3">
                     <VTextField v-model="adjustTime.departure_date" type="date" density="comfortable" hide-details :disabled="processing" />
                     <VTextField v-model="adjustTime.departure_time" type="time" density="comfortable" hide-details :disabled="processing" />
                   </div>
                 </VCol>
                 <VCol cols="12" md="6">
-                  <div class="text-body-2 font-weight-medium mb-2">Return</div>
+                  <div class="text-body-2 font-weight-medium mb-2">Return Date / Estimated Arrival Time (ETA)</div>
                   <div class="d-flex ga-3">
                     <VTextField v-model="adjustTime.return_date" type="date" density="comfortable" hide-details :disabled="processing" />
                     <VTextField v-model="adjustTime.return_time" type="time" density="comfortable" hide-details :disabled="processing" />

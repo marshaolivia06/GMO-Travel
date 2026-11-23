@@ -446,7 +446,7 @@ watch(regionGroup, value => {
 watch([() => form.regionId, () => form.travelTo, () => form.departureDate, () => form.returnDate, showAdvance], () => {
   clearTimeout(limitTimer)
   limitTimer = setTimeout(loadRateLimits, 400)
-})
+}, { immediate: true })
 
 watch(mealMax, max => {
   if (max !== null && form.mealAllowance !== '' && Number(form.mealAllowance) > max) form.mealAllowance = String(max)
@@ -534,9 +534,9 @@ onMounted(() => {
             <VCol cols="12" md="4"><div class="text-caption mb-1">1. Travel From</div><VTextField v-model="form.travelFrom" placeholder="Enter Travel From" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.travelFrom ? [errors.travelFrom] : []" /></VCol>
             <VCol cols="12" md="4"><div class="text-caption mb-1">2. Travel To</div><VTextField v-model="form.travelTo" placeholder="Enter Travel To" variant="outlined" density="comfortable" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.travelTo ? [errors.travelTo] : []" /></VCol>
             <VCol cols="12" md="4"><div class="text-caption mb-1">3. Departure Date</div><VTextField v-model="form.departureDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.departureDate ? [errors.departureDate] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">4. Departure Time</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="formDisabled" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">4. Estimated Departure Time (ETD)</div><VTextField v-model="form.departureTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="formDisabled" :error-messages="errors.departureTime ? [errors.departureTime] : []" /></VCol>
             <VCol cols="12" md="4"><div class="text-caption mb-1">5. Return Date</div><VTextField v-model="form.returnDate" type="date" variant="outlined" density="comfortable" prepend-inner-icon="mdi-calendar" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.returnDate ? [errors.returnDate] : []" /></VCol>
-            <VCol cols="12" md="4"><div class="text-caption mb-1">6. Return Time</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="formDisabled" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
+            <VCol cols="12" md="4"><div class="text-caption mb-1">6. Estimated Arrival Time (ETA)</div><VTextField v-model="form.returnTime" type="time" variant="outlined" density="comfortable" prepend-inner-icon="mdi-clock-outline" hide-details="auto" :disabled="formDisabled" :error-messages="errors.returnTime ? [errors.returnTime] : []" /></VCol>
             <VCol cols="12" md="6"><div class="text-caption mb-1">7. Travelling Purpose</div><VTextarea v-model="form.purpose" placeholder="Enter Travelling Purpose" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="formDisabled || locked" :error-messages="errors.purpose ? [errors.purpose] : []" /></VCol>
             <VCol cols="12" md="6"><div class="text-caption mb-1">8. Remarks </div><VTextarea v-model="form.remarks" placeholder="Enter Remarks (Optional)" variant="outlined" density="comfortable" rows="3" hide-details="auto" :disabled="formDisabled" /></VCol>
           </VRow>
@@ -660,7 +660,7 @@ onMounted(() => {
             <VCol v-for="i in [
               { l: 'Request Type', chip: 'Business Trip - Group Trip' }, { l: 'Group Trip', v: group?.trip_name }, { l: 'Section', v: sectionName }, { l: 'Department', v: form.department },
               { l: 'Travel Region', v: selectedRegionLabel }, { l: 'Travel From', v: form.travelFrom }, { l: 'Travel To', v: form.travelTo }, { l: 'Country', v: summaryCountry },
-              { l: 'Departure Date', v: formatReviewDate(form.departureDate) }, { l: 'Departure Time', v: form.departureTime }, { l: 'Return Date', v: formatReviewDate(form.returnDate) }, { l: 'Return Time', v: form.returnTime },
+              { l: 'Departure Date', v: formatReviewDate(form.departureDate) }, { l: 'Estimated Departure Time (ETD)', v: form.departureTime }, { l: 'Return Date', v: formatReviewDate(form.returnDate) }, { l: 'Estimated Arrival Time (ETA)', v: form.returnTime },
               { l: 'Travelling Purpose', v: form.purpose, cols: 6 }, { l: 'Remarks', v: form.remarks, cols: 6 }
             ]" :key="i.l" cols="12" sm="6" :md="i.cols || 3">
               <VCard variant="outlined" border="thin" color="grey-lighten-2" rounded="lg" class="h-100">

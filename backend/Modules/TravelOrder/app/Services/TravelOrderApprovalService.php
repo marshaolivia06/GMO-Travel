@@ -4,6 +4,7 @@ namespace Modules\TravelOrder\Services;
 
 use Illuminate\Support\Facades\{DB, Mail};
 use Modules\AuthorityMatrix\Models\AuthorityMatrix;
+use Modules\AuthorityMatrix\Services\MatrixStepApproverResolver;
 use Modules\MasterManagement\Models\{Department, MasterDivision};
 use Modules\TravelOrder\Emails\{TravelOrderAwaitingApprovalMail, TravelOrderDeclinedMail};
 use Modules\TravelOrder\Models\TravelOrder;
@@ -12,6 +13,8 @@ use Spatie\Activitylog\Models\Activity;
 
 class TravelOrderApprovalService
 {
+    public function __construct(private MatrixStepApproverResolver $resolver) {}
+
     public function initFlow(TravelOrder $order): void
     {
         $submitter = User::with('roles')->find($order->user_id);
@@ -53,7 +56,24 @@ if (!$matrix || $matrix->steps->isEmpty()) {
         $steps = $matrix->steps->sortBy('step')->values();
         $roleIds = $submitter->roles->pluck('id');
         $ownStep = $steps->filter(fn($s) => $roleIds->contains($s->role_id))->max('step') ?? 0;
-        $stages = $steps->where('step', '>', $ownStep)->values();
+        $stages = $steps->where('step', '>', $ownStep)
+            ->map(fn ($stage) => (object) ['role_id' => $stage->role_id, 'matrix_step_id' => $stage->id])
+            ->values();
+
+        // Departemen tanpa Dept Head: tahap Dept Head dilewati, Div Head mengambil alih posisinya (data-driven, bukan hardcode)
+        $department = Department::find($order->department_id);
+
+        if ($department && ! $department->dept_head_id) {
+            $deptHeadRoleId = \Spatie\Permission\Models\Role::where('name', 'Dept Head')->value('id');
+            $divHeadRoleId = \Spatie\Permission\Models\Role::where('name', 'Div Head')->value('id');
+
+            $hasDivHeadStage = $stages->contains(fn ($stage) => $stage->role_id == $divHeadRoleId);
+
+            $stages = $stages
+                ->reject(fn ($stage) => $stage->role_id == $deptHeadRoleId)
+                ->when($divHeadRoleId && ! $hasDivHeadStage, fn ($collection) => $collection->prepend((object) ['role_id' => $divHeadRoleId, 'matrix_step_id' => null]))
+                ->values();
+        }
 
         if ($stages->isEmpty()) {
             throw new \RuntimeException('There is no approval stage after the requester role.');
@@ -68,7 +88,7 @@ if (!$matrix || $matrix->steps->isEmpty()) {
             $this->logActivity($order, $submitter, 'submitted', 'Travel Order submitted', ['role' => $submitterRole->name]);
 
             foreach ($stages as $stage) {
-                $order->approvals()->create(['sequence' => $sequence++, 'role_id' => $stage->role_id, 'status' => 'pending']);
+                $order->approvals()->create(['sequence' => $sequence++, 'role_id' => $stage->role_id, 'authority_matrix_step_id' => $stage->matrix_step_id, 'status' => 'pending']);
             }
 
             $order->update(['status' => 'awaiting_approval', 'approval_remark' => null]);
@@ -82,7 +102,7 @@ if (!$matrix || $matrix->steps->isEmpty()) {
             return null;
         }
 
-        return $order->approvals()->with('role')->where('status', 'pending')->orderBy('sequence')->first();
+        return $order->approvals()->with('role', 'matrixStep')->where('status', 'pending')->orderBy('sequence')->first();
     }
 
     private function currentRound(TravelOrder $order): int
@@ -124,6 +144,13 @@ if (!$matrix || $matrix->steps->isEmpty()) {
     {
         $roleName = $stage->role->name;
 
+        // Step matrix dengan pengaturan spesifik (department/section/area/supervisor) -> resolver yang menentukan
+        if ($stage->authority_matrix_step_id) {
+            $stage->loadMissing('matrixStep.role');
+
+            return $this->resolver->approversFor($stage->matrixStep, $roleName);
+        }
+
         if ($roleName === 'Dept Head') {
             return User::whereKey(Department::where('id', $order->department_id)->value('dept_head_id'))->get();
         }
@@ -144,6 +171,12 @@ if (!$matrix || $matrix->steps->isEmpty()) {
 
         if (!$stage) {
             return false;
+        }
+
+        if ($stage->authority_matrix_step_id) {
+            $stage->loadMissing('matrixStep.role');
+
+            return $this->resolver->canAct($stage->matrixStep, $stage->role->name, $user);
         }
 
         if ($stage->role->name === 'Dept Head') {

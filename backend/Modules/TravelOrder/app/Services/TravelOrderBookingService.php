@@ -74,6 +74,10 @@ class TravelOrderBookingService
                     foreach (['departure_date', 'departure_time', 'return_date', 'return_time'] as $field) {
                         if (array_key_exists($field, $bookingData)) {
                             $booking->{$field} = $bookingData[$field] ?: null;
+
+                            if (filled($bookingData[$field])) {
+                                $travelOrder->{$field} = $bookingData[$field];
+                            }
                         }
                     }
 

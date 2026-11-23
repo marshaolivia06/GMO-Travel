@@ -35,6 +35,7 @@ class TravelOrderService
             $filters['exclude_draft'] = true;
         } elseif ($isAdminGmo) {
             $filters['gmo_status'] = ['awaiting_approval_gmo', 'awaiting_gmo_open_travel_advance', 'awaiting_gmo_processing', 'awaiting_gmo_booking_document_issuance', 'processed_by_gmo', 'cancelled'];
+            $filters['gmo_user_id'] = $user->id;
         } elseif ($isDeptHead) {
             $department = Department::where('dept_head_id', $user->id)->first();
 
@@ -74,7 +75,7 @@ class TravelOrderService
     public function find(int $id, ?User $user = null): TravelOrder
     {
         $order = $this->repository->findById($id);
-        $order->load(['approvals' => fn ($query) => $query->orderBy('sequence'), 'approvals.role', 'approvals.user', 'department.divisionHead', 'booking', 'emails', 'bookingCancellations.processor:id,name', 'group.members.user']);
+        $order->load(['approvals' => fn ($query) => $query->orderBy('sequence'), 'approvals.role', 'approvals.user', 'approvals.matrixStep', 'approvals.matrixStep.division', 'department.divisionHead', 'booking', 'emails', 'bookingCancellations.processor:id,name', 'group.members.user']);
 
         if ($order->group) {
             $this->groupRepository->attachDepartments(new Collection([$order->group]));

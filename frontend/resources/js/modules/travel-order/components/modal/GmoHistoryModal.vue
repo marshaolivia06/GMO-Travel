@@ -336,9 +336,9 @@ const travelInformation = computed(() => [
   { label: 'Travel From', value: order.value.travel_from },
   { label: 'Travel To', value: order.value.travel_to },
   { label: 'Departure Date', value: formatDate(departureDate.value) },
-  { label: 'Departure Time', value: departureTime.value },
+  { label: 'Estimated Departure Time (ETD)', value: String(departureTime.value || '').slice(0, 5) || null },
   { label: 'Return Date', value: formatDate(returnDate.value) },
-  { label: 'Return Time', value: returnTime.value },
+  { label: 'Estimated Arrival Time (ETA)', value: String(returnTime.value || '').slice(0, 5) || null },
   { label: 'Travelling Purpose', value: order.value.purpose, cols: 6 },
   { label: 'Remarks', value: order.value.remarks, cols: 6 },
 ])
@@ -553,10 +553,10 @@ function close() {
           <VDivider />
           <VCardText class="pa-4">
             <VRow dense>
-              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Departure</div><VTextField v-model="scheduleForm.departure_date" type="date" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
-              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Departure Time</div><VTextField v-model="scheduleForm.departure_time" type="time" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
-              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Return</div><VTextField v-model="scheduleForm.return_date" type="date" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
-              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Return Time</div><VTextField v-model="scheduleForm.return_time" type="time" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
+              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Departure Date</div><VTextField v-model="scheduleForm.departure_date" type="date" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
+              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Estimated Departure Time (ETD)</div><VTextField v-model="scheduleForm.departure_time" type="time" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
+              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Return Date</div><VTextField v-model="scheduleForm.return_date" type="date" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
+              <VCol cols="12" sm="6" md="3"><div class="text-caption text-medium-emphasis mb-1">Estimated Arrival Time (ETA)</div><VTextField v-model="scheduleForm.return_time" type="time" variant="outlined" density="compact" hide-details :readonly="!editingSchedule" :disabled="processing" /></VCol>
             </VRow>
           </VCardText>
         </VCard>

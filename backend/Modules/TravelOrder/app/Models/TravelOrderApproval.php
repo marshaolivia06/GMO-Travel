@@ -13,6 +13,7 @@ class TravelOrderApproval extends Model
         'travel_order_id',
         'sequence',
         'role_id',
+        'authority_matrix_step_id',
         'user_id',
         'status',
         'note',
@@ -34,6 +35,11 @@ class TravelOrderApproval extends Model
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function matrixStep(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\AuthorityMatrix\Models\AuthorityMatrixStep::class, 'authority_matrix_step_id');
     }
 
     public function user(): BelongsTo

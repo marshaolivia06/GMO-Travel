@@ -63,12 +63,10 @@ class TravelOrderRepository
                             ->orWhere(function ($approvalQuery) use ($divisionIds) {
                                 $approvalQuery
                                     ->where('status', 'awaiting_approval')
-                                    ->whereHas('approvals', function ($approval) {
+                                    ->whereHas('approvals', function ($approval) use ($divisionIds) {
                                         $approval
                                             ->where('status', 'pending')
-                                            ->whereHas('role', function ($role) {
-                                                $role->where('name', 'Div Head');
-                                            })
+                                            // Hanya tahap yang sedang berjalan - step pending lebih awal tidak dihitung
                                             ->whereNotExists(function ($sub) {
                                                 $sub->select(DB::raw(1))
                                                     ->from('travel_order_approvals as prev')
@@ -82,10 +80,23 @@ class TravelOrderRepository
                                                         '<',
                                                         'travel_order_approvals.sequence'
                                                     );
+                                            })
+                                            ->where(function ($match) use ($divisionIds) {
+                                                // Step matrix spesifik divisi -> division_id step milik divisi user
+                                                $match->whereHas('matrixStep', function ($step) use ($divisionIds) {
+                                                    $step->whereIn('division_id', $divisionIds);
+                                                })->orWhere(function ($legacy) use ($divisionIds) {
+                                                    $legacy
+                                                        ->whereHas('role', function ($role) {
+                                                            $role->where('name', 'Div Head');
+                                                        })
+                                                        ->whereHas('travelOrder', function ($order) use ($divisionIds) {
+                                                            $order->whereHas('department', function ($department) use ($divisionIds) {
+                                                                $department->whereIn('division_head_id', $divisionIds);
+                                                            });
+                                                        });
+                                                });
                                             });
-                                    })
-                                    ->whereHas('department', function ($department) use ($divisionIds) {
-                                        $department->whereIn('division_head_id', $divisionIds);
                                     });
                             });
                     });
@@ -115,7 +126,13 @@ class TravelOrderRepository
             )
             ->when(
                 $filters['gmo_status'] ?? null,
-                fn ($query, $statuses) => $query->whereIn('status', $statuses)
+                fn ($query, $statuses) => $query->where(function ($q) use ($statuses, $filters) {
+                    $q->whereIn('status', $statuses);
+
+                    if ($filters['gmo_user_id'] ?? null) {
+                        $q->orWhere('user_id', $filters['gmo_user_id']);
+                    }
+                })
             )
             ->when(
                 $filters['search'] ?? null,

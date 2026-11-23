@@ -7,6 +7,7 @@
     $val = fn ($v) => ($v === null || $v === '') ? '-' : $v;
     $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y') : '-';
     $dateTime = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d M Y H:i') : '-';
+    $time = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('H:i') : '-';
     $money = fn ($amount, $currency) => ((float) $amount) ? number_format((float) $amount, 2) . ' ' . ($currency ?? '') : 'Not Applicable';
 
     $requesterId = $order->user_id;
@@ -55,8 +56,8 @@
         [['Employee', $val($order->user?->name)], ['Country', $val($order->country)]],
         [['Position', $position], ['Level', $level]],
         [['Section', $val($section?->name)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
-        [['Department', $val($department?->name)], ['Departure', $date($order->departure_date) . ' ' . $order->departure_time]],
-        [['Purpose', $val($order->purpose)], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
+        [['Department', $val($department?->name)], ['Departure', $date($order->departure_date) . ' ' . $time($order->departure_time)]],
+        [['Purpose', $val($order->purpose)], ['Arrival', $date($order->return_date) . ' ' . $time($order->return_time)]],
         [['Remarks', $val($order->remarks)]],
     ];
 
@@ -69,7 +70,7 @@
     $tripInfo = [
         [['Request Type', $tripTypes[$order->trip_type] ?? 'Business Trip - Individual'], ['Travel Region', $val($order->travel_region)]],
         [['Country', $val($order->country)], ['Route', $val($order->travel_from) . ' → ' . $val($order->travel_to)]],
-        [['Departure', $date($order->departure_date) . ' ' . $order->departure_time], ['Return', $date($order->return_date) . ' ' . $order->return_time]],
+        [['Departure', $date($order->departure_date) . ' ' . $time($order->departure_time)], ['Arrival', $date($order->return_date) . ' ' . $time($order->return_time)]],
         [['Purpose', $val($order->purpose)]],
         [['Remarks', $val($order->remarks)]],
     ];
@@ -91,11 +92,11 @@
     ],
     [
         ['Purpose', $val($order->purpose)],
-        ['Departure', $date($order->departure_date) . ' ' . $order->departure_time],
+        ['Departure', $date($order->departure_date) . ' ' . $time($order->departure_time)],
     ],
     [
         ['Remarks', $val($order->remarks)],
-        ['Return', $date($order->return_date) . ' ' . $order->return_time],
+        ['Arrival', $date($order->return_date) . ' ' . $time($order->return_time)],
     ],
 ];
 
@@ -164,10 +165,12 @@
 
 <body>
     <div class="doc-head">
-        <div style="text-align: left; font-size: 11px; font-weight: bold; letter-spacing: 0; margin-bottom: 18px;">
-            {{ config('company.name') }}<br>
-            {{ config('company.plant') }}
-        </div>
+        <table>
+            <tr>
+                <td style="text-align: left; font-size: 11px; font-weight: bold; letter-spacing: 0;">{{ config('company.name') }}<br>{{ config('company.plant') }}</td>
+                <td class="right" style="vertical-align: middle; width: 1%;"><img src="{{ public_path('img/logo-eco.png') }}" style="height: 80px;" alt="Logo"></td>
+            </tr>
+        </table>
         <div class="doc-title">TRAVEL ORDER</div>
     </div>
 
@@ -310,7 +313,10 @@
                         $organization = match ($role) {
                             'Sect Head' => $section?->name,
                             'Dept Head' => $department?->name,
-                            'Div Head' => $division?->division_name,
+                            // Div Head: utamakan divisi spesifik dari pengaturan step matrix, fallback divisi departemen TO / divisi approver
+                            'Div Head' => $step->matrixStep?->division?->division_name
+                                ?? $division?->division_name
+                                ?? MasterDivision::where('division_head_id', $step->user_id)->first()?->division_name,
                             default => null,
                         };
 
