@@ -27,6 +27,8 @@ class StoreAuthorityMatrixRequest extends FormRequest
             'steps.*.supervisor_id' => ['nullable', 'exists:users,id'],
             'steps.*.is_specific_department' => ['boolean'],
             'steps.*.department_id' => ['nullable', 'exists:departments,id'],
+            'steps.*.is_specific_division' => ['boolean'],
+            'steps.*.division_id' => ['nullable', 'exists:master_division,id'],
         ];
     }
 

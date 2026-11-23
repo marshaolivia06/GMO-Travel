@@ -37,7 +37,8 @@ class AuthorityMatrixService
                 'requesterRole',
                 'steps.role',
                 'steps.section',
-                'steps.department'
+                'steps.department',
+                'steps.division'
             );
         });
     }
@@ -64,7 +65,8 @@ class AuthorityMatrixService
                 'requesterRole',
                 'steps.role',
                 'steps.section',
-                'steps.department'
+                'steps.department',
+                'steps.division'
             );
         });
     }

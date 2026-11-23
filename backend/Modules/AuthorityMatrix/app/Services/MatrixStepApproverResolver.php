@@ -4,6 +4,7 @@ namespace Modules\AuthorityMatrix\Services;
 
 use Illuminate\Support\Collection;
 use Modules\AuthorityMatrix\Models\AuthorityMatrixStep;
+use Modules\MasterManagement\Models\{Department, MasterDivision};
 use Modules\MasterManagement\Models\Section;
 use Modules\UserManagement\Models\User;
 
@@ -26,6 +27,7 @@ class MatrixStepApproverResolver
     {
         return $step->section_id
             || $step->department_id
+            || $step->division_id
             || filled($step->area)
             || ($step->is_specific_supervisor && $step->supervisor_id);
     }
@@ -33,6 +35,11 @@ class MatrixStepApproverResolver
     // Semua user yang berhak memproses step ini (dipakai untuk pengecekan izin)
     public function approversFor(?AuthorityMatrixStep $step, string $roleName): Collection
     {
+        // Divisi spesifik -> kepala divisi yang dipilih (1 divisi = 1 kepala)
+        if ($step?->is_specific_division && $step->division_id) {
+            return User::whereKey(MasterDivision::where('id', $step->division_id)->value('division_head_id'))->get();
+        }
+
         if ($step?->is_specific_supervisor && $step->supervisor_id) {
             return User::whereKey($step->supervisor_id)->get();
         }
@@ -43,6 +50,21 @@ class MatrixStepApproverResolver
             return User::whereKey(
                 Section::where('id', $step->section_id)->value($column)
             )->get();
+        }
+
+        // Department spesifik + role Dept Head/Div Head -> kepala departemen / kepala divisi departemen tsb
+        if ($step?->department_id) {
+            $stepRole = strtolower(trim($step->role?->name ?? ''));
+
+            if ($stepRole === 'dept head') {
+                return User::whereKey(Department::where('id', $step->department_id)->value('dept_head_id'))->get();
+            }
+
+            if ($stepRole === 'div head') {
+                $division = MasterDivision::find(Department::where('id', $step->department_id)->value('division_head_id'));
+
+                return User::whereKey($division?->division_head_id)->get();
+            }
         }
 
         // Area / department spesifik -> orang pada section yang cocok (Sect Head / Supervisor)
@@ -88,6 +110,11 @@ class MatrixStepApproverResolver
             return (string) $step->supervisor_id === (string) $user->id;
         }
 
+        // Divisi spesifik -> user adalah kepala divisi tsb
+        if ($step->division_id) {
+            return (string) MasterDivision::where('id', $step->division_id)->value('division_head_id') === (string) $user->id;
+        }
+
         $column = $this->sectionUserColumn($step);
 
         if (! $column) {
@@ -113,6 +140,7 @@ class MatrixStepApproverResolver
             ->whereIn('role_id', $roleIds)
             ->whereNull('section_id')
             ->whereNull('department_id')
+            ->whereNull('division_id')
             ->whereNull('area')
             ->where(fn ($query) => $query->where('is_specific_supervisor', false)->orWhereNull('supervisor_id'))
             ->pluck('role_id')

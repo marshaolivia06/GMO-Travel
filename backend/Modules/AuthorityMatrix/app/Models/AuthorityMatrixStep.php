@@ -25,12 +25,15 @@ class AuthorityMatrixStep extends Model
         'supervisor_id',
         'is_specific_department',
         'department_id',
+        'is_specific_division',
+        'division_id',
     ];
 
     protected $casts = [
         'is_specific_section' => 'boolean',
         'is_specific_supervisor' => 'boolean',
         'is_specific_department' => 'boolean',
+        'is_specific_division' => 'boolean',
     ];
 
     public function authorityMatrix(): BelongsTo
@@ -56,5 +59,10 @@ class AuthorityMatrixStep extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function division(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\MasterManagement\Models\MasterDivision::class, 'division_id');
     }
 }
