@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { getRoles } from '../../../user-management/services/roleService'
-import { getDepartments } from '../../../master-management/services/departmentService'
+import { getDepartments, getDepartmentOptions } from '../../../master-management/services/departmentService'
 import { getSections } from '../../../master-management/services/sectionService'
 import { useAuthorityMatrixStore } from '../../stores/authorityMatrixStore'
 import { useToastStore } from '../../../../stores/toast'
@@ -15,6 +15,7 @@ const { confirm } = useConfirm()
 const roles = ref([])
 const departments = ref([])
 const sections = ref([])
+const divisions = ref([])
 const optionsLoading = ref(false)
 const loading = ref(false)
 
@@ -34,7 +35,7 @@ const form = reactive({
 const errors = reactive({ document_type: '', steps: '' })
 
 function createStep(step) {
-  return { step, role_id: null, label: '', area: '', action_type: 'approve', role_level: null, is_specific_section: false, section_id: null, is_specific_department: false, department_id: null }
+  return { step, role_id: null, label: '', area: '', action_type: 'approve', role_level: null, is_specific_section: false, section_id: null, is_specific_department: false, department_id: null, is_specific_division: false, division_id: null }
 }
 
 function isSectionRole(item) {
@@ -50,6 +51,11 @@ function isSupervisorRole(item) {
 function isDepartmentRole(item) {
   const role = roles.value.find(role => String(role.id) === String(item.role_id))
   return role?.name?.trim().toLowerCase() === 'dept head'
+}
+
+function isDivisionRole(item) {
+  const role = roles.value.find(role => String(role.id) === String(item.role_id))
+  return role?.name?.trim().toLowerCase() === 'div head'
 }
 
 // Opsi area mengikuti field Area di Section (Master Management) untuk departemen yang dipilih
@@ -71,6 +77,10 @@ function changeRole(item) {
     item.department_id = null
     item.area = ''
   }
+  if (!isDivisionRole(item)) {
+    item.is_specific_division = false
+    item.division_id = null
+  }
 }
 
 function closeModal() {
@@ -81,10 +91,11 @@ function closeModal() {
 async function fetchOptions() {
   optionsLoading.value = true
   try {
-    const [roleRes, departmentRes, sectionRes] = await Promise.all([getRoles(), getDepartments(), getSections()])
+    const [roleRes, departmentRes, sectionRes, divisionRes] = await Promise.all([getRoles(), getDepartments(), getSections(), getDepartmentOptions()])
     roles.value = roleRes.data ?? roleRes
     departments.value = departmentRes.data ?? departmentRes
     sections.value = sectionRes.data ?? sectionRes
+    divisions.value = (divisionRes.data ?? divisionRes)?.division_heads ?? []
   } catch (err) {
     toast.error(err.response?.data?.message || err.message || 'Failed to load options.')
   } finally {
@@ -104,7 +115,7 @@ function removeStep(index) {
 
 function validate() {
   errors.document_type = form.document_type.trim() ? '' : 'Document type is required.'
-  errors.steps = form.steps.every(item => item.role_id && item.label && (!item.is_specific_section || item.section_id) && (!item.is_specific_department || item.department_id)) ? '' : 'Please complete all step fields.'
+  errors.steps = form.steps.every(item => item.role_id && item.label && (!item.is_specific_section || item.section_id) && (!item.is_specific_department || item.department_id) && (!item.is_specific_division || item.division_id)) ? '' : 'Please complete all step fields.'
   return !errors.document_type && !errors.steps
 }
 
@@ -213,6 +224,9 @@ onMounted(fetchOptions)
                     <VCol v-if="isDepartmentRole(item) || isSupervisorRole(item)" cols="12" md="3">
                       <VSwitch :model-value="item.is_specific_department" label="Specific Department" color="primary" hide-details :disabled="loading" @update:model-value="item.is_specific_department = !!$event" />
                     </VCol>
+                    <VCol v-if="isDivisionRole(item)" cols="12" md="3">
+                      <VSwitch :model-value="item.is_specific_division" label="Specific Division" color="primary" hide-details :disabled="loading" @update:model-value="item.is_specific_division = !!$event" />
+                    </VCol>
                     <VCol v-if="item.is_specific_section" cols="12" md="4">
                       <div class="mb-4">
 <label class="text-body-medium font-weight-600 d-block mb-1">Section</label>
@@ -222,6 +236,11 @@ onMounted(fetchOptions)
                       <div class="mb-4">
 <label class="text-body-medium font-weight-600 d-block mb-1">Department</label>
 <VAutocomplete v-model="item.department_id" :items="departments" item-title="name" item-value="id" :disabled="loading" placeholder="Select department" hide-details="auto" @update:model-value="item.area = null" /></div>
+                    </VCol>
+                    <VCol v-if="item.is_specific_division" cols="12" md="4">
+                      <div class="mb-4">
+<label class="text-body-medium font-weight-600 d-block mb-1">Division</label>
+<VAutocomplete v-model="item.division_id" :items="divisions" item-title="division_name" item-value="id" :disabled="loading" placeholder="Select division" hide-details="auto"/></div>
                     </VCol>
                     <VCol v-if="isSupervisorRole(item) && item.is_specific_department && item.department_id" cols="12" md="4">
                       <div class="mb-4">

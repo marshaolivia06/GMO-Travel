@@ -57,3 +57,13 @@
 .v-dialog .v-field {
   border-radius: 8px;
 }
+
+.table-spacious {
+  --v-table-row-height: 60px;
+  --v-table-header-height: 56px;
+}
+
+.table-spacious th,
+.table-spacious td {
+  padding-inline: 16px;
+}

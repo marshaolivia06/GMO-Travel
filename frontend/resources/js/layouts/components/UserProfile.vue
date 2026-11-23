@@ -14,14 +14,17 @@ async function handleLogout() {
       <div class="text-sm font-weight-semibold text-body-2">
         {{ auth.user?.name ?? '—' }}
       </div>
-      <VChip
-        color="primary"
-        size="x-small"
-        variant="tonal"
-        class="mt-1"
-      >
-        {{ auth.roles[0] ?? 'User' }}
-      </VChip>
+      <div class="d-flex ga-1 mt-1 justify-end">
+        <VChip
+          v-for="role in (auth.roles?.length ? auth.roles : ['User'])"
+          :key="role"
+          color="primary"
+          size="x-small"
+          variant="tonal"
+        >
+          {{ role }}
+        </VChip>
+      </div>
     </div>
 
     <VAvatar

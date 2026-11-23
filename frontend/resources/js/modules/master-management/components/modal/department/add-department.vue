@@ -59,10 +59,6 @@ async function submitDepartment() {
     errors.category_id = 'Category is required.'
     return
   }
-  if (!form.dept_head_id) {
-    errors.dept_head_id = 'Department head is required.'
-    return
-  }
   if (!form.dept_admin_id) {
     errors.dept_admin_id = 'Department admin is required.'
     return
@@ -85,7 +81,7 @@ async function submitDepartment() {
     await departmentStore.addDepartment({
       name: form.name.trim(),
       category_id: form.category_id,
-      dept_head_id: form.dept_head_id,
+      dept_head_id: form.dept_head_id || null,
       dept_admin_id: form.dept_admin_id,
       division_head_id: form.division_head_id,
     })
@@ -135,7 +131,7 @@ function close() {
             </VCol>
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Department Head</label>
-              <VAutocomplete v-model="form.dept_head_id" :items="departmentStore.options.dept_heads" item-title="name" item-value="id" :loading="departmentStore.optionsLoading" :disabled="loading || departmentStore.optionsLoading" :error-messages="errors.dept_head_id ? [errors.dept_head_id] : []" placeholder="Select department head" hide-details="auto"/>
+              <VAutocomplete v-model="form.dept_head_id" :items="departmentStore.options.dept_heads" item-title="name" item-value="id" clearable :loading="departmentStore.optionsLoading" :disabled="loading || departmentStore.optionsLoading" :error-messages="errors.dept_head_id ? [errors.dept_head_id] : []" placeholder="Select department head" hide-details="auto"/>
             </VCol>
             <VCol cols="12">
               <label class="text-body-medium font-weight-600 d-block mb-1">Department Admin</label>

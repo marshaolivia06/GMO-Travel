@@ -41,7 +41,7 @@ class DepartmentController extends Controller
                 'exists:categories,id',
             ],
             'dept_head_id' => [
-                'required',
+                'nullable',
                 'exists:users,id',
             ],
             'dept_admin_id' => [
@@ -57,7 +57,7 @@ class DepartmentController extends Controller
         $department = $this->departmentRepository->create([
             'name' => trim($validated['name']),
             'category_id' => $validated['category_id'],
-            'dept_head_id' => $validated['dept_head_id'],
+            'dept_head_id' => $validated['dept_head_id'] ?? null,
             'dept_admin_id' => $validated['dept_admin_id'],
             'division_head_id' => $validated['division_head_id'],
         ]);
@@ -84,7 +84,7 @@ class DepartmentController extends Controller
                 'exists:categories,id',
             ],
             'dept_head_id' => [
-                'required',
+                'nullable',
                 'exists:users,id',
             ],
             'dept_admin_id' => [
@@ -104,7 +104,7 @@ class DepartmentController extends Controller
             [
                 'name' => trim($validated['name']),
                 'category_id' => $validated['category_id'],
-                'dept_head_id' => $validated['dept_head_id'],
+                'dept_head_id' => $validated['dept_head_id'] ?? null,
                 'dept_admin_id' => $validated['dept_admin_id'],
                 'division_head_id' => $validated['division_head_id'],
             ]

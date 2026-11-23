@@ -65,10 +65,6 @@ async function submitDepartment() {
     errors.category_id = 'Category is required.'
     return
   }
-  if (!form.dept_head_id) {
-    errors.dept_head_id = 'Department head is required.'
-    return
-  }
   if (!form.dept_admin_id) {
     errors.dept_admin_id = 'Department admin is required.'
     return
@@ -91,7 +87,7 @@ async function submitDepartment() {
     await departmentStore.editDepartment(props.department.id, {
       name: form.name.trim(),
       category_id: form.category_id,
-      dept_head_id: form.dept_head_id,
+      dept_head_id: form.dept_head_id || null,
       dept_admin_id: form.dept_admin_id,
       division_head_id: form.division_head_id,
     })

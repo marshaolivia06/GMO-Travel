@@ -248,7 +248,7 @@ onMounted(() => {
             {{ departmentStore.error }}
           </VAlert>
 
-          <VDataTable :headers="departmentHeaders" :items="departmentStore.departments" :loading="departmentStore.loading" :search="departmentSearch" item-value="id" density="comfortable" hover>
+          <VDataTable class="table-spacious" :headers="departmentHeaders" :items="departmentStore.departments" :loading="departmentStore.loading" :search="departmentSearch" item-value="id" density="default" hover>
 
             <template #item.category="{ item }">{{ item.category?.name || '-' }}</template>
             <template #item.dept_head="{ item }">{{ item.dept_head?.name || '-' }}</template>
@@ -271,7 +271,7 @@ onMounted(() => {
             {{ sectionStore.error }}
           </VAlert>
 
-          <VDataTable :headers="sectionHeaders" :items="sectionStore.sections" :loading="sectionStore.loading" :search="sectionSearch" item-value="id" density="comfortable" hover>
+          <VDataTable class="table-spacious" :headers="sectionHeaders" :items="sectionStore.sections" :loading="sectionStore.loading" :search="sectionSearch" item-value="id" density="default" hover>
 
             <template #item.section_head="{ item }">{{ item.section_head?.name || item.sectionHead?.name || '-' }}</template>
             <template #item.supervisor="{ item }">{{ item.supervisor?.name || '-' }}</template>
@@ -301,7 +301,7 @@ onMounted(() => {
             {{ categoryStore.error }}
           </VAlert>
 
-          <VDataTableServer v-model:items-per-page="categoryStore.perPage" :headers="categoryHeaders" :items="categoryStore.categories" :items-length="categoryStore.total" :loading="categoryStore.loading" item-value="id" density="comfortable" hover @update:options="opts => categoryStore.fetchCategories(opts.page)">
+          <VDataTableServer class="table-spacious" v-model:items-per-page="categoryStore.perPage" :headers="categoryHeaders" :items="categoryStore.categories" :items-length="categoryStore.total" :loading="categoryStore.loading" item-value="id" density="default" hover @update:options="opts => categoryStore.fetchCategories(opts.page)">
 
             <template #item.created_at="{ item }">{{ formatDate(item.created_at) }}</template>
             <template #item.updated_at="{ item }">{{ formatDate(item.updated_at) }}</template>
