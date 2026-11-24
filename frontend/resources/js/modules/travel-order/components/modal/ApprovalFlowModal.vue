@@ -37,7 +37,7 @@ const emit = defineEmits(['update:modelValue', 'review'])
     <div v-if="card.note" class="text-body-2 mt-2 text-wrap"><span class="font-weight-bold">Note:</span> {{ card.note }}</div>
 
     <div v-if="card.isCurrent && canApprove" class="d-flex justify-end mt-auto pt-3">
-      <VBtn size="small" color="amber" elevation="3" @click="emit('review')">Klik Here</VBtn>
+      <VBtn size="small" variant="elevated" elevation="3" class="klik-here-btn" @click="emit('review')">Klik Here</VBtn>
     </div>
   </VCardText>
 </VCard>
@@ -55,4 +55,6 @@ const emit = defineEmits(['update:modelValue', 'review'])
 <style scoped>
 .approval-card { transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease; }
 .approval-card:hover { background: rgb(var(--v-theme-surface)) !important; border-color: rgba(var(--v-theme-primary), .2); box-shadow: 0 3px 10px rgba(0, 0, 0, .07); }
+.klik-here-btn { background: rgb(var(--v-theme-primary)) !important; color: rgb(var(--v-theme-on-primary)) !important; transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease; }
+.klik-here-btn:hover { background: rgb(var(--v-theme-primary-darken-1)) !important; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0, 0, 0, .18) !important; }
 </style>

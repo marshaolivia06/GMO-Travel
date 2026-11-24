@@ -25,6 +25,7 @@ const toDate = value => {
   return parsed
 }
 const formatShort = date => date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+const shortTime = value => (value ? String(value).slice(0, 5) : null)
 const formatLong = date => date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
 const info = computed(() => {
@@ -34,8 +35,8 @@ const info = computed(() => {
   const end = toDate(to.return_date)
   const sameMonth = start && end && start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
   const period = !start || !end ? '-' : sameMonth ? `${start.toLocaleDateString('en-GB', { day: '2-digit' })}–${end.toLocaleDateString('en-GB', { day: '2-digit' })} ${start.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : `${formatShort(start)} – ${formatShort(end)}`
-  const etd = to.etd ?? null
-  const eta = to.eta ?? null
+  const etd = shortTime(to.etd)
+  const eta = shortTime(to.eta)
   return {
     expense_report_id: null,
     travel_order: to.to_number,
@@ -54,6 +55,7 @@ const info = computed(() => {
 const fields = computed(() => {
   const data = info.value ?? {}
   return [
+    { label: 'EXPENSE REPORT ID', value: data.expense_report_id },
     { label: 'TRAVEL ORDER', value: data.travel_order },
     { label: 'EMPLOYEE', value: data.employee },
     { label: 'TRIP TYPE', value: data.trip_type, type: 'trip_type' },
@@ -138,10 +140,7 @@ watch(() => props.modelValue, open => { if (!open) selectedDay.value = null })
   <VDialog :model-value="modelValue" max-width="1000" scrollable @update:model-value="emit('update:modelValue', $event)">
     <VCard rounded="lg">
       <div class="d-flex align-center justify-space-between px-4 py-3">
-  <div class="d-flex align-center ga-2">
-    <VBtn icon="ri-arrow-left-line" variant="text" size="small" @click="close"/>
-    <span class="text-h6 font-weight-bold">Travel Expense Report</span>
-  </div>
+  <span class="text-h6 font-weight-bold">Travel Expense Report</span>
   <VBtn icon="ri-close-line" variant="text" size="small" @click="close" />
 </div>
       <VDivider />

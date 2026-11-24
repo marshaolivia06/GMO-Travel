@@ -146,17 +146,17 @@
     </div>
 
     <div class="section">
-        <div class="section-title">{{ $isReimbursement ? 'Employee Bank Account' : 'Finance Bank Account' }}</div>
+        <div class="section-title">Employee Bank Account</div>
         <table class="grid">
             <tr>
                 <td class="lbl" style="width: 16%">Bank</td>
-                <td style="width: 34%">{{ $isReimbursement ? $val($employee?->employee?->bank_name) : '-' }}</td>
+                <td style="width: 34%">{{ $val($employee?->employee?->bank_name) }}</td>
                 <td class="lbl" style="width: 16%">Account Holder</td>
-                <td style="width: 34%">{{ $isReimbursement ? $val($employee?->name) : '-' }}</td>
+                <td style="width: 34%">{{ $val($employee?->name) }}</td>
             </tr>
             <tr>
                 <td class="lbl">Account Number</td>
-                <td>{{ $isReimbursement ? $val($employee?->employee?->bank_account_number) : '-' }}</td>
+                <td>{{ $val($employee?->employee?->bank_account_number) }}</td>
                 <td class="lbl">Transfer Purpose</td>
                 <td>{{ $transferPurpose }}</td>
             </tr>
@@ -166,10 +166,25 @@
     <div class="section">
         <div class="section-title">Expense Summary - Category x Currency</div>
         <table class="grid">
-            <tr>
-                <td style="width: 50%">Annual Ticket Settlement</td>
-                <td>{{ $isReimbursement ? '-' : ($money($report->employee_excess) . ' Excess') }}</td>
-            </tr>
+            @if ($isReimbursement)
+                <tr>
+                    <td style="width: 50%">Actual Ticket Amount</td>
+                    <td>{{ $money($report->total_actual_amount) }}</td>
+                </tr>
+                <tr>
+                    <td>Fare Reference</td>
+                    <td>{{ $money($report->total_fare_reference) }}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">Eligible Reimbursement</td>
+                    <td style="font-weight: bold;">{{ $money(min((float) ($report->total_actual_amount ?? 0), (float) ($report->total_fare_reference ?? 0))) }}</td>
+                </tr>
+            @else
+                <tr>
+                    <td style="width: 50%">Annual Ticket Settlement</td>
+                    <td>{{ $money($report->employee_excess) . ' Excess' }}</td>
+                </tr>
+            @endif
         </table>
     </div>
 

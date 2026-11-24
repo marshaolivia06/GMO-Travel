@@ -21,9 +21,9 @@ const ticket = computed(() => r.value.annual_ticket ?? {})
 const legs = computed(() => ticket.value.legs ?? [])
 const isReimbursement = computed(() => r.value.claim_type === 'ticket_reimbursement')
 const isAnnualTicket = computed(() => (r.value.source_type ?? 'annual_ticket') === 'annual_ticket')
-const tripTypeLabel = computed(() => isAnnualTicket.value ? 'Annual Ticket' : 'Travel Order')
 const sourceLabel = computed(() => isAnnualTicket.value ? 'ANNUAL TICKET' : 'TRAVEL ORDER')
-const purpose = computed(() => `${ticket.value.route_condition ?? '-'} - ${ticket.value.ticket_arrangement ?? '-'} ${isReimbursement.value ? 'Reimbursable' : 'Excess Settlement'}`)
+const arrangementLabel = computed(() => ticket.value.ticket_arrangement === 'Direct Payment' ? 'Direct Payment' : `${ticket.value.ticket_arrangement || 'Booked by Company'} - Excess`)
+const claimType = computed(() => isReimbursement.value ? 'Ticket Reimbursement' : 'Employee Excess Settlement')
 
 const close = () => emit('update:modelValue', false)
 
@@ -35,12 +35,6 @@ const formatDate = date => {
 }
 
 const legDate = leg => formatDate(leg.reschedule_date ?? leg.travel_date)
-const sortedDates = computed(() => legs.value.map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean).sort())
-const period = computed(() => {
-  const start = sortedDates.value[0]
-  const end = sortedDates.value.at(-1)
-  return start && end ? `${formatDate(start)} - ${formatDate(end)}` : '-'
-})
 const routeStatus = leg => legRouteStatus(ticket.value, leg)
 
 // Fare reference - sama seperti yang diisi GMO dan ditampilkan saat claim
@@ -148,20 +142,21 @@ onBeforeUnmount(() => {
                 <div class="text-body-2 font-weight-bold">{{ ticket.employee?.name || '-' }}</div>
               </VCol>
               <VCol cols="6" class="px-4 py-3 border-b border-e">
-                <div class="text-caption text-medium-emphasis">TRIP TYPE</div>
-                <VChip color="success" variant="tonal" size="small" class="mt-1">{{ tripTypeLabel }}</VChip>
+                <div class="text-caption text-medium-emphasis">ROUTE CONDITION</div>
+                <VChip v-if="ticket.route_condition" :color="ticket.route_condition === 'Same Route' ? 'success' : 'warning'" variant="tonal" size="small" class="mt-1">{{ ticket.route_condition }}</VChip>
+                <div v-else class="text-body-2 font-weight-bold">-</div>
               </VCol>
               <VCol cols="6" class="px-4 py-3 border-b">
-                <div class="text-caption text-medium-emphasis">PERIOD</div>
-                <div class="text-body-2 font-weight-bold">{{ period }}</div>
+                <div class="text-caption text-medium-emphasis">TICKET ARRANGEMENT</div>
+                <div class="text-body-2 font-weight-bold">{{ arrangementLabel }}</div>
               </VCol>
-              <VCol cols="6" class="px-4 py-3 border-b border-e">
+              <VCol cols="6" class="px-4 py-3 border-e">
                 <div class="text-caption text-medium-emphasis">{{ sourceLabel }}</div>
                 <div class="text-body-2 font-weight-bold">{{ ticket.document_number || '-' }}</div>
               </VCol>
-              <VCol cols="6" class="px-4 py-3 border-b">
-                <div class="text-caption text-medium-emphasis">PURPOSE</div>
-                <div class="text-body-2 font-weight-bold">{{ purpose }}</div>
+              <VCol cols="6" class="px-4 py-3">
+                <div class="text-caption text-medium-emphasis">CLAIM / SETTLEMENT TYPE</div>
+                <div class="text-body-2 font-weight-bold">{{ claimType }}</div>
               </VCol>
             </VRow>
           </VCardText>

@@ -128,7 +128,7 @@ async function load() {
       departure_date: to.departure_date,
       return_date: to.return_date,
       etd: to.etd ?? to.departure_time,
-      eta: to.eta ?? to.arrival_time,
+      eta: to.eta ?? to.return_time,
       total_claim: null,
     }))
 
@@ -155,10 +155,10 @@ async function load() {
         travel_region: region,
         departure_date: dates[0] ?? null,
         return_date: dates.at(-1) ?? null,
-        // Reimbursement: total claim tampil setelah approved. Excess: nominal fixed, langsung tampil sejak submit
-        total_claim: normalize(ter.status) === 'approved'
-          ? (ter.settlement_amount ?? ter.employee_excess ?? null)
-          : (ter.claim_type === 'excess_settlement' && normalize(ter.status) === 'submitted' ? (ter.employee_excess ?? null) : null),
+        // Total claim tampil sejak submit - reimbursement pakai settlement_amount (eligible, dihitung server saat submit),
+        // excess pakai employee_excess (nominal fixed dari booking - fare reference)
+        total_claim: ter.settlement_amount
+          ?? (ter.claim_type === 'excess_settlement' && ['submitted', 'approved'].includes(normalize(ter.status)) ? (ter.employee_excess ?? null) : null),
         currency: ter.currency,
         is_excess: ter.claim_type === 'excess_settlement',
         claim_kind: ter.claim_type === 'ticket_reimbursement' ? 'Reimbursable' : 'Excess Potential',
