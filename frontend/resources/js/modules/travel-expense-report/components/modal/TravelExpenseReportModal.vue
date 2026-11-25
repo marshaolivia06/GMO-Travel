@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '../../../../stores/auth.js'
+import { getMasterRateLimits } from '../../../travel-order/services/travelOrderService.js'
 import ExpenseEntryDialog from './ExpenseEntryDialog.vue'
 import TravelExpenseSummary from './TravelExpenseSummary.vue'
 
@@ -105,7 +106,7 @@ const summaryOpen = ref(false)
 const num = value => Number(value) || 0
 const fileName = attachment => (Array.isArray(attachment) ? attachment[0] : attachment)?.name ?? null
 const claimed = item => !!item && !item.paid_by_others && num(item.amount) > 0
-const toItem = (title, item, extra = {}) => ({ title, amount: num(item.amount), currency: item.currency, note: item.description, attachment: fileName(item.attachment), ...extra })
+const toItem = (title, item, extra = {}) => ({ title, amount: num(item.amount), currency: item.currency, note: item.description, attachment: fileName(item.attachment), file: Array.isArray(item.attachment) ? (item.attachment[0] ?? null) : (item.attachment ?? null), ...extra })
 
 const summaryDays = computed(() => days.value.map(day => {
   const entry = expenses.value[day.key]
@@ -117,6 +118,7 @@ const summaryDays = computed(() => days.value.map(day => {
     claimed(entry.accommodation) && toItem('Accommodation', entry.accommodation, { note: [entry.accommodation.hotel_name, entry.accommodation.room_type].filter(Boolean).join(' · ') || entry.accommodation.description }),
     claimed(entry.laundry) && toItem('Laundry', entry.laundry),
     claimed(entry.telephone) && toItem('Telephone', entry.telephone),
+    claimed(entry.office_telephone) && toItem('Office Telephone', entry.office_telephone),
     ...(entry.transports ?? []).map((item, index) => ({ item, index })).filter(({ item }) => claimed(item)).map(({ item, index }) => toItem(`Transport ${item.kind === 'perjalanan' ? 'Travel' : 'Others'} ${entry.transports.slice(0, index + 1).filter(entryItem => entryItem.kind === item.kind).length}`, item)),
     ...(entry.others ?? []).map((item, index) => claimed(item) && toItem(`Other ${index + 1}`, item)),
   ].filter(Boolean)
@@ -125,6 +127,11 @@ const summaryDays = computed(() => days.value.map(day => {
 
 const closeEntry = () => { expenseEntryOpen.value = false; selectedDay.value = null }
 const onSaveDraft = payload => { expenses.value[payload.day] = { ...payload, status: 'draft' }; closeEntry() }
+const onSelectDayFromEntry = ({ target, payload, hasData }) => {
+  if (hasData) expenses.value[payload.day] = { ...payload, status: 'draft' }
+  const targetDay = days.value.find(day => day.key === target)
+  if (targetDay) onSelectDay(targetDay)
+}
 const onSaveExpense = payload => {
   expenses.value[payload.day] = { ...payload, status: 'saved' }
   const next = days.value.find(day => day.key === payload.day + 1)
@@ -133,7 +140,18 @@ const onSaveExpense = payload => {
 }
 const onSubmitExpense = () => console.log('Submit TER:', info.value?.travel_order, expenses.value)
 
-watch(() => props.modelValue, open => { if (!open) selectedDay.value = null })
+const entitlements = ref(null)
+const loadEntitlements = async () => {
+  entitlements.value = null
+  const item = props.item
+  if (!item?.region_id || !item?.departure_date || !item?.return_date) return
+  try {
+    const response = await getMasterRateLimits({ region_id: item.region_id, destination: item.travel_to, departure_date: item.departure_date, return_date: item.return_date })
+    entitlements.value = response?.data ?? response ?? null
+  } catch { entitlements.value = null }
+}
+
+watch(() => props.modelValue, open => { if (open) { selectedDay.value = null; loadEntitlements() } else selectedDay.value = null })
 </script>
 
 <template>
@@ -182,9 +200,9 @@ watch(() => props.modelValue, open => { if (!open) selectedDay.value = null })
           </div>
         </VCard>
       </VCardText>
-      <ExpenseEntryDialog v-model="expenseEntryOpen" :day="activeDay" :total-days="days.length" :initial="expenses[activeDay?.key]" :is-last="isLastDay" :used-elsewhere="usedElsewhere" @save="onSaveExpense" @draft="onSaveDraft" />
-      <VDialog v-model="summaryOpen" max-width="1400" width="95%">
-        <TravelExpenseSummary :days="summaryDays" @back="summaryOpen = false" @submit="onSubmitExpense" />
+      <ExpenseEntryDialog v-model="expenseEntryOpen" :day="activeDay" :total-days="days.length" :initial="expenses[activeDay?.key]" :is-last="isLastDay" :used-elsewhere="usedElsewhere" :entitlements="entitlements" :ticket-arrangement="item?.ticket_arrangement" :accommodation-arrangement="item?.accommodation_arrangement" @save="onSaveExpense" @draft="onSaveDraft" @select-day="onSelectDayFromEntry" />
+      <VDialog v-model="summaryOpen" max-width="1280" width="90%">
+        <TravelExpenseSummary :days="summaryDays" :advance-meal="item?.advance_meal_allowance ?? 0" :advance-pocket="item?.advance_pocket_money ?? 0" @back="summaryOpen = false" @submit="onSubmitExpense" />
       </VDialog>
     </VCard>
   </VDialog>

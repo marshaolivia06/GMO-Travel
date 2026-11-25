@@ -22,7 +22,7 @@ class MasterRateLimitService
         $noDaily = filled($destination) && MasterNoDailyAllowanceDestination::query()->where('region_id', $regionId)->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($destination))])->exists();
         $mealUnlimited = $rate->meal_basis === 'at_cost';
 
-        return ['region_id' => $regionId, 'currency' => $region->currency, 'days' => $days, 'pocket_money_limit' => $noDaily ? 0.0 : (float) $rate->daily_allowance * $pocketDays, 'meal_basis' => $rate->meal_basis, 'meal_limit_per_meal' => $mealUnlimited ? null : (float) $rate->meal_limit_per_meal, 'meal_allowance_limit' => $mealUnlimited ? null : (float) $rate->meal_limit_per_meal * self::MEALS_PER_DAY * $days];
+        return ['region_id' => $regionId, 'currency' => $region->currency, 'days' => $days, 'pocket_money_limit' => $noDaily ? 0.0 : (float) $rate->daily_allowance * $pocketDays, 'meal_basis' => $rate->meal_basis, 'meal_limit_per_meal' => $mealUnlimited ? null : (float) $rate->meal_limit_per_meal, 'meal_allowance_limit' => $mealUnlimited ? null : (float) $rate->meal_limit_per_meal * self::MEALS_PER_DAY * $days, 'hotel_star' => (int) $rate->hotel_star, 'hotel_rate' => (float) $rate->hotel_rate, 'hotel_rate_currency' => $rate->hotel_rate_currency];
     }
 
     public function validateAdvance(int $regionId, ?string $destination, float $pocketMoney, float $mealAllowance, int $grade, int $days, string $date): array

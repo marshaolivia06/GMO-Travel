@@ -1,193 +1,257 @@
 <script setup>
 import { ref, computed } from 'vue'
 
-// Langkah 1 (UI saja): data contoh. Nanti `days` diganti data hari dari Expense Overview,
-// jadi jumlah hari otomatis mengikuti perjalanan (tidak hardcode 3 hari).
 const props = defineProps({
-  days: {
-    type: Array,
-    default: () => [
-      { key: 1, title: 'Day 1', date: '15 July 2026', effective: '08:15', items: [
-        { title: 'Breakfast', amount: 10000, currency: 'IDR', metaLabel: 'Budget / Meal', metaValue: 30000, note: 'Departure-day breakfast', attachment: 'breakfast-receipt.pdf' },
-        { title: 'Lunch', amount: 10000, currency: 'IDR', metaLabel: 'Budget / Meal', metaValue: 30000, note: 'Lunch allowance' },
-        { title: 'Dinner', amount: 10000, currency: 'IDR', metaLabel: 'Budget / Meal', metaValue: 30000, note: 'Dinner allowance' },
-        { title: 'Telephone', amount: 200000, currency: 'IDR', metaLabel: 'Policy', metaValue: 'Fixed Entitlement', note: 'Telephone fixed entitlement' },
-        { title: 'Pocket Money', amount: 50000, currency: 'IDR', metaLabel: 'Trip Budget', metaValue: 150000, note: 'Pocket money reimbursement' },
-      ] },
-      { key: 2, title: 'Day 2', date: '16 July 2026', items: [
-        { title: 'Accommodation', amount: 1250000, currency: 'IDR', metaLabel: 'Policy', metaValue: '3 Star Hotel Standard', note: 'Hotel stay', attachment: 'hotel-invoice.pdf' },
-      ] },
-      { key: 3, title: 'Day 3', date: '17 July 2026', effective: '18:40', items: [
-        { title: 'Transport Others 1', amount: 145000, currency: 'IDR', note: 'Transport to restaurant', attachment: 'local-transport.jpg' },
-      ] },
-    ],
-  },
-  mealEntitlement: { type: Number, default: 210000 },
-  mealAdvance: { type: Number, default: 0 },
-  eligibleMeals: { type: Number, default: 7 },
-  pocketEntitlement: { type: Number, default: 150000 },
-  pocketAdvance: { type: Number, default: 0 },
+  days: { type: Array, default: () => [] },
+  advanceMeal: { type: Number, default: 0 },
+  advancePocket: { type: Number, default: 0 },
 })
-const emit = defineEmits(['back', 'submit', 'view-attachment'])
+const emit = defineEmits(['back', 'submit'])
 
-const hardcopyConfirmed = ref(false)
-const formatMoney = (value, currency = 'IDR') => `${currency} ${new Intl.NumberFormat('id-ID').format(value)}`
-const categoryName = title => title.replace(/\s\d+$/, '')
+const receiptConfirmed = ref(false)
+const showSettlement = ref(true)
+const showAdvance = ref(true)
+const expandedDays = ref([])
+const expandedItems = ref([])
+
+const num = value => Number(value) || 0
+const formatMoney = (value, currency = 'IDR') => `${currency ?? 'IDR'} ${new Intl.NumberFormat('id-ID').format(num(value))}`
+const MEALS = ['Breakfast', 'Lunch', 'Dinner']
+const FIXED_CATEGORIES = ['Meals', 'Pocket Money', 'Personal Telephone', 'Telephone', 'Office Telephone']
+const categoryName = title => { const name = title.replace(/\s\d+$/, ''); return MEALS.includes(name) ? 'Meals' : name }
+const basisOf = item => (FIXED_CATEGORIES.includes(categoryName(item.title)) ? 'fixed' : 'receipt')
+const eligibleOf = item => item.eligible ?? item.amount
 
 const allItems = computed(() => props.days.flatMap(day => day.items))
+const itemsOf = basis => allItems.value.filter(item => basisOf(item) === basis)
 
 const totalsByCurrency = computed(() => {
   const result = {}
   allItems.value.forEach(item => {
-    const group = result[item.currency] ??= { currency: item.currency, total: 0, categories: {} }
+    const currency = item.currency ?? 'IDR'
+    const group = result[currency] ??= { currency, total: 0, categories: {} }
     const name = categoryName(item.title)
     group.categories[name] = (group.categories[name] ?? 0) + item.amount
     group.total += item.amount
   })
-  return Object.values(result).map(group => ({
-    currency: group.currency,
-    total: group.total,
-    rows: Object.entries(group.categories).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount),
-  }))
+  return Object.values(result).map(group => ({ currency: group.currency, total: group.total, rows: Object.entries(group.categories).map(([name, amount]) => ({ name, amount })).filter(row => row.amount > 0).sort((a, b) => b.amount - a.amount) }))
 })
 
-const categoryCards = computed(() => {
-  const names = [...new Set(allItems.value.map(item => categoryName(item.title)))]
-  return names.map(name => ({
-    name,
-    rows: totalsByCurrency.value.map(group => ({ currency: group.currency, amount: group.rows.find(row => row.name === name)?.amount ?? 0 })).filter(row => row.amount > 0),
-  }))
+const groupDetails = basis => {
+  const groups = {}
+  itemsOf(basis).forEach(item => {
+    const name = categoryName(item.title)
+    groups[name] ??= { name, actual: 0, eligible: 0 }
+    groups[name].actual += item.amount
+    groups[name].eligible += eligibleOf(item)
+  })
+  return Object.values(groups)
+}
+
+const fixedTotal = computed(() => itemsOf('fixed').reduce((sum, item) => sum + eligibleOf(item), 0))
+const receiptTotal = computed(() => itemsOf('receipt').reduce((sum, item) => sum + eligibleOf(item), 0))
+const totalEligible = computed(() => fixedTotal.value + receiptTotal.value)
+const advanceTotal = computed(() => num(props.advanceMeal) + num(props.advancePocket))
+const balance = computed(() => advanceTotal.value - totalEligible.value)
+
+const settlement = computed(() => {
+  if (balance.value > 0) return { chip: 'Employee → Company', title: 'Return to Company', note: 'The employee must return the unused Travel Advance to the company.', amount: balance.value, tone: 'warning' }
+  if (balance.value < 0) return { chip: 'Company → Employee', title: 'Reimburse to Employee', note: 'The company will reimburse the remaining eligible expense to the employee.', amount: Math.abs(balance.value), tone: 'success' }
+  return { chip: 'Balanced', title: 'No Settlement Required', note: 'The Travel Advance received matches the total eligible expense.', amount: 0, tone: 'success' }
 })
 
-const claimOf = names => allItems.value.filter(item => names.includes(categoryName(item.title))).reduce((sum, item) => sum + item.amount, 0)
-const reconciliation = computed(() => [
-  { type: 'Meals', note: `Breakfast + Lunch + Dinner · ${props.eligibleMeals} eligible meals`, budget: props.mealEntitlement, advance: props.mealAdvance, claim: claimOf(['Breakfast', 'Lunch', 'Dinner']) },
-  { type: 'Pocket Money', note: 'Trip-level entitlement', budget: props.pocketEntitlement, advance: props.pocketAdvance, claim: claimOf(['Pocket Money']) },
-].map(row => ({ ...row, remaining: row.budget - row.advance - row.claim })))
-const reconciliationHeaders = [
-  { title: 'ADVANCE TYPE', key: 'type', sortable: false },
-  { title: 'CURRENCY', key: 'currency', sortable: false },
-  { title: 'BUDGET ENTITLEMENT', key: 'budget', align: 'end', sortable: false },
-  { title: 'ADVANCE RECEIVED', key: 'advance', align: 'end', sortable: false },
-  { title: 'ADDITIONAL CLAIM', key: 'claim', align: 'end', sortable: false },
-  { title: 'REMAINING BALANCE', key: 'remaining', align: 'end', sortable: false },
-]
+const dayTotal = day => day.items.reduce((sum, item) => sum + eligibleOf(item), 0)
+const dayStatus = day => (day.items.some(item => item.manualReview) ? 'Manual Review*' : 'Eligible')
+const dayStatusColor = day => (day.items.some(item => item.manualReview) ? 'text-warning' : 'text-primary')
+const toggleItem = key => { const index = expandedItems.value.indexOf(key); if (index >= 0) expandedItems.value.splice(index, 1); else expandedItems.value.push(key) }
+const toggleDay = key => { const index = expandedDays.value.indexOf(key); if (index >= 0) expandedDays.value.splice(index, 1); else expandedDays.value.push(key) }
+
+const previewOpen = ref(false)
+const previewName = ref('')
+const previewUrl = ref('')
+const previewKind = ref('')
+const openPreview = item => {
+  const file = item.file
+  const type = String(file?.type ?? '')
+  const name = String(file?.name ?? '').toLowerCase()
+  previewName.value = item.attachment ?? ''
+  if (type.startsWith('image/')) { previewKind.value = 'image'; previewUrl.value = URL.createObjectURL(file) } else if (type === 'application/pdf' || name.endsWith('.pdf')) { previewKind.value = 'pdf'; previewUrl.value = URL.createObjectURL(file) } else { previewKind.value = ''; previewUrl.value = '' }
+  previewOpen.value = true
+}
+const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUrl.value); previewUrl.value = ''; previewName.value = ''; previewKind.value = ''; previewOpen.value = false }
 </script>
 
 <template>
   <VCard rounded="lg">
     <VCardText class="pa-4">
-    <div class="d-flex flex-column ga-4">
-    <div>
-      <div class="text-h5 font-weight-bold">Travel Expense Summary</div>
-      <div class="text-caption text-medium-emphasis">The distribution chart is split per currency and shows each expense amount and the currency total.</div>
-    </div>
+      <div class="d-flex flex-column ga-4">
+        <div>
+          <div class="text-h5 font-weight-bold">Travel Expense Summary</div>
+          <div class="text-caption text-medium-emphasis">Review the settlement summary before submitting your travel expense report.</div>
+        </div>
 
-    <VCard rounded="lg" elevation="0" border>
-      <div class="d-flex align-center justify-space-between px-4 py-3">
-        <span class="text-subtitle-1 font-weight-bold">Expense Category Distribution</span>
-        <span class="text-caption text-medium-emphasis">One bar chart for each currency.</span>
-      </div>
-      <VDivider />
-      <VRow class="pa-4">
-        <VCol v-for="group in totalsByCurrency" :key="group.currency" cols="12" md="5">
-          <VCard rounded="lg" elevation="0" border class="pa-4">
-            <div class="d-flex align-center justify-space-between mb-3">
-              <span class="text-subtitle-2 font-weight-bold">{{ group.currency }} Expense Distribution</span>
-              <VChip color="success" variant="tonal" size="small" label>Total {{ formatMoney(group.total, group.currency) }}</VChip>
-            </div>
-            <VDivider class="mb-3" />
-            <VRow v-for="row in group.rows" :key="row.name" align="center" no-gutters class="mb-2">
-              <VCol cols="3" class="text-caption">{{ row.name }}</VCol>
-              <VCol cols="6" class="px-2"><VProgressLinear :model-value="(row.amount / group.rows[0].amount) * 100" color="primary" bg-color="grey-lighten-3" height="14" rounded /></VCol>
-              <VCol cols="3" class="text-caption font-weight-bold text-end">{{ formatMoney(row.amount, group.currency) }}</VCol>
-            </VRow>
-          </VCard>
-        </VCol>
-      </VRow>
-    </VCard>
-
-    <VCard rounded="lg" elevation="0" border>
-      <div class="d-flex align-center justify-space-between px-4 py-3">
-        <span class="text-subtitle-1 font-weight-bold">Expense by Category</span>
-        <span class="text-caption text-medium-emphasis">Two-column responsive layout.</span>
-      </div>
-      <VDivider />
-      <VRow class="pa-4">
-        <VCol v-for="category in categoryCards" :key="category.name" cols="12" md="6">
-          <VCard rounded="lg" elevation="0" border class="pa-3">
-            <div class="text-body-2 font-weight-bold mb-2">{{ category.name }}</div>
-            <VDivider class="mb-2" />
-            <div v-for="row in category.rows" :key="row.currency" class="d-flex justify-space-between text-caption">
-              <span>{{ row.currency }}</span>
-              <span class="font-weight-bold">{{ formatMoney(row.amount, row.currency) }}</span>
-            </div>
-          </VCard>
-        </VCol>
-      </VRow>
-    </VCard>
-
-    <VCard rounded="lg" elevation="0" border>
-      <div class="d-flex align-center justify-space-between px-4 py-3">
-        <span class="text-subtitle-1 font-weight-bold">Travel Advance Reconciliation</span>
-        <span class="text-caption text-medium-emphasis">Travel Advance only consists of Meals and Pocket Money.</span>
-      </div>
-      <VDivider />
-      <VDataTable :headers="reconciliationHeaders" :items="reconciliation" hide-default-footer class="text-body-2">
-        <template #headers="{ columns }">
-          <tr>
-            <th v-for="column in columns" :key="column.key" :class="['bg-grey-lighten-3 py-3', column.align === 'end' ? 'text-end' : 'text-start']">{{ column.title }}</th>
-          </tr>
-        </template>
-        <template #item.type="{ item }"><div class="py-4"><div class="font-weight-bold">{{ item.type }}</div><div class="text-caption text-medium-emphasis">{{ item.note }}</div></div></template>
-        <template #item.currency><div class="py-4">IDR</div></template>
-        <template #item.budget="{ item }"><div class="py-4">{{ formatMoney(item.budget) }}</div></template>
-        <template #item.advance="{ item }"><div class="py-4">{{ formatMoney(item.advance) }}</div></template>
-        <template #item.claim="{ item }"><div class="py-4">{{ formatMoney(item.claim) }}</div></template>
-        <template #item.remaining="{ item }"><div class="py-4 font-weight-bold text-success">{{ formatMoney(item.remaining) }}</div></template>
-      </VDataTable>
-    </VCard>
-
-    <VCard rounded="lg" elevation="0" border>
-      <div class="d-flex align-center justify-space-between px-4 py-3">
-        <span class="text-subtitle-1 font-weight-bold">Expense by Day</span>
-        <span class="text-caption text-medium-emphasis">Attachment can be opened using View.</span>
-      </div>
-      <VDivider />
-      <div class="d-flex flex-column ga-4 pa-4">
-        <VCard v-for="day in days" :key="day.key" rounded="lg" elevation="0" border>
-          <div class="d-flex align-center justify-space-between px-4 py-3 bg-grey-lighten-5">
-            <span class="text-subtitle-2 font-weight-bold">{{ day.title }} · {{ day.date }}</span>
-            <span v-if="day.effective" class="text-body-2">Effective {{ day.effective }}</span>
+        <VCard rounded="lg" elevation="0" border>
+          <div class="d-flex align-center justify-space-between px-4 py-3">
+            <span class="text-subtitle-1 font-weight-bold">Actual Expense Category Distribution</span>
+            <span class="text-caption text-medium-emphasis">One bar chart for each currency.</span>
           </div>
           <VDivider />
           <VRow class="pa-4">
-            <VCol v-for="(item, index) in day.items" :key="index" cols="12" md="6">
-              <VCard rounded="lg" elevation="0" border class="pa-3 h-100">
-                <div class="text-body-2 font-weight-bold">{{ item.title }}</div>
-                <div class="text-subtitle-1 font-weight-bold">{{ formatMoney(item.amount, item.currency) }}</div>
-                <div v-if="item.metaLabel" class="text-caption text-medium-emphasis">{{ item.metaLabel }}: <strong>{{ typeof item.metaValue === 'number' ? formatMoney(item.metaValue, item.currency) : item.metaValue }}</strong></div>
-                <div class="text-caption text-medium-emphasis">{{ item.note }}</div>
-                <template v-if="item.attachment">
-                  <VDivider class="my-2" />
-                  <div class="d-flex align-center justify-space-between">
-                    <span class="d-flex align-center ga-2 text-caption"><VIcon icon="ri-file-line" size="small" />{{ item.attachment }}</span>
-                    <VBtn variant="outlined" size="small" class="text-none" @click="emit('view-attachment', item)">View</VBtn>
-                  </div>
-                </template>
+            <VCol v-for="group in totalsByCurrency" :key="group.currency" cols="12" md="4">
+              <VCard rounded="lg" elevation="0" border class="pa-4">
+                <div class="d-flex align-center justify-space-between mb-3">
+                  <span class="text-subtitle-2 font-weight-bold">{{ group.currency }} Expense Distribution</span>
+                  <VChip color="success" variant="outlined" size="small" class="font-weight-bold flex-shrink-0" style="white-space: nowrap">Total&nbsp;{{ formatMoney(group.total, group.currency).replace(' ', '\u00A0') }}</VChip>
+                </div>
+                <VDivider class="mb-3" />
+                <VRow v-for="row in group.rows" :key="row.name" align="center" no-gutters class="mb-2">
+                  <VCol cols="4" class="text-caption">{{ row.name }}</VCol>
+                  <VCol cols="4" class="px-2"><VProgressLinear :model-value="(row.amount / group.rows[0].amount) * 100" color="primary" bg-color="grey-lighten-3" height="12" rounded /></VCol>
+                  <VCol cols="4" class="text-caption font-weight-bold text-end" style="white-space: nowrap">{{ formatMoney(row.amount, group.currency).replace(' ', '\u00A0') }}</VCol>
+                </VRow>
               </VCard>
             </VCol>
           </VRow>
         </VCard>
+
+        <VCard rounded="lg" elevation="0" border>
+          <div class="d-flex align-center justify-space-between px-4 py-3">
+            <span class="text-subtitle-1 font-weight-bold">Travel Expense Settlement</span>
+          </div>
+          <VDivider />
+          <VRow class="pa-4">
+            <VCol cols="12">
+              <VCard rounded="lg" elevation="0" border>
+                <div class="px-4 py-3">
+                  <div class="text-subtitle-1 font-weight-bold">Travel Expense Settlement</div>
+                  <div class="text-caption text-medium-emphasis">IDR</div>
+                </div>
+                <div class="d-flex align-center justify-space-between px-4 py-3 bg-blue-lighten-5">
+                  <span class="text-body-2 font-weight-bold">Total Eligible Expense (Estimated)</span>
+                  <span class="text-h5 font-weight-bold">{{ formatMoney(totalEligible) }}</span>
+                </div>
+                <div class="d-flex justify-end px-4 py-1"><VBtn variant="text" size="small" color="primary" class="text-none font-weight-bold" :append-icon="showSettlement ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" @click="showSettlement = !showSettlement">{{ showSettlement ? 'Hide detail' : 'View detail' }}</VBtn></div>
+                <template v-if="showSettlement">
+                  <VDivider />
+                  <div class="px-4 pt-3 pb-1 text-body-2 font-weight-bold">A. Fixed Entitlement</div>
+                  <VTable density="compact" class="text-body-2 px-2">
+                    <thead><tr><th class="text-caption">Category</th><th class="text-caption text-end">Actual</th><th class="text-caption text-end">Eligible</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in groupDetails('fixed')" :key="row.name"><td>{{ row.name }}</td><td class="text-end">{{ formatMoney(row.actual) }}</td><td class="text-end">{{ formatMoney(row.eligible) }}</td></tr>
+                      <tr v-if="!groupDetails('fixed').length"><td colspan="3" class="text-caption text-medium-emphasis">No fixed entitlement claimed.</td></tr>
+                      <tr class="bg-blue-lighten-5 font-weight-bold text-primary"><td>Eligible Fixed Entitlement</td><td></td><td class="text-end">{{ formatMoney(fixedTotal) }}</td></tr>
+                    </tbody>
+                  </VTable>
+                  <VDivider class="mt-3" />
+                  <div class="px-4 pt-3 pb-1 text-body-2 font-weight-bold">B. Receipt-Based Expenses</div>
+                  <VTable density="compact" class="text-body-2 px-2">
+                    <thead><tr><th class="text-caption">Category</th><th class="text-caption text-end">Actual</th><th class="text-caption text-end">Eligible</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in groupDetails('receipt')" :key="row.name"><td>{{ row.name }}</td><td class="text-end">{{ formatMoney(row.actual) }}</td><td class="text-end">{{ formatMoney(row.eligible) }}</td></tr>
+                      <tr v-if="!groupDetails('receipt').length"><td colspan="3" class="text-caption text-medium-emphasis">No receipt-based expense claimed.</td></tr>
+                      <tr class="bg-blue-lighten-5 font-weight-bold text-primary"><td>Eligible Receipt-Based Expenses</td><td></td><td class="text-end">{{ formatMoney(receiptTotal) }}</td></tr>
+                    </tbody>
+                  </VTable>
+                  <div class="px-4 py-2 text-caption bg-grey-lighten-5">Eligible Fixed Entitlement ({{ formatMoney(fixedTotal) }}) + Eligible Receipt-Based Expenses ({{ formatMoney(receiptTotal) }}) = <span class="font-weight-bold text-primary">{{ formatMoney(totalEligible) }}</span></div>
+                </template>
+                <VDivider />
+                <div class="d-flex align-center justify-space-between px-4 py-3">
+                  <div><div class="text-body-2 font-weight-bold">Travel Advance Received</div><div class="text-caption text-medium-emphasis">Previously paid by the company via Travel Order</div></div>
+                  <span class="text-h5 font-weight-bold">{{ formatMoney(advanceTotal) }}</span>
+                </div>
+                <div class="d-flex justify-end px-4 py-1"><VBtn variant="text" size="small" color="primary" class="text-none font-weight-bold" :append-icon="showAdvance ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" @click="showAdvance = !showAdvance">{{ showAdvance ? 'Hide detail' : 'View detail' }}</VBtn></div>
+                <div v-if="showAdvance" class="border-s ms-4 mb-3 ps-3 me-4">
+                  <div class="d-flex justify-space-between text-body-2 py-1"><span>Meals Advance</span><span class="font-weight-bold">{{ formatMoney(advanceMeal) }}</span></div>
+                  <div class="d-flex justify-space-between text-body-2 py-1"><span>Pocket Money Advance</span><span class="font-weight-bold">{{ formatMoney(advancePocket) }}</span></div>
+                </div>
+                <VDivider />
+                <div class="d-flex align-center justify-space-between pa-4" :class="settlement.tone === 'warning' ? 'bg-amber-lighten-5' : 'bg-green-lighten-5'">
+                  <div>
+                    <div class="text-subtitle-1 font-weight-bold">{{ settlement.title }}</div>
+                    <div class="text-caption font-weight-bold" :class="settlement.tone === 'warning' ? 'text-warning' : 'text-success'">{{ settlement.chip }}</div>
+                    <div class="text-caption text-medium-emphasis mt-1">{{ settlement.note }}</div>
+                  </div>
+                  <div class="text-h5 font-weight-bold" :class="settlement.tone === 'warning' ? 'text-warning' : 'text-success'">{{ settlement.amount > 0 ? formatMoney(settlement.amount) : '—' }}</div>
+                </div>
+              </VCard>
+            </VCol>
+          </VRow>
+        </VCard>
+
+        <VCard rounded="lg" elevation="0" border>
+          <div class="d-flex align-center justify-space-between px-4 py-3">
+            <span class="text-subtitle-1 font-weight-bold">Expense by Day</span>
+          </div>
+          <VDivider />
+          <div class="d-flex flex-column ga-3 pa-4">
+            <VCard v-for="day in days" :key="day.key" rounded="lg" elevation="0" border>
+              <div class="d-flex align-center justify-space-between px-4 py-3 cursor-pointer" :class="expandedDays.includes(day.key) ? 'bg-grey-lighten-5' : ''" @click="toggleDay(day.key)">
+                <div>
+                  <div class="text-subtitle-2 font-weight-bold">{{ day.title }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ day.date }} · {{ day.items.length }} expense entries<span v-if="day.effective"> · Effective {{ day.effective }}</span></div>
+                </div>
+                <div class="d-flex align-center ga-3">
+                  <div class="text-end"><div class="text-body-1 font-weight-bold text-primary">{{ formatMoney(dayTotal(day)) }}</div><div class="text-caption" :class="dayStatusColor(day)">{{ dayStatus(day) }}</div></div>
+                  <VIcon :icon="expandedDays.includes(day.key) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" />
+                </div>
+              </div>
+              <template v-if="expandedDays.includes(day.key)">
+                <VDivider />
+                <VTable density="comfortable" class="text-body-2 px-2">
+                  <thead><tr><th class="text-caption font-weight-bold text-uppercase">Category</th><th class="text-caption font-weight-bold text-uppercase text-end">Actual</th><th class="text-caption font-weight-bold text-uppercase text-end">Eligible</th></tr></thead>
+                  <tbody>
+                    <template v-for="(item, index) in day.items" :key="index">
+                      <tr class="cursor-pointer" @click="toggleItem(`${day.key}-${index}`)">
+                        <td class="font-weight-bold"><VIcon :icon="expandedItems.includes(`${day.key}-${index}`) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'" size="small" class="me-1" />{{ item.title }}</td>
+                        <td class="text-end text-medium-emphasis">{{ item.amount ? formatMoney(item.amount, item.currency) : '—' }}</td>
+                        <td class="text-end font-weight-bold text-primary">{{ formatMoney(eligibleOf(item), item.currency) }}</td>
+                      </tr>
+                      <tr v-if="expandedItems.includes(`${day.key}-${index}`)">
+                        <td colspan="3" class="bg-grey-lighten-5">
+                          <div class="py-1">
+                            <span v-if="item.attachment" class="d-inline-flex align-center ga-2 text-caption text-primary text-decoration-underline cursor-pointer" @click.stop="openPreview(item)"><VIcon icon="ri-file-line" size="small" />{{ item.attachment }}</span>
+                            <span v-else class="text-caption text-medium-emphasis">No attachment.</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </VTable>
+              </template>
+            </VCard>
+            <div v-if="!days.length" class="text-body-2 text-medium-emphasis">No expense claimed yet.</div>
+          </div>
+          <VDivider />
+          <VCard color="amber-lighten-5" rounded="lg" elevation="0" border class="mx-4 my-4 border-warning">
+            <VCardText class="pa-2">
+              <VCheckbox v-model="receiptConfirmed" hide-details density="compact"><template #label><span class="text-body-2">I confirm any required original receipts will be submitted to GMO (if applicable).</span></template></VCheckbox>
+            </VCardText>
+          </VCard>
+          <VDivider />
+          <div class="d-flex align-center justify-end ga-2 pa-4">
+            <VBtn variant="outlined" color="secondary" class="text-none font-weight-semibold" @click="emit('back')">Back to Edit</VBtn>
+            <VBtn color="primary" variant="flat" class="text-none font-weight-semibold" :disabled="!receiptConfirmed" @click="emit('submit')">Submit Expense Report</VBtn>
+          </div>
+        </VCard>
       </div>
-      <VDivider />
-      <VCard color="amber-lighten-5" rounded="lg" elevation="0" class="mx-4 my-4"><VCardText class="d-flex align-center ga-2 pa-3"><input v-model="hardcopyConfirmed" type="checkbox" class="mr-2"><div class="text-body-2">Hardcopy receipts will be collected directly by the <strong>GMO team</strong>.</div></VCardText></VCard>
-      <div class="d-flex align-center justify-end ga-2 pa-4 bg-grey-lighten-5">
-        <VBtn variant="flat" class="bg-grey-lighten-1 text-none font-weight-semibold" @click="emit('back')">Back to Edit</VBtn>
-        <VBtn color="primary" variant="flat" class="text-none font-weight-semibold" :disabled="!hardcopyConfirmed" @click="emit('submit')">Submit Expense Report</VBtn>
-      </div>
-    </VCard>
-    </div>
     </VCardText>
+
+    <VDialog v-model="previewOpen" max-width="720" @update:model-value="value => { if (!value) closePreview() }">
+      <VCard rounded="lg">
+        <div class="d-flex align-center justify-space-between px-4 py-3">
+          <span class="text-subtitle-2 font-weight-bold">{{ previewName }}</span>
+          <VBtn icon="ri-close-line" variant="text" size="small" @click="closePreview" />
+        </div>
+        <VDivider />
+        <div class="pa-4 d-flex justify-center bg-grey-lighten-4">
+          <img v-if="previewKind === 'image'" :src="previewUrl" alt="attachment preview" style="max-width: 100%; max-height: 65vh; object-fit: contain">
+          <iframe v-else-if="previewKind === 'pdf'" :src="previewUrl" title="attachment preview" style="width: 100%; height: 70vh; border: none"></iframe>
+          <div v-else class="d-flex flex-column align-center text-medium-emphasis py-8">
+            <VIcon icon="ri-file-line" size="48" />
+            <div class="text-caption mt-2">Preview not available for this file type.</div>
+          </div>
+        </div>
+      </VCard>
+    </VDialog>
   </VCard>
 </template>

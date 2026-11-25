@@ -117,6 +117,11 @@ async function load() {
 
     const orderItems = orders.filter(to => String(to.user_id) === String(currentUserId.value) && normalize(to.status) === PROCESSED_BY_GMO).map(to => ({
       id: to.id,
+      region_id: to.region_id,
+      ticket_arrangement: to.ticket_arrangement,
+      accommodation_arrangement: to.accommodation_arrangement,
+      advance_meal_allowance: Number(to.advance?.meal_allowance ?? to.meal_allowance ?? 0) || 0,
+      advance_pocket_money: Number(to.advance?.pocket_money ?? to.pocket_money ?? 0) || 0,
       status: 'new',
       category: 'new',
       trip_type: to.trip_type,
