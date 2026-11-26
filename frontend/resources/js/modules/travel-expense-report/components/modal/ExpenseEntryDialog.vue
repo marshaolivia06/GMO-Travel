@@ -56,8 +56,18 @@ const isNotClaimable = c => (c.key === 'ticket' && !ticketClaimable.value) || (c
 const usedMeals = computed(() => Number(props.usedElsewhere?.meals) || 0)
 const usedPocket = computed(() => Number(props.usedElsewhere?.pocket_money) || 0)
 const moneyCurrency = computed(() => props.entitlements?.currency ?? 'IDR')
+const isManualReview = item => !!item && String(item.currency ?? 'IDR') !== moneyCurrency.value
+const currencyLocked = computed(() => !form.value.different_countries)
+const currencyItems = computed(() => (currencyLocked.value ? ['IDR'] : CURRENCIES))
+watch(() => form.value.different_countries, enabled => {
+  if (enabled) return
+  const items = [form.value.meals.breakfast, form.value.meals.lunch, form.value.meals.dinner, form.value.pocket_money, form.value.ticket, form.value.accommodation, form.value.laundry, form.value.telephone, form.value.office_telephone, ...form.value.transports, ...form.value.others]
+  items.forEach(item => { item.currency = 'IDR' })
+})
 const mealPerMeal = computed(() => { const value = props.entitlements?.meal_limit_per_meal; return value == null ? null : Number(value) })
 const pocketBudget = computed(() => { const value = props.entitlements?.pocket_money_limit; return value == null ? null : Number(value) })
+// Limit 0 = tujuan tidak menerima daily allowance -> kategori tampil Not Eligible, bukan "IDR 0"
+const pocketNotEligible = computed(() => pocketBudget.value === 0)
 
 const mealLimit = () => { const budget = mealPerMeal.value; const max = budget == null ? null : Math.max(0, budget - usedMeals.value); return { budgetLabel: 'BUDGET / MEAL', budget, max, remaining: max, note: `Meals claimed on other days: ${formatIDR(usedMeals.value)}. Maximum input for this day is adjusted automatically.` } }
 const pocketLimit = computed(() => { const budget = pocketBudget.value; const max = budget == null ? null : Math.max(0, budget - usedPocket.value); return { budgetLabel: 'TRIP BUDGET', budget, max, remaining: max, note: `Pocket money claimed on other days: ${formatIDR(usedPocket.value)}.` } })
@@ -92,7 +102,8 @@ const attachmentViolations = computed(() => {
 })
 const errorOf = key => errors.value[key] ?? ''
 const submitAttempted = ref(false)
-const canSave = computed(() => Object.keys(errors.value).length === 0)
+// Error deskripsi/justifikasi tidak mengunci tombol save - tampil & divalidasi setelah klik save
+const canSave = computed(() => Object.values(errors.value).every(err => !err.startsWith('Description is required') && !err.includes('Justification is required')))
 const formHasData = value => value.different_countries || value.transports.length > 0 || value.others.length > 0 || Object.values(value.meals).some(touched) || touched(value.pocket_money) || touched(value.ticket) || touched(value.accommodation) || touched(value.laundry) || touched(value.telephone) || touched(value.office_telephone) || value.transports.some(touched) || value.others.some(touched)
 
 const SIMPLE_CLAIM_KEYS = ['breakfast', 'lunch', 'dinner', 'pocket_money']
@@ -100,13 +111,15 @@ const isSimpleClaim = c => SIMPLE_CLAIM_KEYS.includes(c.key)
 const itemOf = c => (c.key === 'pocket_money' ? form.value.pocket_money : form.value.meals[c.key])
 const errorKeyOf = c => (c.key === 'pocket_money' ? 'pocket_money' : `meals.${c.key}`)
 const errOf = c => errorOf(errorKeyOf(c))
-const descError = c => (errOf(c) === 'Description is required.' ? errOf(c) : '')
-const dinnerJustificationError = () => { const err = errorOf('meals.dinner'); return err === 'Reason / Justification is required.' ? err : '' }
-const amountError = c => (errOf(c).startsWith('Amount exceeds') ? errOf(c) : '')
+// Pesan error hanya tampil setelah user menekan save
+const showAfterAttempt = err => (submitAttempted.value ? err : '')
+const descError = c => showAfterAttempt(errOf(c) === 'Description is required.' ? errOf(c) : '')
+const dinnerJustificationError = () => showAfterAttempt(errorOf('meals.dinner') === 'Reason / Justification is required.' ? errorOf('meals.dinner') : '')
+const amountError = c => showAfterAttempt(errOf(c).startsWith('Amount exceeds') ? errOf(c) : '')
 const attachError = c => (submitAttempted.value && attachmentViolations.value[errorKeyOf(c)] ? attachmentViolations.value[errorKeyOf(c)] : '')
 const amountDisplay = item => (item.amount === '' || item.amount == null ? '' : new Intl.NumberFormat('id-ID').format(Number(item.amount)))
 const simpleMaxOf = c => (c.key === 'pocket_money' ? pocketLimit.value.max : mealLimit().max)
-const setClampedAmount = (item, value, max) => { const digits = String(value).replace(/[^0-9]/g, ''); item.amount = max != null && Number(digits) > max ? String(max) : digits }
+const setClampedAmount = (item, value, max) => { const digits = String(value).replace(item.currency === 'IDR' ? /[^0-9]/g : /[^0-9.]/g, ''); item.amount = max != null && Number(digits) > max ? String(max) : digits }
 const blockAtMaxKeydown = (event, current, max) => { if (max == null || !/^[0-9]$/.test(event.key)) return; const el = event.target; if (el && el.selectionStart !== el.selectionEnd) return; if (Number(current || '0') >= max) event.preventDefault() }
 const onAmountInput = (c, value) => setClampedAmount(itemOf(c), value, simpleMaxOf(c))
 const onTelephoneAmountInput = value => setClampedAmount(form.value.telephone, value, TELEPHONE_BUDGET)
@@ -114,29 +127,29 @@ const firstFileName = attachment => (Array.isArray(attachment) ? attachment : at
 const onAttachment = (c, event) => { itemOf(c).attachment = Array.from(event.target.files) }
 
 const TICKET_TYPES = ['Airplane', 'Train', 'Ferry']
-const TICKET_CURRENCIES = ['IDR', 'USD', 'SGD', 'MYR', 'EUR']
+const CURRENCIES = ['IDR', 'SGD', 'MYR', 'USD', 'EUR', 'JPY']
 const HOTEL_STANDARDS = ['1 Star', '2 Star', '3 Star', '4 Star', '5 Star']
 const ticketErr = () => errorOf('ticket')
-const ticketDescError = () => (ticketErr() === 'Description is required.' ? ticketErr() : '')
+const ticketDescError = () => showAfterAttempt(ticketErr() === 'Description is required.' ? ticketErr() : '')
 const ticketAttachError = () => (submitAttempted.value && attachmentViolations.value.ticket ? 'Attachment is required.' : '')
 const accErr = () => errorOf('accommodation')
-const accDescError = () => (accErr() === 'Description is required.' ? accErr() : '')
+const accDescError = () => showAfterAttempt(accErr() === 'Description is required.' ? accErr() : '')
 const accAttachError = () => (submitAttempted.value && attachmentViolations.value.accommodation ? 'Attachment is required.' : '')
 const launErr = () => errorOf('laundry')
-const launDescError = () => (launErr() === 'Description is required.' ? launErr() : '')
+const launDescError = () => showAfterAttempt(launErr() === 'Description is required.' ? launErr() : '')
 const launAttachError = () => (submitAttempted.value && attachmentViolations.value.laundry ? 'Attachment is required.' : '')
 const telErr = () => errorOf('telephone')
-const telDescError = () => (telErr() === 'Description is required.' ? telErr() : '')
-const telAmountError = () => (telErr().startsWith('Amount exceeds') ? telErr() : '')
+const telDescError = () => showAfterAttempt(telErr() === 'Description is required.' ? telErr() : '')
+const telAmountError = () => showAfterAttempt(telErr().startsWith('Amount exceeds') ? telErr() : '')
 const telAttachError = () => ''
 const otErr = () => errorOf('office_telephone')
-const otDescError = () => (otErr() === 'Description is required.' ? otErr() : '')
+const otDescError = () => showAfterAttempt(otErr() === 'Description is required.' ? otErr() : '')
 const otAttachError = () => ''
 const transportErr = index => errorOf(`transports.${index}`)
-const transportDescError = index => (transportErr(index) === 'Description is required.' ? transportErr(index) : '')
+const transportDescError = index => showAfterAttempt(transportErr(index) === 'Description is required.' ? transportErr(index) : '')
 const transportAttachError = index => (submitAttempted.value && attachmentViolations.value[`transports.${index}`] ? 'Attachment is required.' : '')
 const otherErr = index => errorOf(`others.${index}`)
-const otherDescError = index => (otherErr(index) === 'Description is required.' ? otherErr(index) : '')
+const otherDescError = index => showAfterAttempt(otherErr(index) === 'Description is required.' ? otherErr(index) : '')
 const otherAttachError = index => (submitAttempted.value && attachmentViolations.value[`others.${index}`] ? 'Attachment is required.' : '')
 const amountDisplayFor = item => { const value = item.amount; if (value === '' || value == null || Number.isNaN(Number(value))) return ''; return new Intl.NumberFormat(item.currency === 'IDR' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 }).format(Number(value)) }
 const onAmountInputFor = (item, value) => { item.amount = item.currency === 'IDR' ? String(value).replace(/[^0-9]/g, '') : String(value).replace(/[^0-9.]/g, '') }
@@ -148,25 +161,36 @@ const onAccommodationAmountInput = value => {
   item.amount = max != null && Number(digits) > max ? String(max) : digits
   item.eligible_estimate = item.amount === '' ? '' : item.amount
 }
-const estimateDisplayFor = item => (item.eligible_estimate === '' ? '' : new Intl.NumberFormat('id-ID').format(Number(item.eligible_estimate)))
-const onEstimateInputFor = (item, value) => { item.eligible_estimate = String(value).replace(/[^0-9]/g, '') }
+const estimateDisplayFor = item => (isManualReview(item) ? 'Manual Review' : item.eligible_estimate === '' ? '' : new Intl.NumberFormat(item.currency === 'IDR' ? 'id-ID' : 'en-US', { maximumFractionDigits: 2 }).format(Number(item.eligible_estimate)))
+const onEstimateInputFor = (item, value) => { item.eligible_estimate = String(value).replace(item.currency === 'IDR' ? /[^0-9]/g : /[^0-9.]/g, '') }
 
 const sumItem = item => (claimed(item) ? Number(item.amount) || 0 : 0)
 const sumList = list => (list ?? []).reduce((sum, item) => sum + sumItem(item), 0)
 const mealAtCost = computed(() => props.entitlements?.meal_basis === 'at_cost' && mealPerMeal.value == null)
 const categories = computed(() => [
-  { key: 'breakfast', label: 'Breakfast', actual: sumItem(form.value.meals.breakfast), eligible: mealPerMeal.value, atCost: mealAtCost.value, currency: moneyCurrency.value },
-  { key: 'lunch', label: 'Lunch', actual: sumItem(form.value.meals.lunch), eligible: mealPerMeal.value, atCost: mealAtCost.value, currency: moneyCurrency.value },
-  { key: 'dinner', label: 'Dinner', actual: sumItem(form.value.meals.dinner), eligible: mealPerMeal.value, atCost: mealAtCost.value, currency: moneyCurrency.value },
-  { key: 'pocket_money', label: 'Pocket Money', actual: sumItem(form.value.pocket_money), eligible: pocketBudget.value, currency: moneyCurrency.value },
-  { key: 'ticket', label: 'Ticket', actual: sumItem(form.value.ticket), eligible: Number(form.value.ticket.eligible_estimate) || null, hasData: touched(form.value.ticket) },
-  { key: 'accommodation', label: 'Accommodation', actual: sumItem(form.value.accommodation), eligible: Number(form.value.accommodation.eligible_estimate) || null, hasData: touched(form.value.accommodation) },
-  ...(showLaundry.value ? [{ key: 'laundry', label: 'Laundry', actual: sumItem(form.value.laundry), eligible: Number(form.value.laundry.eligible_estimate) || null, availableFromDay: LAUNDRY_FROM_DAY, hasData: touched(form.value.laundry) }] : []),
-  { key: 'telephone', label: 'Telephone', actual: sumItem(form.value.telephone) + sumItem(form.value.office_telephone), eligible: TELEPHONE_BUDGET, hasData: touched(form.value.telephone) || touched(form.value.office_telephone) },
-  { key: 'transports', label: 'Transport', actual: sumList(form.value.transports), eligible: null, hasData: form.value.transports.some(touched) },
-  { key: 'others', label: 'Other', actual: sumList(form.value.others), eligible: null, hasData: form.value.others.some(touched) },
+  { key: 'breakfast', label: 'Breakfast', actual: sumItem(form.value.meals.breakfast), eligible: mealPerMeal.value, atCost: mealAtCost.value, currency: moneyCurrency.value, manualReview: isManualReview(form.value.meals.breakfast) },
+  { key: 'lunch', label: 'Lunch', actual: sumItem(form.value.meals.lunch), eligible: mealPerMeal.value, atCost: mealAtCost.value, currency: moneyCurrency.value, manualReview: isManualReview(form.value.meals.lunch) },
+  { key: 'dinner', label: 'Dinner', actual: sumItem(form.value.meals.dinner), eligible: mealPerMeal.value, atCost: mealAtCost.value, currency: moneyCurrency.value, manualReview: isManualReview(form.value.meals.dinner) },
+  { key: 'pocket_money', label: 'Pocket Money', actual: sumItem(form.value.pocket_money), eligible: pocketNotEligible.value ? null : pocketBudget.value, currency: moneyCurrency.value, manualReview: isManualReview(form.value.pocket_money), notEligible: pocketNotEligible.value },
+  { key: 'ticket', label: 'Ticket', actual: sumItem(form.value.ticket), eligible: Number(form.value.ticket.eligible_estimate) || null, hasData: touched(form.value.ticket), manualReview: isManualReview(form.value.ticket) },
+  { key: 'accommodation', label: 'Accommodation', actual: sumItem(form.value.accommodation), eligible: Number(form.value.accommodation.eligible_estimate) || null, hasData: touched(form.value.accommodation), manualReview: isManualReview(form.value.accommodation) },
+  ...(showLaundry.value ? [{ key: 'laundry', label: 'Laundry', actual: sumItem(form.value.laundry), eligible: Number(form.value.laundry.eligible_estimate) || null, availableFromDay: LAUNDRY_FROM_DAY, hasData: touched(form.value.laundry), manualReview: isManualReview(form.value.laundry) }] : []),
+  { key: 'telephone', label: 'Telephone', actual: sumItem(form.value.telephone) + sumItem(form.value.office_telephone), eligible: TELEPHONE_BUDGET, hasData: touched(form.value.telephone) || touched(form.value.office_telephone), manualReview: isManualReview(form.value.telephone) || isManualReview(form.value.office_telephone) },
+  { key: 'transports', label: 'Transport', actual: sumList(form.value.transports), eligible: null, hasData: form.value.transports.some(touched), manualReview: form.value.transports.some(isManualReview) },
+  { key: 'others', label: 'Other', actual: sumList(form.value.others), eligible: null, hasData: form.value.others.some(touched), manualReview: form.value.others.some(isManualReview) },
 ])
-const actionOf = c => (isNotClaimable(c) || (c.key === 'breakfast' && breakfastLocked.value) || (c.key === 'accommodation' && accommodationNotEligible.value) ? 'View' : c.availableFromDay && laundryLocked.value ? 'View' : c.hasData ? 'Edit' : 'Add')
+const actionOf = c => (isNotClaimable(c) || (c.key === 'breakfast' && breakfastLocked.value) || (c.key === 'pocket_money' && pocketNotEligible.value) || (c.key === 'accommodation' && accommodationNotEligible.value) ? 'View' : c.availableFromDay && laundryLocked.value ? 'View' : c.hasData ? 'Edit' : 'Add')
+const actualCurrencyOf = c => {
+  if (['breakfast', 'lunch', 'dinner'].includes(c.key)) return form.value.meals[c.key].currency
+  if (c.key === 'pocket_money') return form.value.pocket_money.currency
+  if (c.key === 'ticket') return form.value.ticket.currency
+  if (c.key === 'accommodation') return form.value.accommodation.currency
+  if (c.key === 'laundry') return form.value.laundry.currency
+  if (c.key === 'telephone') return form.value.telephone.currency === form.value.office_telephone.currency ? form.value.telephone.currency : null
+  const list = c.key === 'transports' ? form.value.transports : form.value.others
+  return list.length && list.every(item => item.currency === list[0].currency) ? list[0].currency : null
+}
+const formatActual = c => { const currency = actualCurrencyOf(c); return currency ? formatMoney(c.actual, currency) : 'Mixed' }
 
 const expanded = ref(null)
 watch(() => props.modelValue, open => { if (open) { expanded.value = null; submitAttempted.value = false } })
@@ -180,7 +204,11 @@ const removeAt = (list, index) => list.splice(index, 1)
 
 const close = () => emit('update:modelValue', false)
 const onSaveDraft = () => emit('draft', { day: dayNumber.value, ...form.value })
-const onSave = () => { submitAttempted.value = true; if (canSave.value && !Object.keys(attachmentViolations.value).length) emit('save', { day: dayNumber.value, ...form.value }) }
+const onSave = () => {
+  submitAttempted.value = true
+  // emit hanya kalau semua validasi lolos - error deskripsi/justifikasi tampil di form setelah klik ini
+  if (canSave.value && Object.keys(errors.value).length === 0 && !Object.keys(attachmentViolations.value).length) emit('save', { day: dayNumber.value, ...form.value })
+}
 const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select-day', { target, payload: { day: dayNumber.value, ...form.value }, hasData: formHasData(form.value) }) }
 </script>
 
@@ -197,16 +225,19 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
         <VCard variant="outlined" rounded="lg" class="mb-4 bg-white">
           <div class="d-flex justify-space-between align-center px-4 py-3 border-b"><div class="text-subtitle-1 font-weight-bold">Daily Travel Context</div><div class="text-caption text-medium-emphasis">Controls automatic allowance validation for this day.</div></div>
           <div class="d-flex justify-space-between align-center px-4 py-3"><div><div class="text-body-2 font-weight-bold">Different countries in one day</div><div class="text-caption text-primary">Adjusts allowance validation when crossing countries during the same day.</div></div><VSwitch v-model="form.different_countries" color="primary" density="compact" hide-details :label="form.different_countries ? 'Yes' : 'No'" /></div>
+          <VAlert v-if="form.different_countries" type="warning" variant="tonal" density="compact" :icon="false" class="mx-4 mb-4">
+            <div class="text-body-2"><span class="font-weight-bold">Manual OC Review</span><br>Currencies: IDR, SGD, MYR, USD, EUR, JPY. If an expense currency differs from the destination, Eligible Estimate and Settlement show Manual Review. No automatic FX conversion.</div>
+          </VAlert>
         </VCard>
 
         <VCard variant="outlined" rounded="lg" class="bg-white">
-          <div class="d-flex justify-space-between align-center px-4 py-3 border-b"><div><div class="text-subtitle-1 font-weight-bold">Daily Expenses</div><div class="text-caption text-medium-emphasis">Day {{ dayNumber }} of {{ totalDays }}{{ day?.date ? ` · ${day.date}` : '' }}</div></div><VChip size="small" variant="tonal" color="warning" class="font-weight-bold">New</VChip></div>
+          <div class="d-flex justify-space-between align-center px-4 py-3 border-b"><div><div class="text-subtitle-1 font-weight-bold">Daily Expenses</div><div class="text-caption text-medium-emphasis">Day {{ dayNumber }} of {{ totalDays }}{{ day?.date ? ` · ${day.date}` : '' }}</div></div><VChip size="small" variant="tonal" :color="initial?.status === 'saved' ? 'success' : 'warning'" class="font-weight-bold">{{ initial?.status === 'saved' ? 'Saved' : 'New' }}</VChip></div>
 
           <VTable class="text-body-2">
             <thead><tr><th class="text-caption font-weight-bold text-medium-emphasis">Category</th><th class="text-caption font-weight-bold text-medium-emphasis text-end">Actual</th><th class="text-caption font-weight-bold text-medium-emphasis text-end">Eligible</th><th class="text-caption font-weight-bold text-medium-emphasis text-end">Action</th></tr></thead>
             <tbody>
               <template v-for="c in categories" :key="c.key">
-                <tr :class="expanded === c.key ? 'bg-blue-grey-lighten-5' : ''" style="cursor: pointer" @click="onAction(c)"><td class="font-weight-bold">{{ c.label }}</td><td class="text-end text-medium-emphasis">{{ c.actual ? formatIDR(c.actual) : '—' }}</td><td class="text-end text-primary"><VChip v-if="c.atCost" size="x-small" color="info" variant="tonal" class="font-weight-bold">At Cost</VChip><template v-else>{{ c.eligible != null ? formatMoney(c.eligible, c.currency) : '—' }}</template></td><td class="text-end"><VBtn variant="text" size="small" color="primary" class="text-none text-decoration-underline font-weight-bold px-1" @click.stop="onAction(c)">{{ actionOf(c) }}</VBtn></td></tr>
+                <tr :class="expanded === c.key ? 'bg-blue-grey-lighten-5' : ''" style="cursor: pointer" @click="onAction(c)"><td class="font-weight-bold">{{ c.label }}</td><td class="text-end text-medium-emphasis">{{ c.actual ? formatActual(c) : '—' }}</td><td class="text-end text-primary"><VChip v-if="c.manualReview" size="x-small" color="warning" variant="tonal" class="font-weight-bold">Manual Review</VChip><VChip v-else-if="c.atCost" size="x-small" color="info" variant="tonal" class="font-weight-bold">At Cost</VChip><template v-else>{{ c.eligible != null ? formatMoney(c.eligible, c.currency) : '—' }}</template></td><td class="text-end"><VBtn variant="text" size="small" color="primary" class="text-none text-decoration-underline font-weight-bold px-1" @click.stop="onAction(c)">{{ actionOf(c) }}</VBtn></td></tr>
                 <tr v-if="expanded === c.key" class="bg-blue-grey-lighten-5">
                   <td colspan="4" class="pa-4">
                     <template v-if="c.availableFromDay && laundryLocked">
@@ -228,9 +259,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1">Description *</div>
                               <VTextField v-model="transport.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="transportDescError(index)" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="transport.currency" :items="['IDR']" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="transport.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(transport)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" class="text-right-input" @update:model-value="v => onAmountInputWithEstimate(transport, v)" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(transport)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details class="text-right-input" @update:model-value="v => onEstimateInputFor(transport, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(transport)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details :readonly="isManualReview(transport)" class="text-right-input" @update:model-value="v => onEstimateInputFor(transport, v)" /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document *</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { transport.attachment = Array.from(e.target.files) }"></div><div v-if="transportAttachError(index)" class="text-caption text-error mt-1">{{ transportAttachError(index) }}</div></div>
                             </div>
@@ -245,9 +276,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1">Description *</div>
                               <VTextField v-model="other.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="otherDescError(index)" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="other.currency" :items="['IDR']" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="other.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(other)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" class="text-right-input" @update:model-value="v => onAmountInputWithEstimate(other, v)" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(other)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details class="text-right-input" @update:model-value="v => onEstimateInputFor(other, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(other)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details :readonly="isManualReview(other)" class="text-right-input" @update:model-value="v => onEstimateInputFor(other, v)" /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document *</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { other.attachment = Array.from(e.target.files) }"></div><div v-if="otherAttachError(index)" class="text-caption text-error mt-1">{{ otherAttachError(index) }}</div></div>
                             </div>
@@ -285,9 +316,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1 mt-3">Description *</div>
                               <VTextField v-model="form.accommodation.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="accDescError()" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="form.accommodation.currency" :items="[hotelRateCurrency]" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="form.accommodation.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(form.accommodation)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" class="text-right-input" @keydown="e => blockAtMaxKeydown(e, form.accommodation.amount, hotelEligibleTotal)" @update:model-value="onAccommodationAmountInput" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.accommodation)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details class="text-right-input" @update:model-value="v => onEstimateInputFor(form.accommodation, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.accommodation)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details :readonly="isManualReview(form.accommodation)" class="text-right-input" @update:model-value="v => onEstimateInputFor(form.accommodation, v)" /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document *</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { form.accommodation.attachment = Array.from(e.target.files) }"></div><div v-if="accAttachError()" class="text-caption text-error mt-1">{{ accAttachError() }}</div></div>
                             </div>
@@ -307,13 +338,17 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1 mt-3">Description *</div>
                               <VTextField v-model="form.ticket.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="ticketDescError()" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="form.ticket.currency" :items="['IDR']" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="form.ticket.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(form.ticket)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" class="text-right-input" @update:model-value="v => onAmountInputWithEstimate(form.ticket, v)" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.ticket)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details class="text-right-input" @update:model-value="v => onEstimateInputFor(form.ticket, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.ticket)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details :readonly="isManualReview(form.ticket)" class="text-right-input" @update:model-value="v => onEstimateInputFor(form.ticket, v)" /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document *</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { form.ticket.attachment = Array.from(e.target.files) }"></div><div v-if="ticketAttachError()" class="text-caption text-error mt-1">{{ ticketAttachError() }}</div></div>
                             </div>
                           </VCard>
+                        </template>
+                        <template v-else-if="c.key === 'pocket_money' && pocketNotEligible">
+                          <div class="text-caption text-medium-emphasis mb-2">Not Eligible · No Daily Allowance</div>
+                          <div class="border rounded-lg pa-3 bg-blue-lighten-5 text-body-2"><span class="font-weight-bold text-primary">Not Eligible</span> Pocket Money is not available for this destination. The destination does not receive a daily allowance, so there is nothing to claim for this category.</div>
                         </template>
                         <template v-else-if="isSimpleClaim(c)">
                           <VCard rounded="lg" elevation="0" border>
@@ -325,9 +360,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <VTextField v-model="itemOf(c).description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="descError(c)" />
                               <div v-if="c.key === 'dinner' && itemOf(c).dinner_type === DINNER_AT_HOTEL" class="mt-3"><div class="text-caption font-weight-bold mb-1">Reason / Justification *</div><VTextarea v-model="itemOf(c).justification" variant="outlined" density="comfortable" rows="3" hide-details="auto" :error-messages="dinnerJustificationError()" /></div>
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="itemOf(c).currency" :items="['IDR']" variant="outlined" density="comfortable" hide-details disabled /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplay(itemOf(c))" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" :error-messages="amountError(c)" class="text-right-input" @keydown="e => blockAtMaxKeydown(e, itemOf(c).amount, simpleMaxOf(c))" @update:model-value="v => onAmountInput(c, v)" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Entitlement</div><VTextField :model-value="c.atCost ? 'At Cost' : formatMoney(c.eligible, c.currency)" variant="outlined" density="comfortable" hide-details readonly /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="itemOf(c).currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(itemOf(c))" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" :error-messages="amountError(c)" class="text-right-input" @keydown="e => blockAtMaxKeydown(e, itemOf(c).amount, simpleMaxOf(c))" @update:model-value="v => onAmountInput(c, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Entitlement</div><VTextField :model-value="isManualReview(itemOf(c)) ? 'Manual Review' : c.atCost ? 'At Cost' : formatMoney(c.eligible, c.currency)" variant="outlined" density="comfortable" hide-details readonly /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document</div><div class="d-flex align-center ga-2"><input type="file" @change="e => onAttachment(c, e)"></div><div v-if="attachError(c)" class="text-caption text-error mt-1">{{ attachError(c) }}</div></div>
                             </div>
@@ -341,9 +376,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1">Description *</div>
                               <VTextField v-model="form.telephone.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="telDescError()" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="form.telephone.currency" :items="['IDR']" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="form.telephone.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(form.telephone)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" :error-messages="telAmountError()" class="text-right-input" @keydown="e => blockAtMaxKeydown(e, form.telephone.amount, TELEPHONE_BUDGET)" @update:model-value="onTelephoneAmountInput" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Entitlement</div><VTextField :model-value="formatIDR(TELEPHONE_BUDGET)" variant="outlined" density="comfortable" hide-details readonly /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Entitlement</div><VTextField :model-value="isManualReview(form.telephone) ? 'Manual Review' : formatIDR(TELEPHONE_BUDGET)" variant="outlined" density="comfortable" hide-details readonly /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { form.telephone.attachment = Array.from(e.target.files) }"></div><div v-if="telAttachError()" class="text-caption text-error mt-1">{{ telAttachError() }}</div></div>
                             </div>
@@ -355,9 +390,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1">Description *</div>
                               <VTextField v-model="form.office_telephone.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="otDescError()" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect :model-value="form.office_telephone.currency" :items="['IDR']" variant="outlined" density="comfortable" hide-details disabled /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="form.office_telephone.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(form.office_telephone)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" class="text-right-input" @update:model-value="v => onAmountInputWithEstimate(form.office_telephone, v)" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.office_telephone)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details class="text-right-input" @update:model-value="v => onEstimateInputFor(form.office_telephone, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.office_telephone)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details :readonly="isManualReview(form.office_telephone)" class="text-right-input" @update:model-value="v => onEstimateInputFor(form.office_telephone, v)" /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { form.office_telephone.attachment = Array.from(e.target.files) }"></div><div v-if="otAttachError()" class="text-caption text-error mt-1">{{ otAttachError() }}</div></div>
                             </div>
@@ -371,9 +406,9 @@ const onSelectDayCard = target => { if (target !== dayNumber.value) emit('select
                               <div class="text-caption font-weight-bold mb-1">Description *</div>
                               <VTextField v-model="form.laundry.description" variant="outlined" density="comfortable" hide-details="auto" :error-messages="launDescError()" />
                               <VRow dense class="mt-3">
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="form.laundry.currency" :items="TICKET_CURRENCIES" variant="outlined" density="comfortable" hide-details /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Currency</div><VSelect v-model="form.laundry.currency" :items="currencyItems" :disabled="currencyLocked" variant="outlined" density="comfortable" hide-details /></VCol>
                                 <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Actual Amount</div><VTextField :model-value="amountDisplayFor(form.laundry)" type="text" inputmode="decimal" placeholder="0" variant="outlined" density="comfortable" hide-details="auto" class="text-right-input" @update:model-value="v => onAmountInputWithEstimate(form.laundry, v)" /></VCol>
-                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.laundry)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details class="text-right-input" @update:model-value="v => onEstimateInputFor(form.laundry, v)" /></VCol>
+                                <VCol cols="12" md="4"><div class="text-caption font-weight-bold mb-1">Eligible Estimate</div><VTextField :model-value="estimateDisplayFor(form.laundry)" type="text" inputmode="numeric" placeholder="0" variant="outlined" density="comfortable" hide-details :readonly="isManualReview(form.laundry)" class="text-right-input" @update:model-value="v => onEstimateInputFor(form.laundry, v)" /></VCol>
                               </VRow>
                               <div class="mt-3"><div class="text-caption font-weight-bold mb-1">Supporting Document *</div><div class="d-flex align-center ga-2"><input type="file" @change="e => { form.laundry.attachment = Array.from(e.target.files) }"></div><div v-if="launAttachError()" class="text-caption text-error mt-1">{{ launAttachError() }}</div></div>
                             </div>

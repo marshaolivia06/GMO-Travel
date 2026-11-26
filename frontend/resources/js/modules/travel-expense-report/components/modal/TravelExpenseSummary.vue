@@ -9,8 +9,9 @@ const props = defineProps({
 const emit = defineEmits(['back', 'submit'])
 
 const receiptConfirmed = ref(false)
-const showSettlement = ref(true)
-const showAdvance = ref(true)
+const collapsed = ref({ settlement: [], advance: [] })
+const isOpen = (kind, currency) => !collapsed.value[kind].includes(currency)
+const toggleOpen = (kind, currency) => { const list = collapsed.value[kind]; const index = list.indexOf(currency); if (index >= 0) list.splice(index, 1); else list.push(currency) }
 const expandedDays = ref([])
 const expandedItems = ref([])
 
@@ -23,7 +24,6 @@ const basisOf = item => (FIXED_CATEGORIES.includes(categoryName(item.title)) ? '
 const eligibleOf = item => item.eligible ?? item.amount
 
 const allItems = computed(() => props.days.flatMap(day => day.items))
-const itemsOf = basis => allItems.value.filter(item => basisOf(item) === basis)
 
 const totalsByCurrency = computed(() => {
   const result = {}
@@ -37,9 +37,9 @@ const totalsByCurrency = computed(() => {
   return Object.values(result).map(group => ({ currency: group.currency, total: group.total, rows: Object.entries(group.categories).map(([name, amount]) => ({ name, amount })).filter(row => row.amount > 0).sort((a, b) => b.amount - a.amount) }))
 })
 
-const groupDetails = basis => {
+const groupDetailsFor = (items, basis) => {
   const groups = {}
-  itemsOf(basis).forEach(item => {
+  items.filter(item => basisOf(item) === basis).forEach(item => {
     const name = categoryName(item.title)
     groups[name] ??= { name, actual: 0, eligible: 0 }
     groups[name].actual += item.amount
@@ -48,16 +48,34 @@ const groupDetails = basis => {
   return Object.values(groups)
 }
 
-const fixedTotal = computed(() => itemsOf('fixed').reduce((sum, item) => sum + eligibleOf(item), 0))
-const receiptTotal = computed(() => itemsOf('receipt').reduce((sum, item) => sum + eligibleOf(item), 0))
-const totalEligible = computed(() => fixedTotal.value + receiptTotal.value)
 const advanceTotal = computed(() => num(props.advanceMeal) + num(props.advancePocket))
-const balance = computed(() => advanceTotal.value - totalEligible.value)
 
-const settlement = computed(() => {
-  if (balance.value > 0) return { chip: 'Employee → Company', title: 'Return to Company', note: 'The employee must return the unused Travel Advance to the company.', amount: balance.value, tone: 'warning' }
-  if (balance.value < 0) return { chip: 'Company → Employee', title: 'Reimburse to Employee', note: 'The company will reimburse the remaining eligible expense to the employee.', amount: Math.abs(balance.value), tone: 'success' }
+const settlementOf = (advance, totalEligible) => {
+  const balance = advance - totalEligible
+  if (balance > 0) return { chip: 'Employee → Company', title: 'Return to Company', note: 'The employee must return the unused Travel Advance to the company.', amount: balance, tone: 'warning' }
+  if (balance < 0) return { chip: 'Company → Employee', title: 'Reimburse to Employee', note: 'The company will reimburse the remaining eligible expense to the employee.', amount: Math.abs(balance), tone: 'success' }
   return { chip: 'Balanced', title: 'No Settlement Required', note: 'The Travel Advance received matches the total eligible expense.', amount: 0, tone: 'success' }
+}
+
+const settlementGroups = computed(() => {
+  const groups = {}
+  allItems.value.forEach(item => {
+    const currency = item.currency ?? 'IDR'
+    groups[currency] ??= { currency, items: [] }
+    groups[currency].items.push(item)
+  })
+  return Object.values(groups)
+    .sort((a, b) => (a.currency === 'IDR' ? -1 : b.currency === 'IDR' ? 1 : a.currency.localeCompare(b.currency)))
+    .map(group => {
+      const fixedRows = groupDetailsFor(group.items, 'fixed')
+      const receiptRows = groupDetailsFor(group.items, 'receipt')
+      const fixedTotal = fixedRows.reduce((sum, row) => sum + row.eligible, 0)
+      const receiptTotal = receiptRows.reduce((sum, row) => sum + row.eligible, 0)
+      const totalEligible = fixedTotal + receiptTotal
+      const isIdr = group.currency === 'IDR'
+      const advance = isIdr ? advanceTotal.value : 0
+      return { currency: group.currency, fixedRows, receiptRows, fixedTotal, receiptTotal, totalEligible, isIdr, advanceMeal: isIdr ? num(props.advanceMeal) : 0, advancePocket: isIdr ? num(props.advancePocket) : 0, advance, settlement: settlementOf(advance, totalEligible) }
+    })
 })
 
 const dayTotal = day => day.items.reduce((sum, item) => sum + eligibleOf(item), 0)
@@ -120,26 +138,26 @@ const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUr
           </div>
           <VDivider />
           <VRow class="pa-4">
-            <VCol cols="12">
+            <VCol v-for="group in settlementGroups" :key="group.currency" cols="12">
               <VCard rounded="lg" elevation="0" border>
                 <div class="px-4 py-3">
                   <div class="text-subtitle-1 font-weight-bold">Travel Expense Settlement</div>
-                  <div class="text-caption text-medium-emphasis">IDR</div>
+                  <div class="text-caption text-medium-emphasis">{{ group.currency }}</div>
                 </div>
                 <div class="d-flex align-center justify-space-between px-4 py-3 bg-blue-lighten-5">
                   <span class="text-body-2 font-weight-bold">Total Eligible Expense (Estimated)</span>
-                  <span class="text-h5 font-weight-bold">{{ formatMoney(totalEligible) }}</span>
+                  <span class="text-h5 font-weight-bold">{{ formatMoney(group.totalEligible, group.currency) }}</span>
                 </div>
-                <div class="d-flex justify-end px-4 py-1"><VBtn variant="text" size="small" color="primary" class="text-none font-weight-bold" :append-icon="showSettlement ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" @click="showSettlement = !showSettlement">{{ showSettlement ? 'Hide detail' : 'View detail' }}</VBtn></div>
-                <template v-if="showSettlement">
+                <div class="d-flex justify-end px-4 py-1"><VBtn variant="text" size="small" color="primary" class="text-none font-weight-bold" :append-icon="isOpen('settlement', group.currency) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" @click="toggleOpen('settlement', group.currency)">{{ isOpen('settlement', group.currency) ? 'Hide detail' : 'View detail' }}</VBtn></div>
+                <template v-if="isOpen('settlement', group.currency)">
                   <VDivider />
                   <div class="px-4 pt-3 pb-1 text-body-2 font-weight-bold">A. Fixed Entitlement</div>
                   <VTable density="compact" class="text-body-2 px-2">
                     <thead><tr><th class="text-caption">Category</th><th class="text-caption text-end">Actual</th><th class="text-caption text-end">Eligible</th></tr></thead>
                     <tbody>
-                      <tr v-for="row in groupDetails('fixed')" :key="row.name"><td>{{ row.name }}</td><td class="text-end">{{ formatMoney(row.actual) }}</td><td class="text-end">{{ formatMoney(row.eligible) }}</td></tr>
-                      <tr v-if="!groupDetails('fixed').length"><td colspan="3" class="text-caption text-medium-emphasis">No fixed entitlement claimed.</td></tr>
-                      <tr class="bg-blue-lighten-5 font-weight-bold text-primary"><td>Eligible Fixed Entitlement</td><td></td><td class="text-end">{{ formatMoney(fixedTotal) }}</td></tr>
+                      <tr v-for="row in group.fixedRows" :key="row.name"><td>{{ row.name }}</td><td class="text-end">{{ formatMoney(row.actual, group.currency) }}</td><td class="text-end">{{ formatMoney(row.eligible, group.currency) }}</td></tr>
+                      <tr v-if="!group.fixedRows.length"><td colspan="3" class="text-caption text-medium-emphasis">No fixed entitlement claimed.</td></tr>
+                      <tr class="bg-blue-lighten-5 font-weight-bold text-primary"><td>Eligible Fixed Entitlement</td><td></td><td class="text-end">{{ formatMoney(group.fixedTotal, group.currency) }}</td></tr>
                     </tbody>
                   </VTable>
                   <VDivider class="mt-3" />
@@ -147,31 +165,34 @@ const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUr
                   <VTable density="compact" class="text-body-2 px-2">
                     <thead><tr><th class="text-caption">Category</th><th class="text-caption text-end">Actual</th><th class="text-caption text-end">Eligible</th></tr></thead>
                     <tbody>
-                      <tr v-for="row in groupDetails('receipt')" :key="row.name"><td>{{ row.name }}</td><td class="text-end">{{ formatMoney(row.actual) }}</td><td class="text-end">{{ formatMoney(row.eligible) }}</td></tr>
-                      <tr v-if="!groupDetails('receipt').length"><td colspan="3" class="text-caption text-medium-emphasis">No receipt-based expense claimed.</td></tr>
-                      <tr class="bg-blue-lighten-5 font-weight-bold text-primary"><td>Eligible Receipt-Based Expenses</td><td></td><td class="text-end">{{ formatMoney(receiptTotal) }}</td></tr>
+                      <tr v-for="row in group.receiptRows" :key="row.name"><td>{{ row.name }}</td><td class="text-end">{{ formatMoney(row.actual, group.currency) }}</td><td class="text-end">{{ formatMoney(row.eligible, group.currency) }}</td></tr>
+                      <tr v-if="!group.receiptRows.length"><td colspan="3" class="text-caption text-medium-emphasis">No receipt-based expense claimed.</td></tr>
+                      <tr class="bg-blue-lighten-5 font-weight-bold text-primary"><td>Eligible Receipt-Based Expenses</td><td></td><td class="text-end">{{ formatMoney(group.receiptTotal, group.currency) }}</td></tr>
                     </tbody>
                   </VTable>
-                  <div class="px-4 py-2 text-caption bg-grey-lighten-5">Eligible Fixed Entitlement ({{ formatMoney(fixedTotal) }}) + Eligible Receipt-Based Expenses ({{ formatMoney(receiptTotal) }}) = <span class="font-weight-bold text-primary">{{ formatMoney(totalEligible) }}</span></div>
+                  <div class="px-4 py-2 text-caption bg-grey-lighten-5">Eligible Fixed Entitlement ({{ formatMoney(group.fixedTotal, group.currency) }}) + Eligible Receipt-Based Expenses ({{ formatMoney(group.receiptTotal, group.currency) }}) = <span class="font-weight-bold text-primary">{{ formatMoney(group.totalEligible, group.currency) }}</span></div>
                 </template>
                 <VDivider />
                 <div class="d-flex align-center justify-space-between px-4 py-3">
-                  <div><div class="text-body-2 font-weight-bold">Travel Advance Received</div><div class="text-caption text-medium-emphasis">Previously paid by the company via Travel Order</div></div>
-                  <span class="text-h5 font-weight-bold">{{ formatMoney(advanceTotal) }}</span>
+                  <div><div class="text-body-2 font-weight-bold">Travel Advance Received</div><div class="text-caption text-medium-emphasis">{{ group.isIdr ? 'Previously paid by the company via Travel Order' : 'No travel advance in this currency' }}</div></div>
+                  <span class="text-h5 font-weight-bold">{{ formatMoney(group.advance, group.currency) }}</span>
                 </div>
-                <div class="d-flex justify-end px-4 py-1"><VBtn variant="text" size="small" color="primary" class="text-none font-weight-bold" :append-icon="showAdvance ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" @click="showAdvance = !showAdvance">{{ showAdvance ? 'Hide detail' : 'View detail' }}</VBtn></div>
-                <div v-if="showAdvance" class="border-s ms-4 mb-3 ps-3 me-4">
-                  <div class="d-flex justify-space-between text-body-2 py-1"><span>Meals Advance</span><span class="font-weight-bold">{{ formatMoney(advanceMeal) }}</span></div>
-                  <div class="d-flex justify-space-between text-body-2 py-1"><span>Pocket Money Advance</span><span class="font-weight-bold">{{ formatMoney(advancePocket) }}</span></div>
+                <div v-if="group.isIdr" class="d-flex justify-end px-4 py-1"><VBtn variant="text" size="small" color="primary" class="text-none font-weight-bold" :append-icon="isOpen('advance', group.currency) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" @click="toggleOpen('advance', group.currency)">{{ isOpen('advance', group.currency) ? 'Hide detail' : 'View detail' }}</VBtn></div>
+                <div v-if="group.isIdr && isOpen('advance', group.currency)" class="border-s ms-4 mb-3 ps-3 me-4">
+                  <div class="d-flex justify-space-between text-body-2 py-1"><span>Meals Advance</span><span class="font-weight-bold">{{ formatMoney(group.advanceMeal, group.currency) }}</span></div>
+                  <div class="d-flex justify-space-between text-body-2 py-1"><span>Pocket Money Advance</span><span class="font-weight-bold">{{ formatMoney(group.advancePocket, group.currency) }}</span></div>
                 </div>
                 <VDivider />
-                <div class="d-flex align-center justify-space-between pa-4" :class="settlement.tone === 'warning' ? 'bg-amber-lighten-5' : 'bg-green-lighten-5'">
+                <div class="d-flex align-center justify-space-between pa-4" :class="group.settlement.tone === 'warning' ? 'bg-amber-lighten-5' : 'bg-green-lighten-5'">
                   <div>
-                    <div class="text-subtitle-1 font-weight-bold">{{ settlement.title }}</div>
-                    <div class="text-caption font-weight-bold" :class="settlement.tone === 'warning' ? 'text-warning' : 'text-success'">{{ settlement.chip }}</div>
-                    <div class="text-caption text-medium-emphasis mt-1">{{ settlement.note }}</div>
+                    <div class="text-subtitle-1 font-weight-bold">{{ group.settlement.title }}</div>
+                    <div class="text-caption font-weight-bold" :class="group.settlement.tone === 'warning' ? 'text-warning' : 'text-success'">{{ group.settlement.chip }}</div>
+                    <div class="text-caption text-medium-emphasis mt-1">{{ group.settlement.note }}</div>
                   </div>
-                  <div class="text-h5 font-weight-bold" :class="settlement.tone === 'warning' ? 'text-warning' : 'text-success'">{{ settlement.amount > 0 ? formatMoney(settlement.amount) : '—' }}</div>
+                  <div class="text-end">
+                    <div class="text-caption text-medium-emphasis">{{ group.currency }}</div>
+                    <div class="text-h5 font-weight-bold" :class="group.settlement.tone === 'warning' ? 'text-warning' : 'text-success'">{{ group.settlement.amount > 0 ? formatMoney(group.settlement.amount, group.currency) : '—' }}</div>
+                  </div>
                 </div>
               </VCard>
             </VCol>
@@ -204,7 +225,7 @@ const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUr
                       <tr class="cursor-pointer" @click="toggleItem(`${day.key}-${index}`)">
                         <td class="font-weight-bold"><VIcon :icon="expandedItems.includes(`${day.key}-${index}`) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'" size="small" class="me-1" />{{ item.title }}</td>
                         <td class="text-end text-medium-emphasis">{{ item.amount ? formatMoney(item.amount, item.currency) : '—' }}</td>
-                        <td class="text-end font-weight-bold text-primary">{{ formatMoney(eligibleOf(item), item.currency) }}</td>
+                        <td class="text-end font-weight-bold" :class="item.manualReview ? 'text-warning' : 'text-primary'">{{ item.manualReview ? 'Manual Review' : formatMoney(eligibleOf(item), item.currency) }}</td>
                       </tr>
                       <tr v-if="expandedItems.includes(`${day.key}-${index}`)">
                         <td colspan="3" class="bg-grey-lighten-5">

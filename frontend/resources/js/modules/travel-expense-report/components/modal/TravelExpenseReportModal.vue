@@ -7,7 +7,6 @@ import TravelExpenseSummary from './TravelExpenseSummary.vue'
 
 const props = defineProps({ modelValue: { type: Boolean, default: false }, item: { type: Object, default: null } })
 const emit = defineEmits(['update:modelValue'])
-
 const authStore = useAuthStore()
 const selectedDay = ref(null)
 
@@ -106,7 +105,7 @@ const summaryOpen = ref(false)
 const num = value => Number(value) || 0
 const fileName = attachment => (Array.isArray(attachment) ? attachment[0] : attachment)?.name ?? null
 const claimed = item => !!item && !item.paid_by_others && num(item.amount) > 0
-const toItem = (title, item, extra = {}) => ({ title, amount: num(item.amount), currency: item.currency, note: item.description, attachment: fileName(item.attachment), file: Array.isArray(item.attachment) ? (item.attachment[0] ?? null) : (item.attachment ?? null), ...extra })
+const toItem = (title, item, extra = {}) => ({ title, amount: num(item.amount), currency: item.currency, manualReview: String(item?.currency ?? 'IDR') !== (entitlements.value?.currency ?? 'IDR'), note: item.description, attachment: fileName(item.attachment), file: Array.isArray(item.attachment) ? (item.attachment[0] ?? null) : (item.attachment ?? null), ...extra })
 
 const summaryDays = computed(() => days.value.map(day => {
   const entry = expenses.value[day.key]
@@ -189,7 +188,7 @@ watch(() => props.modelValue, open => { if (open) { selectedDay.value = null; lo
           <div class="d-flex flex-wrap ga-3 pa-4">
             <span v-if="!days.length" class="text-body-2 text-medium-emphasis">No travel days found</span>
             <VCard v-for="day in days" :key="day.key" link rounded="lg" variant="text" :class="['px-3 py-2', selectedDay === day.key ? 'bg-white elevation-2' : 'bg-grey-lighten-3']" @click="onSelectDay(day)">
-              <div class="text-body-2 font-weight-medium">{{ day.title }}</div>
+              <div class="text-body-2 font-weight-bold">{{ day.title }}</div>
               <div class="text-body-2 text-medium-emphasis">{{ day.subtitle }}</div>
               <VChip v-if="dayStatus(day)" :color="dayStatus(day) === 'saved' ? 'success' : 'warning'" variant="tonal" size="x-small" class="mt-1">{{ dayStatus(day) === 'saved' ? 'Saved' : 'Draft' }}</VChip>
             </VCard>
