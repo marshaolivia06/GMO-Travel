@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Modules\AnnualTicket\Models\AnnualTicket;
 use Modules\TravelExpenseReport\Models\TravelExpenseReport;
+use Modules\TravelExpenseReport\Models\TravelExpenseReportDay;
+use Modules\TravelExpenseReport\Models\TravelExpenseReportExpense;
+use Modules\TravelOrder\Models\TravelOrder;
 use Modules\UserManagement\Models\User;
 
 class TravelExpenseReportRepository
@@ -21,6 +24,10 @@ class TravelExpenseReportRepository
         'annualTicket.fareReferences',
         'annualTicket.booking',
         'annualTicket.employee.eligibleDestination',
+        'travelOrder.advance',
+        'travelOrder.user:id,name',
+        'days',
+        'expenses.payer:id,name',
     ];
 
     public function allForEmployee(User $user): Collection
@@ -232,5 +239,119 @@ class TravelExpenseReportRepository
         $next = $last ? (int) substr($last, -4) + 1 : 1;
 
         return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+    }
+
+    // ===== Travel Order (business trip individu & grup) =====
+
+    // TO harus milik user dan sudah diproses GMO sebelum bisa dibuatkan TER
+    public function findClaimableTravelOrderFor(User $user, int $travelOrderId): TravelOrder
+    {
+        return TravelOrder::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'processed_by_gmo')
+            ->with('advance')
+            ->findOrFail($travelOrderId);
+    }
+
+    public function findByTravelOrderId(int $travelOrderId): ?TravelExpenseReport
+    {
+        return TravelExpenseReport::where('travel_order_id', $travelOrderId)->first();
+    }
+
+    // Simpan TER travel order beserta days & expenses dalam satu transaction.
+    // Detail (days/expenses) selalu di-replace penuh agar draft sinkron dengan input terbaru;
+    // file struk lama ikut dihapus setelah transaction sukses (frontend mengirim ulang semua file).
+    public function saveTravelOrderReport(User $user, TravelOrder $order, array $data, array $days, array $attachmentFilesByKey = []): TravelExpenseReport
+    {
+        $newFiles = [];
+        $staleFiles = [];
+
+        try {
+            $report = DB::transaction(function () use ($user, $order, $data, $days, $attachmentFilesByKey, &$newFiles, &$staleFiles) {
+                $report = TravelExpenseReport::updateOrCreate(['travel_order_id' => $order->id], [
+                    'employee_id' => $user->id,
+                    'source_type' => TravelExpenseReport::SOURCE_TRAVEL_ORDER,
+                    'claim_type' => TravelExpenseReport::CLAIM_EXPENSE_CLAIM,
+                    'status' => $data['status'],
+                    'currency' => $data['currency'],
+                    'advance_meal_allowance' => $data['advance_meal_allowance'],
+                    'advance_pocket_money' => $data['advance_pocket_money'],
+                    'total_eligible' => $data['total_eligible'],
+                    'total_actual_amount' => $data['total_actual_amount'],
+                    'settlement_amount' => $data['settlement_amount'] ?? null,
+                    'document_number' => $data['document_number'] ?? null,
+                    'submitted_at' => $data['submitted_at'] ?? null,
+                ]);
+
+                // File struk lama dikumpulkan - yang tidak dipakai ulang dihapus setelah transaction sukses
+                $staleFiles = $report->expenses()->whereNotNull('attachment_path')->pluck('attachment_path')->all();
+
+                $report->days()->delete();
+                $report->expenses()->delete();
+
+                foreach ($days as $day) {
+                    $report->days()->create([
+                        'day_number' => $day['day_number'],
+                        'date' => $day['date'],
+                        'type' => $day['type'],
+                        'effective_time' => $day['effective_time'],
+                        'different_countries' => $day['different_countries'],
+                    ]);
+
+                    foreach ($day['expenses'] as $expense) {
+                        $path = $name = null;
+                        $key = $expense['attachment_key'] ?? null;
+
+                        if ($key && isset($attachmentFilesByKey[$key])) {
+                            $file = $attachmentFilesByKey[$key];
+                            $newFiles[] = $path = $file->store('travel-expense-reports/attachments', 'public');
+                            $name = $file->getClientOriginalName();
+                        } elseif (! empty($expense['existing_attachment_path'])) {
+                            // Resume draft: file lama dipakai ulang - tidak diupload ulang & tidak dihapus
+                            $path = $expense['existing_attachment_path'];
+                            $name = $expense['existing_attachment_name'] ?? null;
+                            $staleFiles = array_values(array_diff($staleFiles, [$path]));
+                        }
+
+                        $report->expenses()->create([
+                            'day_number' => $day['day_number'],
+                            'category' => $expense['category'],
+                            'item_index' => $expense['item_index'] ?? 1,
+                            'kind' => $expense['kind'] ?? null,
+                            'description' => $expense['description'] ?? null,
+                            'currency' => $expense['currency'] ?? 'IDR',
+                            'actual_amount' => $expense['actual_amount'] ?? null,
+                            'eligible_amount' => $expense['eligible_amount'] ?? null,
+                            'manual_review' => (bool) ($expense['manual_review'] ?? false),
+                            'payment_mode' => $expense['payment_mode'] ?? TravelExpenseReportExpense::PAYMENT_MYSELF,
+                            'paid_by' => $expense['paid_by'] ?? null,
+                            'paid_for' => $expense['paid_for'] ?? null,
+                            'dinner_type' => $expense['dinner_type'] ?? null,
+                            'justification' => $expense['justification'] ?? null,
+                            'hotel_name' => $expense['hotel_name'] ?? null,
+                            'room_type' => $expense['room_type'] ?? null,
+                            'hotel_standard' => $expense['hotel_standard'] ?? null,
+                            'attachment_path' => $path,
+                            'attachment_name' => $name,
+                        ]);
+                    }
+                }
+
+                return $report;
+            });
+        } catch (\Throwable $exception) {
+            foreach ($newFiles as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $exception;
+        }
+
+        // File struk lama dihapus hanya setelah transaction & penyimpanan file baru sukses
+        foreach ($staleFiles as $path) {
+            Storage::disk('public')->delete($path);
+        }
+
+        return $report->load(['days', 'expenses']);
     }
 }

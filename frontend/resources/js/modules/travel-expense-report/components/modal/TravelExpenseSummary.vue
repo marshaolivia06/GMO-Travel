@@ -1,10 +1,15 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useConfirm } from '../../../../composables/useConfirm'
+
+const { confirm } = useConfirm()
 
 const props = defineProps({
   days: { type: Array, default: () => [] },
   advanceMeal: { type: Number, default: 0 },
   advancePocket: { type: Number, default: 0 },
+  totalDays: { type: Number, default: 0 },
+  entitlements: { type: Object, default: null },
 })
 const emit = defineEmits(['back', 'submit'])
 
@@ -24,6 +29,24 @@ const basisOf = item => (FIXED_CATEGORIES.includes(categoryName(item.title)) ? '
 const eligibleOf = item => item.eligible ?? item.amount
 
 const allItems = computed(() => props.days.flatMap(day => day.items))
+
+const TELEPHONE_BUDGET = 15000
+const entitlementCurrency = computed(() => props.entitlements?.currency ?? 'IDR')
+const mealPerMeal = computed(() => { const value = props.entitlements?.meal_limit_per_meal; return value == null ? null : Number(value) })
+const mealAtCost = computed(() => props.entitlements?.meal_basis === 'at_cost' && mealPerMeal.value == null)
+const pocketBudget = computed(() => { const value = props.entitlements?.pocket_money_limit; return value == null ? null : Number(value) })
+const claimedActualOf = name => allItems.value.filter(item => categoryName(item.title) === name).reduce((sum, item) => sum + item.amount, 0)
+
+// Entitlement tetap (Meals, Pocket Money, Personal Telephone) SELALU tampil di section A -
+// eligible akumulasi per hari (limit x total hari) walaupun aktualnya tidak diklaim
+const fixedAllowanceRows = computed(() => {
+  const days = Math.max(0, props.totalDays)
+  const rows = []
+  if (!mealAtCost.value && mealPerMeal.value != null) rows.push({ name: 'Meals', actual: claimedActualOf('Meals'), eligible: mealPerMeal.value * 3 * days })
+  if ((pocketBudget.value ?? 0) > 0) rows.push({ name: 'Pocket Money', actual: claimedActualOf('Pocket Money'), eligible: pocketBudget.value * days })
+  rows.push({ name: 'Personal Telephone', actual: claimedActualOf('Telephone'), eligible: TELEPHONE_BUDGET * days })
+  return rows
+})
 
 const totalsByCurrency = computed(() => {
   const result = {}
@@ -67,7 +90,10 @@ const settlementGroups = computed(() => {
   return Object.values(groups)
     .sort((a, b) => (a.currency === 'IDR' ? -1 : b.currency === 'IDR' ? 1 : a.currency.localeCompare(b.currency)))
     .map(group => {
-      const fixedRows = groupDetailsFor(group.items, 'fixed')
+      // Baris claimed fixed yang sudah tercakup baris virtual (Meals/Pocket/Telephone dengan currency entitlement) tidak dijumlah dua kali
+      const usesEntitlementCurrency = group.currency === entitlementCurrency.value
+      const matchedFixedItems = group.items.filter(item => !(usesEntitlementCurrency && ['Meals', 'Pocket Money', 'Telephone'].includes(categoryName(item.title)) && String(item.currency ?? 'IDR') === entitlementCurrency.value))
+      const fixedRows = [...(usesEntitlementCurrency ? fixedAllowanceRows.value : []), ...groupDetailsFor(matchedFixedItems, 'fixed')]
       const receiptRows = groupDetailsFor(group.items, 'receipt')
       const fixedTotal = fixedRows.reduce((sum, row) => sum + row.eligible, 0)
       const receiptTotal = receiptRows.reduce((sum, row) => sum + row.eligible, 0)
@@ -79,6 +105,13 @@ const settlementGroups = computed(() => {
 })
 
 const dayTotal = day => day.items.reduce((sum, item) => sum + eligibleOf(item), 0)
+
+// Konfirmasi sebelum submit - sama seperti konfirmasi Draft per hari
+const onSubmitReport = async () => {
+  const confirmed = await confirm({ title: 'Submit Travel Expense Report', text: 'Are you sure you want to submit this Travel Expense Report?', color: 'primary' })
+  if (!confirmed) return
+  emit('submit')
+}
 const dayStatus = day => (day.items.some(item => item.manualReview) ? 'Manual Review*' : 'Eligible')
 const dayStatusColor = day => (day.items.some(item => item.manualReview) ? 'text-warning' : 'text-primary')
 const toggleItem = key => { const index = expandedItems.value.indexOf(key); if (index >= 0) expandedItems.value.splice(index, 1); else expandedItems.value.push(key) }
@@ -91,12 +124,12 @@ const previewKind = ref('')
 const openPreview = item => {
   const file = item.file
   const type = String(file?.type ?? '')
-  const name = String(file?.name ?? '').toLowerCase()
+  const name = String(item.attachment ?? '').toLowerCase()
   previewName.value = item.attachment ?? ''
-  if (type.startsWith('image/')) { previewKind.value = 'image'; previewUrl.value = URL.createObjectURL(file) } else if (type === 'application/pdf' || name.endsWith('.pdf')) { previewKind.value = 'pdf'; previewUrl.value = URL.createObjectURL(file) } else { previewKind.value = ''; previewUrl.value = '' }
+  if (file && type.startsWith('image/')) { previewKind.value = 'image'; previewUrl.value = URL.createObjectURL(file) } else if ((file && type === 'application/pdf') || (!file && name.endsWith('.pdf'))) { previewKind.value = 'pdf'; previewUrl.value = file ? URL.createObjectURL(file) : item.attachmentUrl ?? '' } else if (!file && /\.(jpe?g|png)$/i.test(name) && item.attachmentUrl) { previewKind.value = 'image'; previewUrl.value = item.attachmentUrl } else { previewKind.value = ''; previewUrl.value = '' }
   previewOpen.value = true
 }
-const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUrl.value); previewUrl.value = ''; previewName.value = ''; previewKind.value = ''; previewOpen.value = false }
+const closePreview = () => { if (previewUrl.value.startsWith('blob:')) URL.revokeObjectURL(previewUrl.value); previewUrl.value = ''; previewName.value = ''; previewKind.value = ''; previewOpen.value = false }
 </script>
 
 <template>
@@ -223,9 +256,9 @@ const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUr
                   <tbody>
                     <template v-for="(item, index) in day.items" :key="index">
                       <tr class="cursor-pointer" @click="toggleItem(`${day.key}-${index}`)">
-                        <td class="font-weight-bold"><VIcon :icon="expandedItems.includes(`${day.key}-${index}`) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'" size="small" class="me-1" />{{ item.title }}</td>
+                        <td class="font-weight-bold"><VIcon :icon="expandedItems.includes(`${day.key}-${index}`) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'" size="small" class="me-1" />{{ item.title }}<VChip v-if="item.notClaimedByMe" size="x-small" color="warning" variant="tonal" class="ms-2">Paid by {{ item.paidByName || 'Other' }} · Not Claimed by Me</VChip><VChip v-else-if="item.payForCount" size="x-small" color="info" variant="tonal" class="ms-2">Pay for Others ({{ item.payForCount }})</VChip></td>
                         <td class="text-end text-medium-emphasis">{{ item.amount ? formatMoney(item.amount, item.currency) : '—' }}</td>
-                        <td class="text-end font-weight-bold" :class="item.manualReview ? 'text-warning' : 'text-primary'">{{ item.manualReview ? 'Manual Review' : formatMoney(eligibleOf(item), item.currency) }}</td>
+                        <td class="text-end font-weight-bold" :class="item.manualReview ? 'text-warning' : 'text-primary'">{{ item.notClaimedByMe ? '—' : item.manualReview ? 'Manual Review' : formatMoney(eligibleOf(item), item.currency) }}</td>
                       </tr>
                       <tr v-if="expandedItems.includes(`${day.key}-${index}`)">
                         <td colspan="3" class="bg-grey-lighten-5">
@@ -251,7 +284,7 @@ const closePreview = () => { if (previewUrl.value) URL.revokeObjectURL(previewUr
           <VDivider />
           <div class="d-flex align-center justify-end ga-2 pa-4">
             <VBtn variant="outlined" color="secondary" class="text-none font-weight-semibold" @click="emit('back')">Back to Edit</VBtn>
-            <VBtn color="primary" variant="flat" class="text-none font-weight-semibold" :disabled="!receiptConfirmed" @click="emit('submit')">Submit Expense Report</VBtn>
+            <VBtn color="primary" variant="flat" class="text-none font-weight-semibold" :disabled="!receiptConfirmed" @click="onSubmitReport">Submit Expense Report</VBtn>
           </div>
         </VCard>
       </div>

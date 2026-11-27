@@ -55,6 +55,36 @@ class TravelExpenseReportController extends Controller
         ], 201);
     }
 
+    // TER berbasis Travel Order (business trip individu & grup): rincian per hari dikirim sebagai JSON + file struk per item
+    public function storeTravelOrder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'travel_order_id' => ['required', 'integer', 'exists:travel_orders,id'],
+            'action' => ['sometimes', 'in:draft,submit'],
+            'days' => ['required', 'string'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+
+        $days = json_decode($validated['days'], true);
+
+        abort_if(! is_array($days), 422, 'The days payload is invalid.');
+
+        $report = $this->service->storeTravelOrderReport(
+            $request->user(),
+            ['travel_order_id' => $validated['travel_order_id'], 'action' => $validated['action'] ?? 'draft'],
+            $days,
+            $request->file('attachments', []),
+        );
+
+        return response()->json([
+            'message' => $report->status === 'submitted'
+                ? 'Travel Expense Report has been submitted successfully.'
+                : 'Travel Expense Report draft has been saved successfully.',
+            'data' => $report->load(['days', 'expenses']),
+        ], 201);
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $request->validate([

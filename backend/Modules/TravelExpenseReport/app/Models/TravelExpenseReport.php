@@ -27,10 +27,13 @@ class TravelExpenseReport extends Model
 
     public const CLAIM_EXCESS_SETTLEMENT = 'excess_settlement';
 
+    public const CLAIM_EXPENSE_CLAIM = 'expense_claim';
+
     protected $fillable = [
         'employee_id',
         'source_type',
         'annual_ticket_id',
+        'travel_order_id',
         'claim_type',
         'status',
         'document_number',
@@ -38,6 +41,9 @@ class TravelExpenseReport extends Model
         'total_fare_reference',
         'total_actual_amount',
         'settlement_amount',
+        'total_eligible',
+        'advance_meal_allowance',
+        'advance_pocket_money',
         'company_booking_amount',
         'employee_excess',
         'proof_of_payment_path',
@@ -60,6 +66,21 @@ class TravelExpenseReport extends Model
     public function annualTicket(): BelongsTo
     {
         return $this->belongsTo(AnnualTicket::class, 'annual_ticket_id');
+    }
+
+    public function travelOrder(): BelongsTo
+    {
+        return $this->belongsTo(\Modules\TravelOrder\Models\TravelOrder::class, 'travel_order_id');
+    }
+
+    public function days(): HasMany
+    {
+        return $this->hasMany(TravelExpenseReportDay::class)->orderBy('day_number');
+    }
+
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(TravelExpenseReportExpense::class)->orderBy('day_number')->orderBy('item_index')->orderBy('id');
     }
 
     public function attachments(): HasMany

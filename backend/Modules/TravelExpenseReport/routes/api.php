@@ -13,6 +13,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 
     Route::middleware('permission:travel-expense-report.create')->group(function () {
         Route::post('travel-expense-reports', [TravelExpenseReportController::class, 'store']);
+        Route::post('travel-expense-reports/travel-order', [TravelExpenseReportController::class, 'storeTravelOrder']);
         Route::post('travel-expense-reports/{id}/submit', [TravelExpenseReportController::class, 'submit']);
     });
 

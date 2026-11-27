@@ -18,16 +18,25 @@ class TravelExpenseReportApprovalService
 
     public function __construct(private MatrixStepApproverResolver $resolver) {}
 
-    private function resolveMatrix(User $submitter)
+    private function resolveMatrix(User $submitter, ?string $travelRegion = null)
     {
         $roleIds = $submitter->roles->pluck('id');
 
         $matrix = AuthorityMatrix::with('steps.role')
-            ->where('document_type', self::DOCUMENT_TYPE)
+            ->where('document_type', 'Travel Expense Report')
             ->where('status', 1)
             ->where(function ($query) use ($roleIds) {
                 $query->whereNull('requester_role_id')->orWhereIn('requester_role_id', $roleIds);
             })
+            // Business trip (Travel Order): matrix dibedakan per travel region -
+            // kandidat = matrix region tsb + generic (tanpa region), yang spesifik region diprioritaskan
+            ->where(function ($query) use ($travelRegion) {
+                $query->whereNull('travel_region')->orWhere('travel_region', '');
+                if ($travelRegion) {
+                    $query->orWhere('travel_region', $travelRegion);
+                }
+            })
+            ->when($travelRegion, fn ($query) => $query->orderByRaw('(travel_region = ?) DESC', [$travelRegion]))
             // matrix spesifik requester role diprioritaskan di atas matrix generik
             ->orderByRaw('requester_role_id IS NULL')
             ->first();
@@ -40,9 +49,9 @@ class TravelExpenseReportApprovalService
     }
 
     // Validasi awal: matrix harus tersedia sebelum TER dipersist - matrix belum ada -> gagal dengan pesan jelas
-    public function assertMatrixFor(User $submitter): void
+    public function assertMatrixFor(User $submitter, ?string $travelRegion = null): void
     {
-        $this->resolveMatrix($submitter);
+        $this->resolveMatrix($submitter, $travelRegion);
     }
 
     public function initFlow(TravelExpenseReport $report): void
@@ -54,7 +63,9 @@ class TravelExpenseReportApprovalService
             throw new \RuntimeException('The applicant does not yet have a role.');
         }
 
-        $stages = $this->resolveMatrix($submitter);
+        // Business trip (TO): alur mengikuti matrix per travel region - annual ticket tanpa region
+        $travelRegion = $report->travel_order_id ? $report->loadMissing('travelOrder')->travelOrder?->travel_region : null;
+        $stages = $this->resolveMatrix($submitter, $travelRegion);
 
         DB::transaction(function () use ($report, $submitter, $submitterRole, $stages) {
             // Riwayat putaran sebelumnya dipertahankan, putaran baru lanjut dari sequence terakhir

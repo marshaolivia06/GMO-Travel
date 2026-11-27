@@ -47,6 +47,20 @@ export const deleteTravelExpenseReportAttachment = (id, attachmentId) => http.de
 
 export const submitTravelExpenseReport = id => http.post(`/v1/travel-expense-reports/${id}/submit`).then(res => res.data)
 
+// TER berbasis Travel Order (business trip individu & grup): rincian per hari sebagai JSON + file struk per item
+// files = array of { key, file } - key dirujuk oleh attachment_key di setiap expense
+export const createTravelOrderExpenseReport = (travelOrderId, action, days, files = []) => {
+  const form = new FormData()
+
+  form.append('travel_order_id', travelOrderId)
+  form.append('action', action)
+  form.append('days', JSON.stringify(days))
+
+  files.forEach(({ key, file }) => form.append(`attachments[${key}]`, file))
+
+  return http.post('/v1/travel-expense-reports/travel-order', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data)
+}
+
 export const deleteTravelExpenseReportDraft = id => http.delete(`/v1/travel-expense-reports/${id}`).then(res => res.data)
 
 // Aksi approver sesuai tahap matrix: check (review) / approve / kembalikan untuk revisi

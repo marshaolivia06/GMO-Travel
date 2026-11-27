@@ -75,7 +75,7 @@ class TravelOrderService
     public function find(int $id, ?User $user = null): TravelOrder
     {
         $order = $this->repository->findById($id);
-        $order->load(['approvals' => fn ($query) => $query->orderBy('sequence'), 'approvals.role', 'approvals.user', 'approvals.matrixStep', 'approvals.matrixStep.division', 'department.divisionHead', 'booking', 'emails', 'bookingCancellations.processor:id,name', 'group.members.user']);
+        $order->load(['approvals' => fn ($query) => $query->orderBy('sequence'), 'approvals.role', 'approvals.user', 'approvals.matrixStep', 'approvals.matrixStep.division', 'department.divisionHead', 'booking', 'emails', 'bookingCancellations.processor:id,name', 'group.members.user.roles:id,name']);
 
         if ($order->group) {
             $this->groupRepository->attachDepartments(new Collection([$order->group]));

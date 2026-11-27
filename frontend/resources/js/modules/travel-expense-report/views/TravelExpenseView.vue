@@ -115,11 +115,15 @@ async function load() {
     const tickets = Array.isArray(ticketsRes) ? ticketsRes : Array.isArray(ticketsRes?.data) ? ticketsRes.data : []
     const ters = Array.isArray(tersRes) ? tersRes : Array.isArray(tersRes?.data) ? tersRes.data : []
 
-    const orderItems = orders.filter(to => String(to.user_id) === String(currentUserId.value) && normalize(to.status) === PROCESSED_BY_GMO).map(to => ({
+    const orderItems = orders.filter(to => String(to.user_id) === String(currentUserId.value) && normalize(to.status) === PROCESSED_BY_GMO)
+      // TO yang sudah punya TER (draft/ter submitting) tampil sebagai baris TER, bukan claimable baru
+      .filter(to => !ters.some(ter => normalize(ter.source_type) === 'travel_order' && String(ter.travel_order_id) === String(to.id)))
+      .map(to => ({
       id: to.id,
       region_id: to.region_id,
       ticket_arrangement: to.ticket_arrangement,
       accommodation_arrangement: to.accommodation_arrangement,
+      travel_order_group_id: to.travel_order_group_id,
       advance_meal_allowance: Number(to.advance?.meal_allowance ?? to.meal_allowance ?? 0) || 0,
       advance_pocket_money: Number(to.advance?.pocket_money ?? to.pocket_money ?? 0) || 0,
       status: 'new',
@@ -139,6 +143,41 @@ async function load() {
 
     // Tiket yang sudah punya TER tidak tampil lagi sebagai claimable - nilainya ada di baris TER
     const terRows = ters.map(ter => {
+      // TER berbasis Travel Order (business trip individu & grup) - bawa data TO agar modal bisa lanjut/resume
+      if (normalize(ter.source_type) === 'travel_order') {
+        const to = ter.travel_order ?? {}
+        return {
+          id: ter.id,
+          ter_id: ter.id,
+          ter,
+          travel_order_id: to.id,
+          region_id: to.region_id,
+          ticket_arrangement: to.ticket_arrangement,
+          accommodation_arrangement: to.accommodation_arrangement,
+          advance_meal_allowance: Number(to.advance?.meal_allowance ?? 0) || 0,
+          advance_pocket_money: Number(to.advance?.pocket_money ?? 0) || 0,
+          status: ter.status,
+          category: ter.status,
+          employee_id: ter.employee_id,
+          employee_name: ter.employee?.name ?? '-',
+          can_process: !!ter.can_process,
+          stage_action: ter.stage_action,
+          stage_role: ter.stage_role,
+          trip_type: to.trip_type ?? 'individual',
+          purpose: to.purpose,
+          to_number: to.order_number,
+          travel_region: to.travel_region,
+          travel_from: to.travel_from,
+          travel_to: to.travel_to,
+          departure_date: to.departure_date,
+          return_date: to.return_date,
+          etd: to.departure_time,
+          eta: to.return_time,
+          total_claim: ter.settlement_amount,
+          currency: ter.currency,
+        }
+      }
+
       const ticket = ter.annual_ticket ?? {}
       const dates = (ticket.legs ?? []).map(leg => leg.reschedule_date ?? leg.travel_date).filter(Boolean).sort()
       const country = String(ticket.employee?.eligible_destination?.country ?? '').trim().toLowerCase()
@@ -477,7 +516,7 @@ onMounted(load)
         </template>
       </VDataTable>
   </BrandCard>
-    <TravelExpenseReportModal v-model="showDetail" :item="selectedItem" />
+    <TravelExpenseReportModal v-model="showDetail" :item="selectedItem" @submitted="load" />
     <AnnualTicketClaimModal v-model="showTicketClaim" :ticket="ticketClaimRaw" :initial="claimInitial" :processing="claimProcessing" :report-id="claimTerId" @submit="onClaimSubmit" @draft="onClaimDraft" />
     <TerClaimDetailModal v-model="showClaimDetail" :report="claimDetail" :processing="processing" @process="onProcess" @revision="onRevision" />
     <HistoryLogModal v-model="historyDialog" :loading="historyLoading" :rounds="historyRounds" />

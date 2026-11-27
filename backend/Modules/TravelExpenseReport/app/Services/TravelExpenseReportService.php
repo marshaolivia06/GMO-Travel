@@ -10,7 +10,9 @@ use Modules\MasterManagement\Models\Department;
 use Modules\MasterManagement\Models\MasterDivision;
 use Modules\MasterManagement\Models\Section;
 use Modules\TravelExpenseReport\Models\TravelExpenseReport;
+use Modules\TravelExpenseReport\Models\TravelExpenseReportExpense;
 use Modules\TravelExpenseReport\Repositories\TravelExpenseReportRepository;
+use Modules\TravelOrder\Models\TravelOrder;
 use Modules\UserManagement\Models\User;
 use Spatie\Activitylog\Models\Activity;
 
@@ -313,6 +315,186 @@ class TravelExpenseReportService
         abort_unless($report->status === TravelExpenseReport::STATUS_DRAFT, 422, 'Only draft Travel Expense Reports can be deleted.');
 
         $this->repository->delete($report);
+    }
+
+    // ===== TER Travel Order (business trip individu & grup) =====
+
+    // Simpan draft / submit TER berbasis Travel Order dengan rincian per hari (normalized days + expenses)
+    public function storeTravelOrderReport(User $user, array $data, array $days, array $attachmentFilesByKey = []): TravelExpenseReport
+    {
+        $order = $this->repository->findClaimableTravelOrderFor($user, (int) $data['travel_order_id']);
+
+        $existing = $this->repository->findByTravelOrderId($order->id);
+
+        if ($existing) {
+            abort_unless(
+                in_array($existing->status, [TravelExpenseReport::STATUS_DRAFT, TravelExpenseReport::STATUS_REVISION_REQUIRED], true),
+                422,
+                'A Travel Expense Report already exists for this Travel Order.',
+            );
+        }
+
+        $preparedDays = $this->prepareTravelOrderDays($days);
+        $submit = ($data['action'] ?? 'draft') === 'submit';
+
+        if ($submit) {
+            $this->assertTravelOrderDaysSubmittable($preparedDays, $attachmentFilesByKey);
+            // Alur approval mengikuti matrix TER per travel region TO
+            $this->approvalService->assertMatrixFor($user, $order->travel_region);
+        }
+
+        $advance = $order->advance;
+        $totals = $this->totalsFromTravelOrderDays($preparedDays);
+        $advanceTotal = (float) ($advance?->meal_allowance ?? 0) + (float) ($advance?->pocket_money ?? 0);
+
+        $payload = [
+            'status' => TravelExpenseReport::STATUS_DRAFT,
+            // Advance hanya untuk IDR (Domestic) - region non-IDR tidak menerima advance
+            'currency' => ($advance?->currency && $advance->currency !== 'IDR') ? $advance->currency : 'IDR',
+            'advance_meal_allowance' => round((float) ($advance?->meal_allowance ?? 0), 2),
+            'advance_pocket_money' => round((float) ($advance?->pocket_money ?? 0), 2),
+            'total_eligible' => $totals['eligible'],
+            'total_actual_amount' => $totals['actual'],
+        ];
+
+        if ($submit) {
+            $payload['status'] = TravelExpenseReport::STATUS_SUBMITTED;
+            $payload['document_number'] = $this->repository->generateDocumentNumber();
+            $payload['submitted_at'] = now();
+            // Positif = kembali ke perusahaan, negatif = reimburse ke karyawan
+            $payload['settlement_amount'] = round($advanceTotal - $totals['eligible'], 2);
+        }
+
+        $report = $this->repository->saveTravelOrderReport($user, $order, $payload, $preparedDays, $attachmentFilesByKey);
+
+        if ($submit) {
+            $this->startApprovalFlow($report);
+        }
+
+        return $report;
+    }
+
+    // Normalisasi payload days dari FE: buang expense kosong & rapikan field per item
+    private function prepareTravelOrderDays(array $days): array
+    {
+        return collect($days)->values()->map(function ($day, $index) {
+            return [
+                'day_number' => (int) ($day['day_number'] ?? ($index + 1)),
+                'date' => $day['date'],
+                'type' => $day['type'] ?? 'stay',
+                'effective_time' => $day['effective_time'] ?? null,
+                'different_countries' => (bool) ($day['different_countries'] ?? false),
+                'expenses' => collect($day['expenses'] ?? [])->filter(fn ($expense) => $this->travelOrderExpenseClaimed($expense))->values()->map(function ($expense) {
+                    return [
+                        'category' => $expense['category'],
+                        'item_index' => (int) ($expense['item_index'] ?? 1),
+                        'kind' => $expense['kind'] ?? null,
+                        'description' => $expense['description'] ?? null,
+                        'currency' => $expense['currency'] ?? 'IDR',
+                        'actual_amount' => round((float) ($expense['actual_amount'] ?? 0), 2),
+                        'eligible_amount' => isset($expense['eligible_amount']) && $expense['eligible_amount'] !== '' ? round((float) $expense['eligible_amount'], 2) : null,
+                        'manual_review' => (bool) ($expense['manual_review'] ?? false),
+                        'payment_mode' => $expense['payment_mode'] ?? TravelExpenseReportExpense::PAYMENT_MYSELF,
+                        'paid_by' => $expense['paid_by'] ?? null,
+                        'paid_for' => array_values(array_filter((array) ($expense['paid_for'] ?? []))),
+                        'dinner_type' => $expense['dinner_type'] ?? null,
+                        'justification' => $expense['justification'] ?? null,
+                        'hotel_name' => $expense['hotel_name'] ?? null,
+                        'room_type' => $expense['room_type'] ?? null,
+                        'hotel_standard' => $expense['hotel_standard'] ?? null,
+                        'attachment_key' => $expense['attachment_key'] ?? null,
+                        'existing_attachment_path' => $expense['existing_attachment_path'] ?? null,
+                        'existing_attachment_name' => $expense['existing_attachment_name'] ?? null,
+                    ];
+                })->all(),
+            ];
+        })->filter(fn ($day) => count($day['expenses']) > 0 || $day['day_number'] === 1)->values()->all();
+    }
+
+    // Expense ikut disimpan saat benar-benar diklaim (amount > 0), catatan payment arrangement grup,
+    // atau entitlement tetap per hari (fixed basis) yang tetap direkam walaupun tanpa aktual
+    private function travelOrderExpenseClaimed(array $expense): bool
+    {
+        $mode = $expense['payment_mode'] ?? TravelExpenseReportExpense::PAYMENT_MYSELF;
+
+        if ($mode === TravelExpenseReportExpense::PAYMENT_PAID_BY_OTHER) {
+            return true;
+        }
+
+        if ((float) ($expense['actual_amount'] ?? 0) > 0) {
+            return true;
+        }
+
+        return in_array($expense['category'] ?? '', TravelExpenseReportExpense::FIXED_CATEGORIES, true)
+            && isset($expense['eligible_amount'])
+            && $expense['eligible_amount'] !== null
+            && $expense['eligible_amount'] !== '';
+    }
+
+    // Validasi kelengkapan sebelum submit - draft boleh belum lengkap
+    private function assertTravelOrderDaysSubmittable(array $days, array $attachmentFilesByKey): void
+    {
+        $claimedTotal = 0;
+
+        foreach ($days as $day) {
+            foreach ($day['expenses'] as $expense) {
+                $claimedTotal++;
+                $this->assertTravelOrderExpense($expense, $attachmentFilesByKey);
+            }
+        }
+
+        abort_unless($claimedTotal > 0, 422, 'At least one expense must be claimed before submitting the Travel Expense Report.');
+    }
+
+    private function assertTravelOrderExpense(array $expense, array $attachmentFilesByKey): void
+    {
+        $mode = $expense['payment_mode'];
+        $category = $expense['category'];
+
+        abort_unless(in_array($category, TravelExpenseReportExpense::CATEGORIES, true), 422, "The expense category \"{$category}\" is not recognized.");
+
+        abort_unless(in_array($mode, TravelExpenseReportExpense::PAYMENT_MODES, true), 422, "The payment arrangement \"{$mode}\" is not recognized.");
+
+        if ($mode === TravelExpenseReportExpense::PAYMENT_PAID_BY_OTHER) {
+            abort_unless(filled($expense['paid_by']), 422, "The payer is required for a \"Paid by Other\" expense ({$category}, day {$expense['day_number']}).");
+
+            return;
+        }
+
+        // Entitlement tetap (fixed basis) boleh tanpa aktual - barisnya merekam hak entitlement per hari
+        $isFixed = in_array($category, TravelExpenseReportExpense::FIXED_CATEGORIES, true);
+
+        abort_if(! $isFixed && (float) $expense['actual_amount'] <= 0, 422, "The claimed amount is required for {$category} on day {$expense['day_number']}.");
+
+        abort_if((float) $expense['actual_amount'] > 0 && ! filled($expense['description']), 422, "The description is required for {$category} on day {$expense['day_number']}.");
+
+        if ($category === 'dinner' && ($expense['dinner_type'] ?? '') === 'Dinner at Hotel') {
+            abort_unless(filled($expense['justification']), 422, 'The justification is required for a Dinner at Hotel claim.');
+        }
+
+        if ($mode === TravelExpenseReportExpense::PAYMENT_PAY_FOR_OTHERS) {
+            abort_unless(count($expense['paid_for']) > 0, 422, "Select at least one employee covered for a \"Pay for Others\" expense ({$category}, day {$expense['day_number']}).");
+        }
+
+        if (in_array($category, TravelExpenseReportExpense::RECEIPT_CATEGORIES, true)) {
+            // Struk baru yang diupload ATAU file struk lama dari draft yang dipakai ulang
+            $hasFile = (($expense['attachment_key'] ?? null) && isset($attachmentFilesByKey[$expense['attachment_key']]))
+                || filled($expense['existing_attachment_path'] ?? null);
+
+            abort_unless($hasFile, 422, "The supporting document is required for {$category} on day {$expense['day_number']}.");
+        }
+    }
+
+    // Total actual & eligible hanya dari expense yang diklaim (paid_by_other tidak masuk hitungan)
+    private function totalsFromTravelOrderDays(array $days): array
+    {
+        $expenses = collect($days)->flatMap(fn ($day) => $day['expenses'])
+            ->filter(fn ($expense) => $expense['payment_mode'] !== TravelExpenseReportExpense::PAYMENT_PAID_BY_OTHER);
+
+        return [
+            'actual' => round($expenses->sum(fn ($expense) => (float) $expense['actual_amount']), 2),
+            'eligible' => round($expenses->sum(fn ($expense) => (float) ($expense['eligible_amount'] ?? 0)), 2),
+        ];
     }
 
     // Tiket harus milik user dan sudah diproses GMO (processed_by_gmo / partially_cancelled)
